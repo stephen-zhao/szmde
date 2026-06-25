@@ -1,0 +1,81 @@
+/* szmde global styles — dark by default (SPEC §7). Light mode arrives at M5. */
+:root {
+  /* Dark palette (default) */
+  --bg: #1e1e22;
+  --bg-raised: #26262b;
+  --bg-hover: #303036;
+  --text: #e6e6ea;
+  --muted: #8a8a94;
+  --border: #34343b;
+  --accent: #7c9cff;
+  --code: #c8d3ff;
+  --code-bg: #17181d;
+  --code-header-bg: #20222b;
+  --code-border: #2c2e38;
+  --faint: #5d5d68;
+  --selection: #38486f;
+
+  --font-body: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", "Consolas", ui-monospace, monospace;
+
+  /* Scrollbar metrics, shared by the editor + any scroll area. */
+  --scrollbar-size: 10px;
+  --scrollbar-thumb: #3c3c45;
+  --scrollbar-thumb-hover: #4c4c57;
+
+  /* Tells the engine (WebView2/Chromium) to render native UI bits dark, so
+     default scrollbars/controls don't flash white before our styling applies. */
+  color-scheme: dark;
+
+  color: var(--text);
+  background-color: var(--bg);
+  font-family: var(--font-body);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom dark scrollbars (Windows' default white bar is replaced). Applies to
+   the editor scroller and every other scroll container. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+*::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+/* The editor root (.app) sizes itself with 100dvh, so no fragile percentage
+   height chain through SvelteKit's display:contents mount wrapper is needed. */
+
+/* Prevent the OS text-selection / drag cursor on chrome; the editor manages its own. */
+button {
+  font-family: inherit;
+}
