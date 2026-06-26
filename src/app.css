@@ -18,6 +18,10 @@
   --font-body: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Code", "Consolas", ui-monospace, monospace;
 
+  /* Base editor paragraph size. 16px ≈ 12pt; syntax markers derive an absolute
+     small size from this (0.75 ≈ 9pt) so they never inherit heading enlargement. */
+  --editor-font-size: 16px;
+
   /* Scrollbar metrics, shared by the editor + any scroll area. */
   --scrollbar-size: 10px;
   --scrollbar-thumb: #3c3c45;

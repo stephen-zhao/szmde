@@ -10,17 +10,23 @@
   } from "@tauri-apps/plugin-dialog";
   import Editor, { type EditorApi } from "$lib/Editor.svelte";
   import type { WrapState } from "$lib/editor/setup";
+  import type { RenderMode } from "$lib/editor/render-mode";
   import HamburgerMenu from "$lib/HamburgerMenu.svelte";
 
   let editor: EditorApi | undefined;
   let filePath = $state<string | null>(null);
   let dirty = $state(false);
   let wrapState = $state<WrapState>("on");
+  let renderMode = $state<RenderMode>("clean");
 
   // Editor-wide toggle: forces all blocks (clearing per-block overrides).
   // 'off' or 'partial' → turn wrap on for all; 'on' → turn it off for all.
   function toggleCodeWrap() {
     editor?.setCodeWrap(wrapState !== "on");
+  }
+
+  function setRenderMode(mode: RenderMode) {
+    editor?.setRenderMode(mode);
   }
 
   const MD_FILTERS = [
@@ -199,12 +205,15 @@
     onexit={doExit}
     {wrapState}
     ontogglewrap={toggleCodeWrap}
+    {renderMode}
+    onsetrendermode={setRenderMode}
   />
 
   <Editor
     onready={(api) => (editor = api)}
     onchange={() => (dirty = true)}
     onwrapstate={(s) => (wrapState = s)}
+    onrendermode={(m) => (renderMode = m)}
   />
 
   <!-- Minimal status hint, bottom-right (precursor to the §7.1 EOL/indent widgets).

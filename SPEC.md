@@ -134,6 +134,21 @@ construct's markers become visible so you can edit them, then re-hide when the c
 leaves — the standard live-preview affordance. (Markers are never made visible for
 constructs the cursor isn't in.)
 
+In Clean mode, unordered-list bullets and ordered-list numbers are **content, not syntax**,
+so they render in normal text color (not greyed) — only the truly-syntactic markers are
+hidden/greyed.
+
+**Deferred refinement (markers-syntax layout — later):** in markers-syntax mode, block-level
+leading markers should hang in the **left margin** (negative indent, to the left of the text
+column) so the content stays flush at the left margin rather than being pushed inward. This
+applies to:
+- **heading markers** (`#`, `##`, …) — and the space following them likewise sits in the
+  gutter, so heading text starts at the left margin;
+- **blockquote markers** (`>`) — they too appear to the left of the left-margin line, keeping
+  quoted text aligned at the margin.
+
+Tracked as a deferred item in [docs/m1-plan.md](docs/m1-plan.md).
+
 ### 4.2 Markdown shortcuts drive formatting (requirement 8)
 
 - Typing markdown syntax produces formatting immediately (`# ` → H1, `- ` → bullet,
@@ -250,7 +265,8 @@ Candidate features, in no particular order:
 - Export to HTML / PDF
 - Collapsible/foldable sections and headings
 - Comments / annotations
-- Multi-document tabs or panes
+- Multi-document **tabs + splittable panes** with drag-and-drop layouting — see §7.2 (large,
+  likely its own milestone; needs a workspace/layout-tree rearchitecture above the editor core)
 - Outline / document map sidebar
 
 _Prioritization to come later — not important for v1._
@@ -358,6 +374,60 @@ the only way to surface/toggle these per-file settings), but a settings flag
 available from the hamburger menu. Other future status items (word count, cursor position)
 would live here too, off by default.
 
+### 7.2 Workspace: tabs & splittable panes (deferred — post-M1, likely a dedicated milestone)
+
+szmde should let you work with **multiple files at once** in a flexible, splittable workspace
+— the VS Code / JetBrains model:
+
+- **Tabs.** Each open file is a tab. Multiple tabs live in a **tab group** (one visible
+  document at a time per group, with a tab strip to switch). Close / reorder tabs.
+- **Split panes.** A tab group can be **split** into two panes — **side-by-side** (vertical
+  split) or **top/bottom** (horizontal split) — for simultaneous viewing/editing. Each
+  resulting pane is itself a tab group that can be split again, so the layout is a
+  **recursive tree** of splits (arbitrary nesting). Splitters are draggable to resize.
+- **Drag-and-drop layouting.** Dragging a tab shows **drop hotzones** on the target pane —
+  center (move into that group), and the four edges (left/right/top/bottom) to **create a new
+  split** in that direction and drop the tab there. Dropping on the tab strip reorders/moves
+  between groups. This is how all split layouts are created and rearranged.
+- Empty panes collapse; the tree simplifies automatically when a pane is emptied.
+
+**Architectural impact (the "rearchitecting"):** today the shell is single-document — one
+`EditorView` and one open file in `+page.svelte`. This feature requires a **workspace model**
+layered above the editor core:
+
+- A **document/buffer registry**: each open file is a document with its own `EditorState`
+  (buffer, undo history, dirty flag, EOL/indent, path), independent of how many panes show it.
+- A **layout tree**: nodes are either a *split* (orientation + children + sizes) or a *leaf*
+  tab-group (ordered list of document ids + active id). Serializable so a session can persist
+  (ties into §8 settings/session state).
+- A **pane/tab-group UI** that mounts a CodeMirror `EditorView` per visible leaf, plus the
+  drag/drop + hotzone interaction and split/resize logic.
+- The CM editor core (render modes, markers, etc.) is **per-document and reusable as-is** —
+  the work is the surrounding workspace/layout layer, the hamburger "Exit/Save" wiring becoming
+  per-tab/per-window, and unsaved-changes guards becoming per-document.
+
+This is the natural home for an eventual multi-window story too. Deferred well beyond M1;
+slot into the roadmap (§10) as its own milestone when prioritized.
+
+### 7.3 Zoom & page width (scroll gestures)
+
+Two modifier-scroll gestures over the editor adjust presentation live:
+
+- **Ctrl/Cmd + scroll → zoom the base text size.** Increases/decreases the base paragraph
+  font size (the `--editor-font-size` variable, §S2). Everything that derives from it scales
+  proportionally — headings, the small syntax-marker size, code, etc. The **reading-column
+  width and side margins stay constant** (in absolute terms): only the text grows/shrinks, so
+  larger text simply wraps sooner within the same column.
+- **Shift + scroll → change the page width / margins.** Adjusts the reading-column width
+  (`.cm-content` max-width), i.e. how wide the text column is vs. the side margins. Wider
+  column ⇄ narrower margins.
+
+Both are bounded (sensible min/max), step in small increments, and map to the same underlying
+appearance settings (`appearance.fontSize` and `appearance.lineWidth`, §8) so the chosen
+zoom/width persists once the settings system lands (M2). Implementation is small — a wheel
+handler on the editor scroller updating the two values — but it's **not yet built**; schedule
+when convenient (it doesn't depend on other milestones).
+
 ---
 
 ## 8. Settings & preferences (requirement 10)
@@ -441,9 +511,18 @@ Illustrative schema:
 Everything above the bridge is shared, untouched per platform. Each platform implements
 the bridge interface only.
 
+> **Future workspace layer (§7.2).** The tabs + splittable-pane workspace adds a layer
+> between the UI shell and the editor engine: a document/buffer registry and a serializable
+> layout tree, with one CodeMirror `EditorView` mounted per visible pane. The editor engine
+> stays per-document and reusable; this is shell/layout work, not editor-core work.
+
 ---
 
 ## 10. Suggested milestones
+
+> Per-milestone **implementation plans** (architecture + staged `S<n>` build slices) live
+> under [`docs/`](docs/) — e.g. [docs/m1-plan.md](docs/m1-plan.md) for M1. This section is
+> the high-level roadmap; the docs are the build breakdown.
 
 1. **M0 – Skeleton:** Tauri + Svelte + CodeMirror 6 booting on Windows/macOS/web; blank
    canvas; hamburger menu; local file open/save (incl. WSL UNC paths on Windows, §6.1);

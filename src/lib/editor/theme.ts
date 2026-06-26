@@ -28,7 +28,7 @@ export const baseTheme = EditorView.theme(
     },
     ".cm-content": {
       caretColor: "var(--accent)",
-      fontSize: "16px",
+      fontSize: "var(--editor-font-size)",
       maxWidth: "740px",
       margin: "0 auto",
       padding: "72px 28px 40vh",
@@ -117,6 +117,39 @@ export const baseTheme = EditorView.theme(
     },
     ".cm-frontmatter-fence": {
       color: "var(--faint)",
+    },
+
+    // --- Markdown markers (render modes, SPEC §4.1) --------------------------
+    // markers-syntax: small greyed token. Absolute size (≈0.75 of the base
+    // paragraph font) so a heading's marker is the SAME small size as a
+    // paragraph's, not enlarged by the inherited heading font-size. Explicit
+    // weight/style override inherited bold/italic so it reads as a syntax token.
+    ".cm-md-mark-syntax": {
+      color: "var(--faint)",
+      fontWeight: "normal",
+      fontStyle: "normal",
+      fontSize: "calc(var(--editor-font-size) * 0.75)",
+      verticalAlign: "baseline",
+    },
+    // markers-rendered: marker styled identically to the text it formats.
+    ".cm-mk-strong": { fontWeight: "700" },
+    ".cm-mk-em": { fontStyle: "italic" },
+    ".cm-mk-strike": { textDecoration: "line-through" },
+    ".cm-mk-code": { fontFamily: "var(--font-mono)", color: "var(--code)" },
+    // Clean mode: list markers are real content, not syntax — normal text color.
+    ".cm-md-bullet": { color: "var(--text)" },
+    ".cm-md-list-number": { color: "var(--text)" },
+
+    // --- Block constructs (headings / blockquote) ---------------------------
+    // Heading size/weight come from the highlight tag; these add vertical
+    // breathing room. Padding (measured by CM), never margin (cursor alignment).
+    ".cm-h1, .cm-h2": { paddingTop: "0.45em" },
+    ".cm-h3, .cm-h4, .cm-h5, .cm-h6": { paddingTop: "0.3em" },
+    // Blockquote: a left bar; consecutive quote lines stack into one continuous
+    // bar. Border + padding shift horizontally only.
+    ".cm-blockquote": {
+      borderLeft: "3px solid var(--border)",
+      paddingLeft: "14px",
     },
   },
   { dark: true },

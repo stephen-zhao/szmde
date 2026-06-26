@@ -13,6 +13,7 @@ import { GFM } from "@lezer/markdown";
 import {
   Compartment,
   Facet,
+  Prec,
   RangeSet,
   RangeSetBuilder,
   RangeValue,
@@ -23,6 +24,15 @@ import type { EditorState, Extension, Range, Text } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import { baseTheme, markdownHighlight } from "./theme";
 import { Frontmatter } from "./frontmatter";
+import {
+  cleanModeContentAttr,
+  renderMode,
+  renderModeCompartment,
+  type RenderMode,
+} from "./render-mode";
+import { markerDecorations, markerAtomicRanges } from "./markers";
+import { blockConstructDecorations } from "./blocks";
+import { editingKeymap, indentExtension } from "./keymap";
 
 // ---------------------------------------------------------------------------
 // Word-wrap state for code blocks
@@ -325,18 +335,37 @@ const revealCursorInCodeBox = ViewPlugin.fromClass(
  * selection is used (no drawSelection) so selection paints over code-block
  * backgrounds.
  */
-export function editorExtensions(initialCodeWrap = true): Extension[] {
+export function editorExtensions(
+  initialCodeWrap = true,
+  initialRenderMode: RenderMode = "clean",
+): Extension[] {
   return [
     history(),
     EditorView.lineWrapping,
-    markdown({ base: markdownLanguage, extensions: [GFM, Frontmatter] }),
+    // addKeymap: false — the markdown keymap is re-added at high precedence in
+    // editingKeymap (keymap.ts) so its Enter-continuation beats the default
+    // keymap. If you remove editingKeymap, re-enable addKeymap here.
+    markdown({ base: markdownLanguage, extensions: [GFM, Frontmatter], addKeymap: false }),
+    indentExtension,
     codeWrapCompartment.of(codeBlockWrap.of(initialCodeWrap)),
+    renderModeCompartment.of(renderMode.of(initialRenderMode)),
+    cleanModeContentAttr,
     wrapOverrides,
     blockLineDecorations,
+    blockConstructDecorations,
+    // Highest decoration precedence so the marker span is the INNERMOST DOM node
+    // (CM nests higher-precedence decorations inside) — its absolute font-size
+    // then wins over a heading's enclosing 1.9em span instead of compounding.
+    Prec.highest(markerDecorations),
+    markerAtomicRanges,
     revealCursorInCodeBox,
     EditorView.blockWrappers.of((view) => buildBlockWrappers(view)),
     baseTheme,
     markdownHighlight,
+    // B/I toggle, render-mode cycle, soft-tab indent — high precedence, above the
+    // default keymap. Markdown Enter/Backspace continuation stays active via
+    // lang-markdown's default keymap.
+    editingKeymap,
     keymap.of([...defaultKeymap, ...historyKeymap]),
   ];
 }

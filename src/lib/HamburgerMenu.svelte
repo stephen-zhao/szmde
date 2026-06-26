@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { WrapState } from "$lib/editor/setup";
+  import { MODE_ORDER, MODE_LABELS, type RenderMode } from "$lib/editor/render-mode";
 
   // The only persistent chrome in szmde (SPEC §7 / §9): a top-left hamburger.
   let {
@@ -10,6 +11,8 @@
     onexit,
     wrapState,
     ontogglewrap,
+    renderMode,
+    onsetrendermode,
   }: {
     onnew: () => void;
     onopen: () => void;
@@ -18,6 +21,8 @@
     onexit: () => void;
     wrapState: WrapState;
     ontogglewrap: () => void;
+    renderMode: RenderMode;
+    onsetrendermode: (mode: RenderMode) => void;
   } = $props();
 
   let open = $state(false);
@@ -66,6 +71,18 @@
       <button role="menuitem" onclick={() => run(onsaveas)}>
         Save As… <span class="kbd">Ctrl+Shift+S</span>
       </button>
+      <hr />
+      <div class="section-label">Render mode <span class="kbd">Ctrl+Shift+M</span></div>
+      {#each MODE_ORDER as mode (mode)}
+        <button
+          role="menuitemradio"
+          aria-checked={renderMode === mode}
+          onclick={() => onsetrendermode(mode)}
+        >
+          {MODE_LABELS[mode]}
+          <span class="check">{renderMode === mode ? "✓" : ""}</span>
+        </button>
+      {/each}
       <hr />
       <button
         role="menuitemcheckbox"
@@ -170,6 +187,17 @@
     font-size: 13px;
     min-width: 12px;
     text-align: right;
+  }
+
+  .section-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 10px 2px;
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
 
   hr {
