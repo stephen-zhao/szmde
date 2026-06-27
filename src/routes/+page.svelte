@@ -16,16 +16,27 @@
   import HamburgerMenu from "$lib/HamburgerMenu.svelte";
   import { settings, initSettings, setSetting, updateSettings } from "$lib/settings/store.svelte";
   import { LocalProvider } from "$lib/storage/local";
-  import { ProviderRegistry } from "$lib/storage/registry";
-  import { StorageError, type Revision } from "$lib/storage/provider";
+  import { StorageError, type Revision, type StorageProvider } from "$lib/storage/provider";
   import { copyPathFor, type ConflictChoice } from "$lib/storage/conflict";
   import { AutosaveScheduler } from "$lib/storage/autosave";
+  import {
+    connectGoogleDrive,
+    disconnectGoogleDrive,
+    isGoogleDriveConnected,
+    makeGoogleDriveProvider,
+  } from "$lib/storage/gdrive-connect";
+  import { parseDriveId } from "$lib/storage/drive-id";
 
-  // File I/O goes through the StorageProvider seam (SPEC §6) rather than raw
-  // `invoke`. All v1 files are local; cloud providers + account-driven selection
-  // register here in a later M3 slice — `get("local")` is always safe.
-  const providers = new ProviderRegistry([new LocalProvider()]);
-  const storage = providers.get("local");
+  // File I/O goes through the StorageProvider seam (SPEC §6). The active provider
+  // is the open document's: local, or Google Drive once connected (M3 L2).
+  const local = new LocalProvider();
+  let driveProvider = $state<StorageProvider | null>(null);
+  let driveConnected = $state(false);
+  let providerId = $state("local");
+  function providerFor(id: string): StorageProvider {
+    return id === "gdrive" && driveProvider ? driveProvider : local;
+  }
+  const storage = $derived(providerFor(providerId));
 
   // Debounced autosave (REQ-SAVE-2). Disabled until effective settings load
   // (initSettings below seeds enabled/interval). Only autosaves a file that has a
@@ -165,9 +176,10 @@
   }
 
   // --- File operations --------------------------------------------------------
-  async function openPath(path: string) {
+  async function openPath(path: string, pid = "local") {
     try {
-      const { content: raw, rev } = await storage.read(path);
+      providerId = pid;
+      const { content: raw, rev } = await providerFor(pid).read(path);
       const detected = detectEol(raw);
       eol = detected === "mixed" ? "lf" : detected; // mixed normalizes to LF on save
       editor?.setContent(toLf(raw)); // the editor buffer is always LF
@@ -188,6 +200,7 @@
     editor?.setContent("");
     filePath = null;
     baseRev = null;
+    providerId = "local"; // new docs are local until saved elsewhere
     dirty = false;
     eol = settings.value.editor.defaultEol; // new docs use the persisted default (SPEC §4.4)
     editor?.focus();
@@ -288,8 +301,63 @@
     await getCurrentWindow().destroy();
   }
 
+  // --- Google Drive (M3 L2) ---------------------------------------------------
+  async function doConnectDrive() {
+    try {
+      await connectGoogleDrive(); // opens the system browser; user signs in
+      driveProvider = await makeGoogleDriveProvider();
+      driveConnected = driveProvider !== null;
+      await message("Google Drive connected.", { title: "Google Drive" });
+    } catch (e) {
+      await message(`Couldn't connect Google Drive:\n${e}`, {
+        title: "Connect failed",
+        kind: "error",
+      });
+    }
+  }
+
+  async function doDisconnectDrive() {
+    await disconnectGoogleDrive();
+    driveProvider = null;
+    driveConnected = false;
+  }
+
+  async function doOpenDrive() {
+    if (!(await guardUnsaved())) return;
+    if (!driveConnected) {
+      await doConnectDrive();
+      if (!driveConnected) return;
+    }
+    const input = await askDriveId();
+    if (!input) return;
+    await openPath(parseDriveId(input), "gdrive");
+  }
+
+  // Open-from-Drive input modal. Unlike the other modals it has a text field, so
+  // it does NOT trap/suppress keys — the input owns its Enter/Escape.
+  let driveInputOpen = $state(false);
+  let driveInputValue = $state("");
+  let driveInputResolve: ((v: string | null) => void) | null = null;
+  function askDriveId(): Promise<string | null> {
+    if (driveInputResolve) return Promise.resolve(null);
+    driveInputValue = "";
+    driveInputOpen = true;
+    return new Promise<string | null>((resolve) => {
+      driveInputResolve = resolve;
+    });
+  }
+  function resolveDriveInput(v: string | null) {
+    driveInputOpen = false;
+    driveInputResolve?.(v);
+    driveInputResolve = null;
+    editor?.focus();
+  }
+
   // --- Shortcuts --------------------------------------------------------------
   function onKeydown(e: KeyboardEvent) {
+    // The Drive-id modal has a text input that owns its own keys (Enter/Escape);
+    // just stop app shortcuts from firing while it's open.
+    if (driveInputOpen) return;
     // While a modal is open, swallow EVERY key (not just its shortcuts) so nothing
     // leaks into the editor behind it. Focus is also trapped into the modal (see
     // use:trapFocus), so CM never receives the keystroke in the first place; this
@@ -341,6 +409,14 @@
       if (launch) openPath(launch);
     });
 
+    // Re-establish a previously connected Google Drive account (M3 L2).
+    isGoogleDriveConnected().then(async (connected) => {
+      if (connected) {
+        driveProvider = await makeGoogleDriveProvider();
+        driveConnected = driveProvider !== null;
+      }
+    });
+
     // Load persisted settings (§8), then seed the editor + new-doc EOL from them.
     // Runs concurrently with get_launch_file; an opened file's detected EOL still
     // wins (openPath overwrites `eol`), so defaultEol only governs new docs.
@@ -369,6 +445,10 @@
     onsave={doSave}
     onsaveas={doSaveAs}
     onexit={doExit}
+    onopendrive={doOpenDrive}
+    onconnectdrive={doConnectDrive}
+    ondisconnectdrive={doDisconnectDrive}
+    {driveConnected}
     {wrapState}
     ontogglewrap={toggleCodeWrap}
     {renderMode}
@@ -456,6 +536,31 @@
           <button onclick={() => resolveConflictModal("save-copy")}>Save a copy</button>
           <button class="btn-danger" onclick={() => resolveConflictModal("reload")}>Reload theirs</button>
           <button onclick={() => resolveConflictModal("cancel")}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if driveInputOpen}
+    <div class="modal-backdrop" role="presentation">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="drive-title">
+        <h2 id="drive-title">Open from Google Drive</h2>
+        <p>Paste a Google Drive file link or ID:</p>
+        <!-- svelte-ignore a11y_autofocus -->
+        <input
+          class="drive-input"
+          type="text"
+          autofocus
+          placeholder="https://drive.google.com/file/d/…/view"
+          bind:value={driveInputValue}
+          onkeydown={(e) => {
+            if (e.key === "Enter") resolveDriveInput(driveInputValue);
+            else if (e.key === "Escape") resolveDriveInput(null);
+          }}
+        />
+        <div class="modal-actions">
+          <button class="btn-primary" onclick={() => resolveDriveInput(driveInputValue)}>Open</button>
+          <button onclick={() => resolveDriveInput(null)}>Cancel</button>
         </div>
       </div>
     </div>
@@ -580,6 +685,21 @@
     line-height: 1.5;
     word-break: break-word;
   }
+  .drive-input {
+    width: 100%;
+    margin: 0 0 16px;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-input, var(--bg));
+    color: var(--text);
+    font-size: 13px;
+  }
+  .drive-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
   .modal-actions {
     display: flex;
     justify-content: flex-end;
