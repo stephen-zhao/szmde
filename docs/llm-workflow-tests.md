@@ -14,6 +14,11 @@ that gap._
 > CSS box model, `getBoundingClientRect`, `caretPositionFromPoint`, or pointer
 > dispatch, so none of this is expressible as a normal unit test.
 
+> **Interim form.** This flat file is the usable v1. Promoting it to a first-class
+> `e2e/` structure (one file per workflow + a maintained harness + a linkage-audit
+> script) is tracked as **`REQ-TESTINFRA-1`** in [roadmap.md](roadmap.md) — not yet
+> scheduled.
+
 ## When to run
 
 - Before tagging a release.

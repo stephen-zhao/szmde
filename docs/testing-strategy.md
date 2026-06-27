@@ -15,6 +15,25 @@ _Status: **testing gate complete** (after M1, before M2; deferred E2E/LLM infra 
 | **T3** | **Every product requirement has linked functional test(s), auditable.** The test may be a unit, integration, or LLM-driven behavioral test — whichever fits that requirement best — and is linked to the requirement so coverage of requirements is auditable. |
 | **T4** | **TDD when possible** — write the failing test that captures intended behavior before writing the implementation (once the behavior is planned). Already in practice for editor behaviors. |
 
+## Test organization & conventions
+
+Tests are **co-located** with the code they cover — the Vitest idiom; there is no
+separate `tests/` tree (decided 2026-06-27). The kind is encoded in the filename:
+
+- `src/**/<module>.test.ts` — pure unit tests, beside their module (e.g.
+  `settings/merge.test.ts`, `editor/eol.test.ts`).
+- `src/**/<module>.dom.test.ts` — integration tests that build a real `EditorView`
+  in happy-dom (e.g. `editor/markers.dom.test.ts`, `editor/table.dom.test.ts`).
+- `src-tauri/src/lib.rs` — Rust units in a `#[cfg(test)] mod tests`.
+- `e2e/` — **planned (`REQ-TESTINFRA-1`, [roadmap.md](roadmap.md))**: first-class
+  live-WebView workflow tests. Interim home is the flat catalog in
+  [llm-workflow-tests.md](llm-workflow-tests.md).
+
+Why co-located: a test imports its neighbor with `./x`, coverage scoping is a clean
+`src/**/*.ts`, and a module + its test move/delete together. Commands:
+`npm run test` · `npm run test:coverage` · `npm run test:trace` (requirement↔test
+audit) · `cargo test --manifest-path src-tauri/Cargo.toml --lib`.
+
 ## T1 — 100% unit coverage
 
 - **Tooling:** Vitest coverage (`@vitest/coverage-v8`), run via `npm run test -- --coverage`; enforce a

@@ -81,6 +81,12 @@ Absorbs the M2 table deferrals. On-disk stays portable GFM pipe tables.
 | REQ-UL-1 | Underline via the `<u>` HTML allowlist (depends on REQ-HTML-1) | §5.3 | with REQ-HTML-1 |
 | REQ-IMG-3 | Desktop local image assets: Tauri `convertFileSrc` + asset-protocol scope + resolve relative to the open file's dir _(M2 follow-up — remote/`data:` work today)_ | §5.1, §6.1 | M3 or M5 |
 
+### Engineering & test infrastructure ⬜
+Not product features, but tracked the same way (no ad-hoc infra work either).
+| REQ | Requirement | Ref |
+|-----|-------------|-----|
+| REQ-TESTINFRA-1 | **First-class live-WebView workflow tests.** Promote the flat [llm-workflow-tests.md](llm-workflow-tests.md) to an `e2e/` directory: one structured (YAML-frontmatter) file per workflow (`id`, `req`, `bug`, `status`, steps), a maintained `e2e/harness.js` (the `window.__T` helpers), and a `check-workflows.mjs` audit that gates the linkage — every workflow → a known `REQ-*`, and every "needs live test" `REQ-*` → a workflow. Execution stays LLM/agent-driven (live WebView + judgment); only the linkage is CI-gateable. | [testing-strategy.md](testing-strategy.md) |
+
 ## Backlog 🅑 (SPEC §5.4 orthogonal features — specced, unscheduled, ranked later per §11)
 
 Each is a real requirement with a home the moment it's prioritized — pull into a milestone when ranked.
