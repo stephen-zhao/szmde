@@ -33,7 +33,7 @@ function build(mode: RenderMode = "clean"): EditorView {
   return v;
 }
 
-describe("MODE_ORDER / MODE_LABELS — the three modes", () => {
+describe("[REQ-RENDER-1] MODE_ORDER / MODE_LABELS — the three modes", () => {
   it("orders the modes clean → markers-rendered → markers-syntax", () => {
     expect(MODE_ORDER).toEqual(["clean", "markers-rendered", "markers-syntax"]);
   });
@@ -81,7 +81,7 @@ describe("setRenderMode — reconfigures the compartment per mode", () => {
   });
 });
 
-describe("cycleRenderMode — advances through MODE_ORDER and wraps", () => {
+describe("[REQ-RENDER-7] cycleRenderMode — advances through MODE_ORDER and wraps", () => {
   it("steps clean → markers-rendered → markers-syntax → clean (full loop)", () => {
     const v = build("clean");
     expect(renderModeOf(v.state)).toBe("clean");

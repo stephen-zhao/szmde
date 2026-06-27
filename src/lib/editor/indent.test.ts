@@ -12,13 +12,13 @@ import {
 } from "./indent";
 import { editorExtensions } from "./setup";
 
-describe("indentUnitString", () => {
+describe("[REQ-INDENT-1] indentUnitString", () => {
   it("spaces width 2", () => expect(indentUnitString({ style: "spaces", width: 2 })).toBe("  "));
   it("spaces width 4", () => expect(indentUnitString({ style: "spaces", width: 4 })).toBe("    "));
   it("tab", () => expect(indentUnitString({ style: "tab", width: 4 })).toBe("\t"));
 });
 
-describe("indentConfigOf", () => {
+describe("[REQ-INDENT-1] indentConfigOf", () => {
   const cfg = (c: IndentConfig) => indentConfigOf(EditorState.create({ extensions: indentExtension(c) }));
   it("reads spaces 2", () => expect(cfg({ style: "spaces", width: 2 })).toEqual({ style: "spaces", width: 2 }));
   it("reads spaces 4", () => expect(cfg({ style: "spaces", width: 4 })).toEqual({ style: "spaces", width: 4 }));
@@ -32,14 +32,14 @@ describe("indentConfigOf", () => {
   });
 });
 
-describe("indentUnitString — width clamp", () => {
+describe("[REQ-INDENT-1] indentUnitString — width clamp", () => {
   it("clamps a sub-1 width to a single space (never zero spaces)", () => {
     expect(indentUnitString({ style: "spaces", width: 0 })).toBe(" ");
     expect(indentUnitString({ style: "spaces", width: -3 })).toBe(" ");
   });
 });
 
-describe("setIndent — live reconfigure", () => {
+describe("[REQ-INDENT-1] setIndent — live reconfigure", () => {
   let view: EditorView | undefined;
   afterEach(() => {
     view?.destroy();
@@ -59,7 +59,7 @@ describe("setIndent — live reconfigure", () => {
   });
 });
 
-describe("convertIndentation", () => {
+describe("[REQ-INDENT-2] convertIndentation", () => {
   let view: EditorView | undefined;
   afterEach(() => {
     view?.destroy();

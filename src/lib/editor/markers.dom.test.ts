@@ -34,7 +34,7 @@ const lineText = (v: EditorView, n: number) =>
   v.contentDOM.querySelectorAll(".cm-line")[n]?.textContent ?? "";
 const count = (v: EditorView, sel: string) => v.contentDOM.querySelectorAll(sel).length;
 
-describe("Clean (Formatted) mode — rendered DOM", () => {
+describe("[REQ-RENDER-2][REQ-RENDER-3] Clean (Formatted) mode — rendered DOM", () => {
   it("renders an unordered-list marker as a • bullet, not raw '- '", () => {
     const v = build("- one\n- two");
     expect(count(v, ".cm-md-bullet")).toBe(2);
@@ -66,7 +66,7 @@ describe("Clean (Formatted) mode — rendered DOM", () => {
   });
 });
 
-describe("Clean mode — list continuation hang-indent", () => {
+describe("[REQ-LIST-6] Clean mode — list continuation hang-indent", () => {
   // A soft-broken continuation line's leading whitespace is replaced by an
   // invisible clone of the marker prefix, so the text aligns under the content
   // regardless of font. (happy-dom has no layout, so we assert the clone's
@@ -116,7 +116,7 @@ describe("Clean mode — list continuation hang-indent", () => {
   });
 });
 
-describe("Syntax mode — rendered DOM", () => {
+describe("[REQ-RENDER-4] Syntax mode — rendered DOM", () => {
   it("shows markers as small tokens, kept in the text", () => {
     const v = build("# Heading", "markers-syntax", 0);
     expect(count(v, ".cm-md-mark-syntax")).toBeGreaterThan(0);
@@ -131,7 +131,7 @@ describe("Syntax mode — rendered DOM", () => {
   });
 });
 
-describe("Source (markers-rendered) mode — rendered DOM", () => {
+describe("[REQ-RENDER-5] Source (markers-rendered) mode — rendered DOM", () => {
   it("keeps emphasis markers visible while styling the construct", () => {
     const v = build("**bold**", "markers-rendered", 0);
     expect(count(v, ".cm-mk-strong")).toBeGreaterThan(0);
@@ -212,7 +212,7 @@ describe("markerAtomicRanges — hidden markers become atomic", () => {
     expect(total).toBe(0);
   });
 
-  it("falls back to an empty set when the marker plugin is absent", () => {
+  it("[REQ-RENDER-6] falls back to an empty set when the marker plugin is absent", () => {
     // markerAtomicRanges alone, with no markerDecorations plugin to read from:
     // the `view.plugin(...) ?? RangeSet.empty` fallback must yield an empty set.
     view = new EditorView({

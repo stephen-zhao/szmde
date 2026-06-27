@@ -47,7 +47,7 @@ function clickToggle(v: EditorView, i = 0) {
 // A standard closed fenced block: open fence, 2 content lines, close fence.
 const CLOSED = "```js\nconst x = 1;\nconst y = 2;\n```\n";
 
-describe("codeBlockWrap default + setGlobalWrap", () => {
+describe("[REQ-BLOCK-3] codeBlockWrap default + setGlobalWrap", () => {
   it("defaults code blocks to wrap=on (cm-cb-code, wrapping box)", () => {
     const v = build(CLOSED, true);
     expect(wrapStateOf(v.state)).toBe("on");
@@ -98,7 +98,7 @@ describe("codeBlockWrap default + setGlobalWrap", () => {
   });
 });
 
-describe("wrapStateOf — tri-state for the menu control", () => {
+describe("[REQ-BLOCK-3] wrapStateOf — tri-state for the menu control", () => {
   it("is 'partial' when a block's override DIFFERS from the default", () => {
     const v = build(CLOSED, true); // default on
     clickToggle(v); // override this block off
@@ -114,7 +114,7 @@ describe("wrapStateOf — tri-state for the menu control", () => {
   });
 });
 
-describe("per-block setBlockWrap override (via toggle widget)", () => {
+describe("[REQ-BLOCK-3] per-block setBlockWrap override (via toggle widget)", () => {
   it("flips just one block's box between wrapping and nowrap", () => {
     const v = build(CLOSED, true);
     // Sanity: starts as the wrapping box.
@@ -146,7 +146,7 @@ describe("per-block setBlockWrap override (via toggle widget)", () => {
   });
 });
 
-describe("blockLineDecorations — fence/content/frontmatter line classes", () => {
+describe("[REQ-BLOCK-3] blockLineDecorations — fence/content/frontmatter line classes", () => {
   it("marks open fence, content lines, and close fence on a closed block", () => {
     const v = build(CLOSED, true);
     expect(count(v, ".cm-cb-open")).toBe(1); // first line only
@@ -199,7 +199,7 @@ describe("blockLineDecorations — fence/content/frontmatter line classes", () =
   });
 });
 
-describe("buildBlockWrappers — content-only scroll box", () => {
+describe("[REQ-BLOCK-3] buildBlockWrappers — content-only scroll box", () => {
   it("boxes the CONTENT lines and leaves both fences outside the box", () => {
     const v = build(CLOSED, true);
     const box = v.contentDOM.querySelector(".cm-cb-box");

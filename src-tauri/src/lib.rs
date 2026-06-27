@@ -245,6 +245,9 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    // Requirement coverage (docs/traceability.md):
+    //   [REQ-CLI-1] parse_cli   ·  [REQ-CLI-2] resolve_path
+    //   [REQ-FILE-1] read_file   ·  [REQ-FILE-2] write_file (atomic)
     use super::*;
 
     fn args(v: &[&str]) -> std::vec::IntoIter<String> {

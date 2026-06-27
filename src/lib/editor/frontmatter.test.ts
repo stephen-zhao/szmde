@@ -50,7 +50,7 @@ function frontmatter(state: EditorState): SyntaxNode | undefined {
   return all[0];
 }
 
-describe("Frontmatter block parser", () => {
+describe("[REQ-BLOCK-4] Frontmatter block parser", () => {
   it("treats a leading `--- … ---` YAML block as one Frontmatter node", () => {
     const doc = "---\ntitle: Hello\ntags: [a, b]\n---\n\nbody text";
     const state = parse(doc);

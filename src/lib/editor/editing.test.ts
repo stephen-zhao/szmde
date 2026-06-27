@@ -44,7 +44,7 @@ function press(
 }
 const doc = (v: EditorView) => v.state.doc.toString();
 
-describe("Enter — list/quote continuation", () => {
+describe("[REQ-LIST-1][REQ-LIST-2] Enter — list/quote continuation", () => {
   it("Enter in an unordered list adds a new bullet", () => {
     const v = make("- item", 6);
     press(v, "Enter");
@@ -103,7 +103,7 @@ describe("Enter — list/quote continuation", () => {
   });
 });
 
-describe("Enter — multi-line list items (continuation lines)", () => {
+describe("[REQ-LIST-3] Enter — multi-line list items (continuation lines)", () => {
   // Repro: type "- one", Shift-Enter (soft break, no marker), type "two", then
   // Enter. The caret sits on a CONTINUATION line that the parser folds into the
   // ListItem (it doesn't start with a marker). Enter must still open a new bullet.
@@ -138,7 +138,7 @@ describe("Enter — multi-line list items (continuation lines)", () => {
   });
 });
 
-describe("Shift+Enter — soft break hangs under list content", () => {
+describe("[REQ-LIST-5] Shift+Enter — soft break hangs under list content", () => {
   // A soft break inside a list item should align the new line under the item's
   // CONTENT (past the marker), not drop to column 0.
   it("hangs a bullet continuation under the text (2-space marker)", () => {
@@ -173,7 +173,7 @@ describe("Shift+Enter — soft break hangs under list content", () => {
   });
 });
 
-describe("Tab — soft tab vs list nesting", () => {
+describe("[REQ-LIST-4][REQ-INDENT-1] Tab — soft tab vs list nesting", () => {
   it("Tab on an empty list item nests it instead of inserting spaces", () => {
     const v = make("- ", 2);
     press(v, "Tab");
@@ -201,7 +201,7 @@ describe("Tab — soft tab vs list nesting", () => {
   });
 });
 
-describe("Ctrl/Cmd+B / +I — toggle emphasis", () => {
+describe("[REQ-FORMAT-1][REQ-FORMAT-2] Ctrl/Cmd+B / +I — toggle emphasis", () => {
   it("Ctrl+B wraps the word at the cursor in **", () => {
     const v = make("hello world", 8); // cursor inside "world"
     press(v, "b", { ctrl: true });
@@ -243,7 +243,7 @@ describe("Ctrl/Cmd+B / +I — toggle emphasis", () => {
   });
 });
 
-describe("Keymap guard fallbacks (non-list / in-code paths)", () => {
+describe("[REQ-FORMAT-1][REQ-LIST-4] Keymap guard fallbacks (non-list / in-code paths)", () => {
   it("Tab with a non-empty selection indents the line(s) (indentMore)", () => {
     const v = make("hi", 0, 2); // "hi" selected
     press(v, "Tab");

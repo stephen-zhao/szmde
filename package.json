@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:trace": "node scripts/check-traceability.mjs",
     "tauri": "tauri"
   },
   "license": "MIT",

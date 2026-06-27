@@ -27,7 +27,7 @@ function collectInjectedCss(): string {
   return css;
 }
 
-describe("Editor theme — scrollbar gutter", () => {
+describe("[REQ-UI-1] Editor theme — scrollbar gutter", () => {
   it("reserves a stable scrollbar gutter so the centered column never shifts", () => {
     view = new EditorView({
       state: EditorState.create({ doc: "", extensions: editorExtensions() }),

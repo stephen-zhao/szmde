@@ -33,7 +33,7 @@ function build(doc: string): EditorView {
 const lineClasses = (v: EditorView, n: number) =>
   Array.from(v.contentDOM.querySelectorAll(".cm-line")[n]?.classList ?? []);
 
-describe("blockConstructDecorations — heading line classes", () => {
+describe("[REQ-BLOCK-1] blockConstructDecorations — heading line classes", () => {
   it("maps each ATX level to its matching cm-h1..cm-h6 class", () => {
     const v = build("# a\n## b\n### c\n#### d\n##### e\n###### f");
     // Each heading line carries exactly the class for its own level.
@@ -55,7 +55,7 @@ describe("blockConstructDecorations — heading line classes", () => {
   });
 });
 
-describe("blockConstructDecorations — blockquote line classes", () => {
+describe("[REQ-BLOCK-2] blockConstructDecorations — blockquote line classes", () => {
   it("marks a single blockquote line with cm-blockquote", () => {
     const v = build("> quoted");
     expect(lineClasses(v, 0)).toContain("cm-blockquote");
