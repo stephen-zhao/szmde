@@ -39,4 +39,4 @@ Tauri does not cross-compile between desktop OSes:
 - **Windows / Web** — built locally on Windows.
 - **macOS** — built on macOS (a Mac or a `macos-latest` GitHub Actions runner via
   `tauri-action`); cannot be produced from Windows/WSL.
-- **Android** — Tauri 2 mobile + Android SDK/NDK (milestone M4).
+- **Android** — Tauri 2 mobile + Android SDK/NDK (planned; see [docs/roadmap.md](docs/roadmap.md)).

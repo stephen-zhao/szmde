@@ -23,14 +23,16 @@ spec + milestone + requirement so it can be scheduled without inventing scope._
 
 This completes the **§5.1 v1 markdown feature set** + the settings system. Everything below is post-v1.
 
-## Scheduled milestones (priority order)
+## Scheduled milestones
 
-> Listed **top = next**. The `M<n>` number is a **stable ID, not the sequence** —
-> reprioritizing just reorders this list, so existing references (e.g. SPEC §7.4 → M6,
-> §7.2 → M7) stay valid and milestones never get renumbered. Post-v1 order is yours to
-> set (SPEC §11).
+> **Milestones are fixed, in-order slots** — M3, M4, M5, … always ascending = execution order
+> (M3 is next). You schedule by **moving requirements between slots** (and in/out of the unslotted
+> pools below); a slot's **title just reflects whatever requirements it currently holds** and is
+> retitled as they flow. The stable handles are the requirement IDs (`REQ-*`) — refer to those, not
+> milestone numbers, since a milestone's contents and title are fluid. Order is yours to set (§11).
 >
-> **Current order: M3 → M6 → M8 → M4 → M5 → M7.**
+> _Last reslotted 2026-06-27: table editing (REQ-TBLED-*) and a new authoring set (REQ-EMOJI/FR/
+> COUNT/FOLD) pulled ahead of Android; Android/network/workspace shifted down a slot each._
 
 ### M3 — Cloud storage 🔜  (SPEC §6, §8)
 | REQ | Requirement | SPEC |
@@ -42,8 +44,8 @@ This completes the **§5.1 v1 markdown feature set** + the settings system. Ever
 | REQ-SAVE-3 | Offline local-draft cache + queued writes until reconnect | §6 |
 | REQ-SEC-1 | OAuth tokens in the OS secure store (Credential Manager / Keychain / Keystore) | §6 |
 
-### M6 — Rich table editing ⬜  (SPEC §7.4 — "its own, larger effort")
-_Prioritized ahead of Android (2026-06-27)._ Absorbs the M2 table deferrals. On-disk stays portable GFM pipe tables.
+### M4 — Rich table editing ⬜  (SPEC §7.4)
+Absorbs the M2 table deferrals. On-disk stays portable GFM pipe tables.
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
 | REQ-TBLED-1 | Insert an N×M table from scratch (grid picker / command, not hand-typed) | §7.4 |
@@ -54,9 +56,8 @@ _Prioritized ahead of Android (2026-06-27)._ Absorbs the M2 table deferrals. On-
 | REQ-TBLED-6 | Auto-tidy source + per-column alignment UI (`:--`/`:-:`/`--:`) | §7.4 |
 | REQ-TBLED-7 | Edit-in-place: caret lands at the clicked char inside any cell; up/down arrows enter the table _(deferred from M2 — render-only click lands at cell start today)_ | §7.4, §5.1 |
 
-### M8 — Authoring essentials ⬜  (SPEC §5.4 — promoted from backlog)
-_New milestone (2026-06-27) — power-features the target user (Stephen) needs for daily
-markdown authoring; pulled out of the backlog ahead of Android._
+### M5 — Authoring essentials ⬜  (SPEC §5.4)
+Daily-authoring power-features for the target user (Stephen), promoted from the §5.4 backlog.
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
 | REQ-EMOJI-1 | Emoji shortcodes `:smile:` → rendered emoji | §5.4 |
@@ -64,14 +65,14 @@ markdown authoring; pulled out of the backlog ahead of Android._
 | REQ-COUNT-1 | Word / character count (bottom-right status area) | §5.4, §7.1 |
 | REQ-FOLD-1 | Collapsible / foldable sections & headings | §5.4 |
 
-### M4 — Android ⬜  (SPEC §2)
+### M6 — Android ⬜  (SPEC §2)
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
 | REQ-MOBILE-1 | Tauri 2 mobile build (APK) | §2 |
 | REQ-MOBILE-2 | Responsive UI from desktop down to phone widths | §7 |
 | REQ-MOBILE-3 | Storage Access Framework / scoped storage backend | §6 |
 
-### M5 — Network storage + polish ⬜  (SPEC §6, §7)
+### M7 — Network storage + polish ⬜  (SPEC §6, §7)
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
 | REQ-NET-1 | SMB/CIFS backend (desktop, Rust) | §6 |
@@ -79,7 +80,7 @@ markdown authoring; pulled out of the backlog ahead of Android._
 | REQ-THEME-1 | **Light + system theme** palettes (the `appearance.theme` hook + `data-theme` already exist) | §7, §8 |
 | REQ-A11Y-1 | Accessibility pass: full keyboard op, screen-reader labels, reduced-motion/high-contrast | §7 |
 
-### M7 — Workspace: tabs & splittable panes ⬜  (SPEC §7.2 — "a dedicated milestone")
+### M8 — Workspace: tabs & splittable panes ⬜  (SPEC §7.2)
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
 | REQ-WS-1 | Tabs / tab groups (open, close, reorder) | §7.2 |
@@ -88,15 +89,15 @@ markdown authoring; pulled out of the backlog ahead of Android._
 | REQ-WS-4 | Document/buffer registry (one EditorState per open file, independent of panes) | §7.2 |
 | REQ-WS-5 | Serializable layout tree + session persistence | §7.2, §8 |
 
-### Polish (small, schedulable into M5 or standalone — each already specced)
-| REQ | Requirement | SPEC | Milestone |
-|-----|-------------|------|-----------|
-| REQ-ZOOM-1 | Ctrl/Cmd+scroll → zoom base text size (persists to `appearance.fontSize`) | §7.3 | M5/standalone |
-| REQ-ZOOM-2 | Shift+scroll → page width (persists to `appearance.lineWidth`; the `--reading-width` var already exists) | §7.3 | M5/standalone |
-| REQ-ALT-1 | Alt-key shortcut-hint badges over chrome | §7.5 | M5/standalone |
-| REQ-HTML-1 | HTML render mode (the `markdown.renderHtml` extension hook) | §5.2, §8 | M5/standalone |
-| REQ-UL-1 | Underline via the `<u>` HTML allowlist (depends on REQ-HTML-1) | §5.3 | with REQ-HTML-1 |
-| REQ-IMG-3 | Desktop local image assets: Tauri `convertFileSrc` + asset-protocol scope + resolve relative to the open file's dir _(M2 follow-up — remote/`data:` work today)_ | §5.1, §6.1 | M3 or M5 |
+### Polish pool 🅑 (specced, small — unslotted; fold into a milestone slot when ranked)
+| REQ | Requirement | SPEC |
+|-----|-------------|------|
+| REQ-ZOOM-1 | Ctrl/Cmd+scroll → zoom base text size (persists to `appearance.fontSize`) | §7.3 |
+| REQ-ZOOM-2 | Shift+scroll → page width (persists to `appearance.lineWidth`; the `--reading-width` var already exists) | §7.3 |
+| REQ-ALT-1 | Alt-key shortcut-hint badges over chrome | §7.5 |
+| REQ-HTML-1 | HTML render mode (the `markdown.renderHtml` extension hook) | §5.2, §8 |
+| REQ-UL-1 | Underline via the `<u>` HTML allowlist (depends on REQ-HTML-1) | §5.3 |
+| REQ-IMG-3 | Desktop local image assets: Tauri `convertFileSrc` + asset-protocol scope + resolve relative to the open file's dir _(M2 follow-up — remote/`data:` work today)_ | §5.1, §6.1 |
 
 ### Engineering & test infrastructure ⬜
 Not product features, but tracked the same way (no ad-hoc infra work either).
@@ -107,7 +108,7 @@ Not product features, but tracked the same way (no ad-hoc infra work either).
 ## Backlog 🅑 (SPEC §5.4 orthogonal features — specced, unscheduled, ranked later per §11)
 
 Each is a real requirement with a home the moment it's prioritized — pull into a milestone when ranked.
-_(REQ-EMOJI-1, REQ-FR-1, REQ-COUNT-1, REQ-FOLD-1 were promoted to **M8 — Authoring essentials** on 2026-06-27.)_
+_(REQ-EMOJI-1, REQ-FR-1, REQ-COUNT-1, REQ-FOLD-1 were promoted to **M5 — Authoring essentials** on 2026-06-27.)_
 
 | REQ | Feature | SPEC |
 |-----|---------|------|

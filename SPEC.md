@@ -379,7 +379,7 @@ the only way to surface/toggle these per-file settings), but a settings flag
 available from the hamburger menu. Other future status items (word count, cursor position)
 would live here too, off by default.
 
-### 7.2 Workspace: tabs & splittable panes (deferred — **M7**, `REQ-WS-*`; see [docs/roadmap.md](docs/roadmap.md))
+### 7.2 Workspace: tabs & splittable panes (deferred — `REQ-WS-*`; current slot in [docs/roadmap.md](docs/roadmap.md))
 
 szmde should let you work with **multiple files at once** in a flexible, splittable workspace
 — the VS Code / JetBrains model:
@@ -414,7 +414,7 @@ layered above the editor core:
 This is the natural home for an eventual multi-window story too. Deferred well beyond M1;
 slot into the roadmap (§10) as its own milestone when prioritized.
 
-### 7.3 Zoom & page width (scroll gestures) — deferred (`REQ-ZOOM-1/2`, M5/standalone)
+### 7.3 Zoom & page width (scroll gestures) — deferred (`REQ-ZOOM-1/2`; polish pool, [docs/roadmap.md](docs/roadmap.md))
 
 Two modifier-scroll gestures over the editor adjust presentation live:
 
@@ -433,7 +433,7 @@ zoom/width persists once the settings system lands (M2). Implementation is small
 handler on the editor scroller updating the two values — but it's **not yet built**; schedule
 when convenient (it doesn't depend on other milestones).
 
-### 7.4 Table editing experience (deferred — **M6**, `REQ-TBLED-*`)
+### 7.4 Table editing experience (deferred — `REQ-TBLED-*`; current slot in [docs/roadmap.md](docs/roadmap.md))
 
 Traditional markdown editors make tables miserable — hand-aligning pipes, counting columns,
 rebuilding a row to move a cell. szmde should make table editing genuinely pleasant: a
@@ -458,7 +458,7 @@ Scope note: GFM table _rendering_ is M2 (§5.1). This rich _editing_ experience 
 later effort — block-widget interaction work in the §9 decoration/widget layer — and is **not
 required for v1**.
 
-### 7.5 Keyboard-shortcut hints (Alt overlay) (deferred — `REQ-ALT-1`, M5/standalone)
+### 7.5 Keyboard-shortcut hints (Alt overlay) (deferred — `REQ-ALT-1`; polish pool, [docs/roadmap.md](docs/roadmap.md))
 
 Holding **Alt** reveals keyboard-shortcut hint badges over the chrome elements that have
 accelerators — the hamburger menu and its items, the §7.1 status-bar chips, and any future
@@ -577,25 +577,24 @@ the bridge interface only.
 4. **M2 – Remaining v1 blocks + settings:** tables, task lists, images, horizontal rule,
    nested lists, GFM alerts/callouts; settings system (system+user JSON). ✅
 
-**Scheduled (post-v1, in priority order — the `M<n>` number is a stable ID, not the sequence;
-reordering just re-sorts the list, so milestones never get renumbered. See
-[docs/roadmap.md](docs/roadmap.md) for the per-requirement breakdown; order is yours to set per §11):**
+**Scheduled (post-v1).** Milestones are **fixed, in-order slots** (M3 next, then M4, M5, …); you
+schedule by **moving requirements between slots** and retitling, not by reordering milestones, so refer
+to `REQ-*` IDs — never milestone numbers — since slot contents are fluid. Per-requirement breakdown +
+the current slotting in [docs/roadmap.md](docs/roadmap.md); order is yours to set (§11). Current slots:
 5. **M3 – Cloud storage:** Google Drive + OneDrive; conflict/autosave/offline cache.
-6. **M6 – Rich table editing (§7.4):** structured editing over portable GFM tables (insert/reorder
-   rows & cols, drag handles, cursor-context shortcuts, edit-in-place). _(Prioritized ahead of Android.)_
-7. **M8 – Authoring essentials (§5.4):** emoji shortcodes, find & replace, word/character count,
-   foldable sections — daily-authoring power-features promoted from the backlog. _(New; ahead of Android.)_
-8. **M4 – Android:** Tauri mobile build; responsive UI; storage access framework.
-9. **M5 – Network storage + polish:** SMB/CIFS + WebDAV; light/system mode; a11y pass; selected
-   polish (zoom/page-width §7.3, Alt-hints §7.5, HTML render §5.2 + underline §5.3, desktop image
-   assets §6.1).
-10. **M7 – Workspace: tabs & splittable panes (§7.2):** document registry + serializable layout tree.
+6. **M4 – Rich table editing (§7.4):** structured editing over portable GFM tables (insert/reorder
+   rows & cols, drag handles, cursor-context shortcuts, edit-in-place).
+7. **M5 – Authoring essentials (§5.4):** emoji shortcodes, find & replace, word/character count,
+   foldable sections — daily-authoring power-features.
+8. **M6 – Android:** Tauri mobile build; responsive UI; storage access framework.
+9. **M7 – Network storage + polish:** SMB/CIFS + WebDAV; light/system mode; a11y pass.
+10. **M8 – Workspace: tabs & splittable panes (§7.2):** document registry + serializable layout tree.
 
-**Backlog (§5.4 orthogonal features — specced, unscheduled, ranked later):** footnotes, definition
-lists, math/LaTeX, mermaid, front-matter editing, wiki-links, per-language code highlighting, TOC,
-spell check, export, comments, outline sidebar. All catalogued with `REQ-*` IDs in
-[docs/roadmap.md](docs/roadmap.md). _(Emoji, find & replace, word count, and foldable sections were
-promoted to M8.)_
+**Unslotted pools** (specced, awaiting a milestone slot — catalogued with `REQ-*` IDs in
+[docs/roadmap.md](docs/roadmap.md)): a *polish pool* (zoom/page-width §7.3, Alt-hints §7.5, HTML render
+§5.2 + underline §5.3, desktop image assets §6.1) and the *§5.4 backlog* (footnotes, definition lists,
+math/LaTeX, mermaid, front-matter editing, wiki-links, per-language code highlighting, TOC, spell check,
+export, comments, outline sidebar).
 
 ---
 
