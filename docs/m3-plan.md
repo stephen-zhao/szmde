@@ -238,7 +238,7 @@ A 3-design / 3-judge panel chose **B unanimously** (security 22 / simplicity 22 
 > timeout, **validate `state` before `completeAuth`**) is mandatory; the request-line parser is a
 > pure cargo-tested fn (parse_cli/compose_rev style).
 
-### L2 — OAuth loopback + plugin-http transport + the spike ⬜
+### L2 — OAuth loopback + plugin-http transport + the spike ✅ built · spike pending
 New deps: `@tauri-apps/plugin-http` (rustls), `tauri-plugin-opener`. Rust: a one-shot loopback
 listener (pure cargo-tested request-line parser + integration socket accept) and an
 `oauth_token` command (secret-from-config token POST/refresh). TS: plugin-http `TokenPoster` +

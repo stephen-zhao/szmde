@@ -218,23 +218,36 @@ ID and the tenant choice.
 
 ---
 
-## Where these go in szmde
+## Where these go in szmde (Google Drive — live as of M3 L2)
 
-> **Heads-up:** The exact configuration destination (a config file, an env value, or a
-> build-time constant) is **finalized in the M3 live-wiring slice (S7/S8 integration)** and
-> is currently a **placeholder**. Do not go looking for a field to paste these into yet.
+szmde reads the Google client config from a small JSON file in its **OS app-config dir**:
 
-For now:
+```
+%APPDATA%\com.zhaostephen.szmde\gdrive_client.json
+```
 
-- **Just collect and keep the Client IDs somewhere safe** (a password manager or a local
-  note that is *not* in the repo). When S7/S8 lands, the docs will tell you exactly where
-  the Client IDs get wired in.
-- **Do NOT commit these values to git.** Even though the Client IDs are public-ish
-  identifiers, keep them out of the repository so the wiring stays clean and so nothing
-  blocks the verification path later.
-- **Secrets and OAuth tokens never go in `user.json`.** szmde stores the live OAuth tokens
-  (access/refresh tokens) in the **OS secure store — Windows Credential Manager** — not in
-  `user.json` and not in any plaintext config. `user.json` is for user preferences only.
+Create that file (copy [src-tauri/gdrive_client.example.json](../src-tauri/gdrive_client.example.json))
+with your real values:
+
+```json
+{
+  "client_id": "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+  "client_secret": "YOUR_GOOGLE_DESKTOP_CLIENT_SECRET"
+}
+```
+
+Then in szmde: **hamburger → Storage → Connect Google Drive…** — your browser opens, you
+approve consent, and the loopback catches the redirect. Open a Drive file via **Open from
+Google Drive…** (paste a Drive link or file ID). Save / autosave / conflict all work as for
+local files.
+
+Notes:
+- **`gdrive_client.json` is git-ignored** and lives outside the repo (in `%APPDATA%`), so it
+  is never committed. The Client ID/secret are app-registration identifiers, not user data.
+- **OAuth tokens never go in `gdrive_client.json` or `user.json`.** The live access/refresh
+  tokens are stored in the **Windows Credential Manager** (OS secure store) after you connect.
+- **OneDrive** isn't wired yet — it lights up the same way once you complete the Azure
+  registration above.
 
 ---
 
