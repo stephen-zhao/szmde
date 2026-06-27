@@ -62,7 +62,9 @@ Enter bug was reproduced by a failing test (the realistic "sibling above" struct
 
 - **Tooling:** `@vitest/coverage-v8`, run via `npm run test:coverage`. v8 provider, `all: true`,
   scope `src/**/*.ts`. Explicit exclusions (no silent gaps): `*.test.ts`; `.svelte` UI components
-  (integration/E2E, deferred); `src-tauri` Rust (→ `cargo test`); generated/types/config.
+  (integration/E2E, deferred); `.svelte.ts` Svelte-5 runes glue (e.g. `settings/store.svelte.ts` —
+  needs the Svelte compiler/runes runtime this plain-vitest setup lacks; its logic lives in the
+  100%-covered pure service it delegates to); `src-tauri` Rust (→ `cargo test`); generated/types/config.
 - **Backfill:** 71% → **100% lines** (statements 98.7%, functions 98.7%, branches 93.4%) across
   124 unit/integration tests. New suites: `setup`, `frontmatter`, `render-mode`, `blocks`,
   `theme.dom`, `layout`, plus edge extensions to `indent`/`markers.dom`/`editing`.

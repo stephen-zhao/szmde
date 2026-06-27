@@ -17,10 +17,19 @@ export default defineConfig({
       //  - *.svelte UI components (Editor/+page/HamburgerMenu): glue over the
       //    editor core; their behavior is exercised by integration/E2E, deferred.
       //    Not unit-tested here — tracked, not silently dropped.
+      //  - *.svelte.ts: Svelte-5 runes glue (e.g. settings/store.svelte.ts);
+      //    needs the Svelte compiler/runes runtime, which this plain-vitest setup
+      //    lacks. Same boundary as .svelte — the tested logic lives in the pure
+      //    service/core it delegates to.
       //  - src-tauri (Rust): covered separately by `cargo test` (+ llvm-cov).
       //  - generated/build output and type-only declarations.
       include: ["src/**/*.ts"],
-      exclude: ["src/**/*.test.ts", "src/**/*.d.ts", "src/**/*.config.*"],
+      exclude: [
+        "src/**/*.test.ts",
+        "src/**/*.svelte.ts",
+        "src/**/*.d.ts",
+        "src/**/*.config.*",
+      ],
       all: true,
       // Ratchet floors (T1). LINES are held at 100% — every executable line is
       // covered. Statements/functions/branches sit just under 100%: the residual

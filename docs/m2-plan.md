@@ -7,6 +7,11 @@ the "how" — the architecture and the staged `S1…S7` build slices. Same shape
 
 _Status legend: ✅ done · 🔜 next · ⬜ planned._
 
+_**M2 is complete (S1–S7).** The full §5.1 v1 render set ships (HR, task lists, images, GFM
+alerts, tables, nested lists) plus the two-tier settings system with the render-mode / indent
+/ EOL / appearance prefs persisted. Deferred follow-ups noted inline (desktop image-asset
+wiring in S3; rich table editing §7.4)._
+
 ## Scope (from SPEC §5.1 / §8 / §10 "M2")
 
 Completes the full §5.1 v1 feature set plus the settings system:
@@ -153,7 +158,7 @@ nesting renders correctly and (optional) vary the bullet glyph by depth (•/◦
 **Tests** (`nested.dom.test.ts`): mixed nesting depth renders the right bullets/numbers; deep
 nesting hang-indents align; Enter/Tab nesting from M1 still holds at depth.
 
-### S7 — Settings system 🔜  (`REQ-SET-1`, `REQ-SET-2`, `REQ-SET-3`)
+### S7 — Settings system ✅  (`REQ-SET-1`, `REQ-SET-2`, `REQ-SET-3`)
 Preceded by a design judge-panel workflow (file layout / validation / migration). Then:
 schema + defaults + version; `deepMerge`; `migrate`; `SettingsService` over a
 `SettingsBackend`; Tauri Rust `read_settings`/`write_settings` (atomic user.json, read-only

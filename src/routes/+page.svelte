@@ -14,6 +14,7 @@
   import type { IndentConfig } from "$lib/editor/indent";
   import { detectEol, fromLf, toLf, type Eol } from "$lib/editor/eol";
   import HamburgerMenu from "$lib/HamburgerMenu.svelte";
+  import { settings, initSettings, setSetting, updateSettings } from "$lib/settings/store.svelte";
 
   let editor: EditorApi | undefined;
   let filePath = $state<string | null>(null);
@@ -34,6 +35,17 @@
     editor?.setRenderMode(mode);
   }
 
+  // Push effective editor prefs into the live editor. Idempotent + the service's
+  // no-op write guard means re-seeding can't trigger a redundant persist, so this
+  // is safe to call from both onready and after settings load (whichever is last
+  // wins). Reuses the existing imperative EditorApi — no editor reconfiguration.
+  function seedEditorFromSettings() {
+    if (!editor) return;
+    const e = settings.value.editor;
+    editor.setRenderMode(e.renderMode);
+    editor.setIndent({ style: e.indentStyle, width: e.indentWidth });
+  }
+
   function cycleRenderMode() {
     editor?.setRenderMode(MODE_ORDER[(MODE_ORDER.indexOf(renderMode) + 1) % MODE_ORDER.length]);
   }
@@ -43,6 +55,7 @@
   function toggleEol() {
     eol = eol === "lf" ? "crlf" : "lf";
     dirty = true;
+    setSetting("editor.defaultEol", eol); // persist as the default for new docs
   }
 
   const indentLabel = $derived(indent.style === "tab" ? "Tab" : `Spaces: ${indent.width}`);
@@ -118,7 +131,7 @@
     editor?.setContent("");
     filePath = null;
     dirty = false;
-    eol = "lf"; // new documents default to LF (SPEC §4.4)
+    eol = settings.value.editor.defaultEol; // new docs use the persisted default (SPEC §4.4)
     editor?.focus();
   }
 
@@ -219,6 +232,14 @@
       if (launch) openPath(launch);
     });
 
+    // Load persisted settings (§8), then seed the editor + new-doc EOL from them.
+    // Runs concurrently with get_launch_file; an opened file's detected EOL still
+    // wins (openPath overwrites `eol`), so defaultEol only governs new docs.
+    initSettings().then((eff) => {
+      if (!filePath) eol = eff.editor.defaultEol;
+      seedEditorFromSettings();
+    });
+
     return () => {
       unlistenP.then((un) => un());
       unCloseP.then((un) => un());
@@ -242,15 +263,26 @@
   />
 
   <Editor
-    onready={(api) => (editor = api)}
+    onready={(api) => {
+      editor = api;
+      seedEditorFromSettings();
+    }}
     onchange={() => (dirty = true)}
     onwrapstate={(s) => (wrapState = s)}
-    onrendermode={(m) => (renderMode = m)}
-    onindentstate={(c) => (indent = c)}
+    onrendermode={(m) => {
+      renderMode = m;
+      setSetting("editor.renderMode", m); // persist (no-op-guarded at boot)
+    }}
+    onindentstate={(c) => {
+      indent = c;
+      updateSettings({ editor: { indentStyle: c.style, indentWidth: c.width } });
+    }}
   />
 
   <!-- Bottom-right status bar (§7.1): filename + click-to-edit chips. Tiny and
-       low-contrast to honor the blank-canvas ethos (requirement 9). -->
+       low-contrast to honor the blank-canvas ethos (requirement 9). Hidden when
+       appearance.showStatusWidgets is off (§7.1 / settings §8). -->
+  {#if settings.value.appearance.showStatusWidgets}
   <div class="statusbar">
     <span class="status-name">{fileName}{dirty ? " •" : ""}</span>
     <button class="chip" title="Render mode (Ctrl+Shift+M)" onclick={cycleRenderMode}>
@@ -279,6 +311,7 @@
       {/if}
     </div>
   </div>
+  {/if}
 
   {#if confirmOpen}
     <div class="modal-backdrop" role="presentation">

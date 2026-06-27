@@ -35,7 +35,9 @@ export const baseTheme = EditorView.theme(
     ".cm-content": {
       caretColor: "var(--accent)",
       fontSize: "var(--editor-font-size)",
-      maxWidth: "740px",
+      // Reading-column width is driven by appearance.lineWidth (settings §8) via
+      // --reading-width; falls back to 740px before settings load / on the web.
+      maxWidth: "var(--reading-width, 740px)",
       margin: "0 auto",
       padding: "72px 28px 40vh",
     },
