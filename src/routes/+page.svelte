@@ -31,7 +31,9 @@
   // (initSettings below seeds enabled/interval). Only autosaves a file that has a
   // path and unsaved edits — never pops a Save As dialog for an untitled buffer.
   const autosave = new AutosaveScheduler({
-    save: () => (filePath && dirty ? doSave() : undefined),
+    // Background save: non-interactive (doSave(false)) so a conflict can't pop a
+    // modal nobody asked for or wedge the scheduler — it defers to a manual save.
+    save: () => (filePath && dirty ? doSave(false) : undefined),
     intervalMs: 2000,
     enabled: false,
   });
@@ -109,8 +111,10 @@
     // destructive path (a forwarded open-file event, or the window-close
     // handler) must NOT overwrite the pending resolver — that would orphan the
     // first promise (hanging its caller) and decouple the action from the
-    // prompt the user is answering. Such callers simply cancel.
-    if (confirmResolve) return Promise.resolve("cancel");
+    // prompt the user is answering. The guard is cross-modal: never raise this
+    // while the conflict modal is up either (no stacked, partly-unreachable
+    // dialogs). Such callers simply cancel.
+    if (confirmResolve || conflictResolve) return Promise.resolve("cancel");
     confirmOpen = true;
     return new Promise<Choice>((resolve) => {
       confirmResolve = resolve;
@@ -120,6 +124,14 @@
     confirmOpen = false;
     confirmResolve?.(choice);
     confirmResolve = null;
+    editor?.focus(); // return focus to the canvas
+  }
+
+  // Focus trap: move focus into the modal on open so keystrokes can't reach the
+  // editor behind it (window-level preventDefault runs after CM's own handler, so
+  // taking focus is the reliable guard).
+  function trapFocus(node: HTMLElement) {
+    node.focus();
   }
 
   // --- Save-conflict modal (promise-based) — REQ-SAVE-1 -----------------------
@@ -128,7 +140,9 @@
   let conflictResolve: ((c: ConflictModalChoice) => void) | null = null;
 
   function askConflict(): Promise<ConflictModalChoice> {
-    if (conflictResolve) return Promise.resolve("cancel"); // one prompt at a time
+    // One destructive prompt at a time — cross-modal (don't stack on the
+    // unsaved-changes modal either).
+    if (conflictResolve || confirmResolve) return Promise.resolve("cancel");
     conflictOpen = true;
     return new Promise<ConflictModalChoice>((resolve) => {
       conflictResolve = resolve;
@@ -138,6 +152,7 @@
     conflictOpen = false;
     conflictResolve?.(choice);
     conflictResolve = null;
+    editor?.focus(); // return focus to the canvas
   }
 
   /** Returns true if the caller may proceed to replace/close the buffer. */
@@ -184,9 +199,11 @@
     if (typeof selected === "string") await openPath(selected);
   }
 
-  async function doSave(): Promise<boolean> {
-    if (!filePath) return doSaveAs();
-    return writeTo(filePath, baseRev); // pass the baseline rev → conflict-checked
+  // `interactive` distinguishes a user-initiated save (may raise the conflict
+  // modal) from a background autosave (must never pop UI or block).
+  async function doSave(interactive = true): Promise<boolean> {
+    if (!filePath) return interactive ? doSaveAs() : false; // never auto-pop Save As
+    return writeTo(filePath, baseRev, interactive); // baseline rev → conflict-checked
   }
 
   async function doSaveAs(): Promise<boolean> {
@@ -200,19 +217,31 @@
 
   /**
    * Persist the buffer to `path`, passing `expectedRev` for conflict detection
-   * (REQ-SAVE-1). On a detected conflict, prompt overwrite / save-copy / reload.
-   * Returns true once the content is durably persisted; false if cancelled,
-   * errored, or the user chose to reload the on-disk version over their edits.
+   * (REQ-SAVE-1). On a detected conflict, an interactive save prompts overwrite /
+   * save-copy / reload; a background (autosave) save backs off without UI so it
+   * can't pop a modal nobody asked for or wedge the scheduler. Returns true once
+   * the content is durably persisted; false if cancelled, errored, deferred, or
+   * the user reloaded the on-disk version over their edits.
    */
-  async function writeTo(path: string, expectedRev: Revision): Promise<boolean> {
+  async function writeTo(path: string, expectedRev: Revision, interactive = true): Promise<boolean> {
+    // Snapshot exactly what we send so a slow write can't clear the dirty flag
+    // for edits the user makes while it's in flight (data-loss race).
+    const snapshot = editor?.getContent() ?? "";
     try {
-      const { rev } = await storage.write(path, fromLf(editor?.getContent() ?? "", eol), expectedRev);
+      const { rev } = await storage.write(path, fromLf(snapshot, eol), expectedRev);
       filePath = path;
-      baseRev = rev;
-      dirty = false;
+      baseRev = rev; // on disk now == snapshot
+      if ((editor?.getContent() ?? "") === snapshot) {
+        dirty = false; // buffer unchanged since the snapshot → truly clean
+      } else {
+        autosave.notifyDirty(); // edits arrived mid-write; keep dirty, re-arm save
+      }
       return true;
     } catch (e) {
-      if (e instanceof StorageError && e.kind === "conflict") return resolveSaveConflict(path);
+      if (e instanceof StorageError && e.kind === "conflict") {
+        if (!interactive) return false; // autosave: defer to the next manual save
+        return resolveSaveConflict(path);
+      }
       await message(`Couldn't save the file:\n${path}\n\n${e}`, {
         title: "Save failed",
         kind: "error",
@@ -225,7 +254,7 @@
     const choice = await askConflict();
     if (choice === "cancel") return false;
     if (choice === "overwrite") return writeTo(path, null); // force over their change
-    if (choice === "save-copy") return writeTo(copyPathFor(path), null); // keep both
+    if (choice === "save-copy") return writeTo(await freeCopyPath(path), null); // keep both
     // reload: discard our edits, take the on-disk version.
     try {
       const { content, rev } = await storage.read(path);
@@ -243,6 +272,17 @@
     return false; // our edits were discarded — not a "save"
   }
 
+  // Find a copy-target that doesn't already exist, so "Save a copy" never
+  // clobbers a previously-kept copy: notes (copy).md, notes (copy 2).md, …
+  async function freeCopyPath(path: string): Promise<string> {
+    if (!storage.stat) return copyPathFor(path); // provider can't check existence
+    for (let n = 1; n < 1000; n++) {
+      const candidate = copyPathFor(path, n);
+      if ((await storage.stat(candidate)) === null) return candidate;
+    }
+    return copyPathFor(path, 1000); // pathological fallback (1000 copies already exist)
+  }
+
   async function doExit() {
     if (!(await guardUnsaved())) return;
     await getCurrentWindow().destroy();
@@ -250,21 +290,19 @@
 
   // --- Shortcuts --------------------------------------------------------------
   function onKeydown(e: KeyboardEvent) {
+    // While a modal is open, swallow EVERY key (not just its shortcuts) so nothing
+    // leaks into the editor behind it. Focus is also trapped into the modal (see
+    // use:trapFocus), so CM never receives the keystroke in the first place; this
+    // is the belt to that suspenders, and maps the modal's own shortcuts.
     if (conflictOpen) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        resolveConflictModal("cancel");
-      }
+      e.preventDefault();
+      if (e.key === "Escape") resolveConflictModal("cancel");
       return;
     }
     if (confirmOpen) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        resolveConfirm("cancel");
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        resolveConfirm("save");
-      }
+      e.preventDefault();
+      if (e.key === "Escape") resolveConfirm("cancel");
+      else if (e.key === "Enter") resolveConfirm("save");
       return;
     }
     if (!(e.ctrlKey || e.metaKey)) return;
@@ -393,7 +431,7 @@
 
   {#if confirmOpen}
     <div class="modal-backdrop" role="presentation">
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" tabindex="-1" use:trapFocus>
         <h2 id="confirm-title">Unsaved changes</h2>
         <p>"{fileName}" has unsaved changes. Save them first?</p>
         <div class="modal-actions">
@@ -407,7 +445,7 @@
 
   {#if conflictOpen}
     <div class="modal-backdrop" role="presentation">
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="conflict-title">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="conflict-title" tabindex="-1" use:trapFocus>
         <h2 id="conflict-title">File changed on disk</h2>
         <p>
           "{fileName}" was modified by another program since you opened it. Saving now would

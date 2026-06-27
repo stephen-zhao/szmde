@@ -11,21 +11,24 @@
 export type ConflictChoice = "overwrite" | "save-copy" | "reload";
 
 /**
- * Derive a "save a copy" path by inserting `" (copy)"` before the file
- * extension, preserving the directory:
- * - `notes.md` → `notes (copy).md`
+ * Derive a "save a copy" path by inserting a `" (copy)"` suffix before the file
+ * extension, preserving the directory. `n` (default 1) disambiguates when an
+ * earlier copy already exists, so the shell can stat upward until it finds a free
+ * name (avoids clobbering a prior copy):
+ * - `notes.md`, n=1 → `notes (copy).md`; n=2 → `notes (copy 2).md`
  * - `/home/me/notes.md` → `/home/me/notes (copy).md`
  * - `C:\Users\me\a.txt` → `C:\Users\me\a (copy).txt`
  * - `archive.tar.gz` → `archive.tar (copy).gz` (splits on the last dot)
  * - `README` → `README (copy)` (no extension)
  * - `.gitignore` → `.gitignore (copy)` (leading-dot dotfile has no extension)
  */
-export function copyPathFor(path: string): string {
+export function copyPathFor(path: string, n = 1): string {
+  const suffix = n <= 1 ? " (copy)" : ` (copy ${n})`;
   const sep = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
   const dir = path.slice(0, sep + 1); // includes the trailing separator, or "" if none
   const name = path.slice(sep + 1);
   const dot = name.lastIndexOf(".");
   // dot <= 0 → no extension, or a leading-dot dotfile: append at the very end.
-  if (dot <= 0) return `${dir}${name} (copy)`;
-  return `${dir}${name.slice(0, dot)} (copy)${name.slice(dot)}`;
+  if (dot <= 0) return `${dir}${name}${suffix}`;
+  return `${dir}${name.slice(0, dot)}${suffix}${name.slice(dot)}`;
 }

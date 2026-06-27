@@ -25,4 +25,11 @@ describe("[REQ-SAVE-1] copyPathFor — save-a-copy path derivation", () => {
   it("treats a leading-dot dotfile as having no extension", () => {
     expect(copyPathFor(".gitignore")).toBe(".gitignore (copy)");
   });
+
+  it("numbers copies beyond the first to avoid clobbering an existing copy", () => {
+    expect(copyPathFor("notes.md", 1)).toBe("notes (copy).md"); // n=1 == default
+    expect(copyPathFor("notes.md", 2)).toBe("notes (copy 2).md");
+    expect(copyPathFor("notes.md", 3)).toBe("notes (copy 3).md");
+    expect(copyPathFor("README", 2)).toBe("README (copy 2)");
+  });
 });
