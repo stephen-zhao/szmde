@@ -59,6 +59,7 @@ that line, exactly mirroring how `REQ-CLI-3` (`wsl_to_unc` shells to `wsl.exe`) 
 > `Files.ReadWrite` scope), each configured with a desktop **loopback redirect**
 > (`http://127.0.0.1:<port>`). Claude cannot create these. They are only needed when S7/S8
 > live wiring lands — S1–S6 do not block on them, so registration can proceed in parallel.
+> **Step-by-step walkthrough: [m3-cloud-setup.md](m3-cloud-setup.md).**
 
 ## Architecture (the seam the whole milestone hangs on)
 
