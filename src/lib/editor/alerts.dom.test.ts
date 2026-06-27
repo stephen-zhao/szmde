@@ -3,7 +3,7 @@ import { EditorView } from "@codemirror/view";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { forceParsing } from "@codemirror/language";
 import { editorExtensions } from "./setup";
-import { alertAtomicRanges, alertLabelPos } from "./alerts";
+import { alertAtomicRanges } from "./alerts";
 import type { RenderMode } from "./render-mode";
 
 // Rendered-DOM tests for GFM alerts/callouts (M2 S4). Alerts are NOT a grammar
@@ -89,10 +89,12 @@ describe("[REQ-ALERT-2] GFM alerts — reveal, modes, and non-alerts", () => {
     expect(count(v, ".cm-blockquote")).toBeGreaterThanOrEqual(2);
   });
 
-  it("targets the `[!TYPE]` start when the label (not its name) is clicked", () => {
+  it("reveals the literal [!TYPE] for editing when the label is clicked", () => {
     const v = build("> [!NOTE]\n> body", "clean", 16); // caret on body → label rendered
-    const label = v.contentDOM.querySelector<HTMLElement>(".cm-alert-label")!;
-    expect(alertLabelPos(v, label, null, 0, 0)).toBe(1); // start of `[!NOTE]`, after `>`
+    const label = v.contentDOM.querySelector(".cm-alert-label")!;
+    label.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    expect(v.state.selection.main.head).toBe(1); // caret at the `[!NOTE]` start (after `>`)
+    expect(count(v, ".cm-alert-label")).toBe(0); // revealed to literal text
   });
 
   it("reuses the alert-label DOM across an edit elsewhere (AlertLabelWidget.eq)", () => {

@@ -40,34 +40,6 @@ const TITLE: Record<AlertType, string> = {
   caution: "Caution",
 };
 
-/** Icon + name shown in place of `[!TYPE]` on the title line (Clean mode). */
-class AlertLabelWidget extends WidgetType {
-  constructor(readonly type: AlertType) {
-    super();
-  }
-  eq(o: AlertLabelWidget) {
-    return o.type === this.type;
-  }
-  toDOM() {
-    const wrap = document.createElement("span");
-    wrap.className = `cm-alert-label cm-alert-label-${this.type}`;
-    wrap.setAttribute("contenteditable", "false");
-    const icon = document.createElement("span");
-    icon.className = "cm-alert-icon";
-    icon.setAttribute("aria-hidden", "true");
-    const name = document.createElement("span");
-    name.className = "cm-alert-name";
-    name.textContent = TITLE[this.type];
-    wrap.append(icon, name);
-    return wrap;
-  }
-  /* v8 ignore start -- pointer-event plumbing; not dispatchable in happy-dom. */
-  ignoreEvent() {
-    return true;
-  }
-  /* v8 ignore stop */
-}
-
 /* v8 ignore start -- caretPositionFromPoint/caretRangeFromPoint need real layout,
    which happy-dom doesn't provide; the in-name char mapping runs in the WebView. */
 function caretOffsetIn(node: HTMLElement, x: number, y: number): number | null {
@@ -83,49 +55,56 @@ function caretOffsetIn(node: HTMLElement, x: number, y: number): number | null {
 /* v8 ignore stop */
 
 /**
- * Caret target for a click on the alert label: the position of `[!TYPE]`, plus
- * the clicked character offset within the type name (the rendered name maps 1:1
- * onto the source name, after the `[!`). Pure (the base case is testable); the
- * char-from-point branch is the real-DOM path.
+ * Icon + name shown in place of `[!TYPE]` on the title line (Clean mode). A DOM
+ * mousedown listener on the widget (CM's reliable path for clicks ON a widget —
+ * editor-level domEventHandlers don't fire for them) reveals the literal
+ * `[!TYPE]` and drops the caret at the clicked character: within the type name
+ * the rendered name maps 1:1 onto the source name (after the `[!`); elsewhere the
+ * label start.
  */
-export function alertLabelPos(
-  view: EditorView,
-  label: HTMLElement,
-  nameEl: HTMLElement | null,
-  x: number,
-  y: number,
-): number {
-  const base = view.posAtDOM(label); // start of `[!TYPE]`
-  /* v8 ignore start -- char-from-point mapping is the real-DOM path. */
-  if (nameEl) {
-    const off = caretOffsetIn(nameEl, x, y);
-    if (off != null) return base + 2 + off; // skip the literal `[!` before the name
+class AlertLabelWidget extends WidgetType {
+  constructor(
+    readonly type: AlertType,
+    readonly pos: number, // doc position of the `[` (label start)
+  ) {
+    super();
+  }
+  eq(o: AlertLabelWidget) {
+    return o.type === this.type && o.pos === this.pos;
+  }
+  toDOM(view: EditorView) {
+    const wrap = document.createElement("span");
+    wrap.className = `cm-alert-label cm-alert-label-${this.type}`;
+    wrap.setAttribute("contenteditable", "false");
+    const icon = document.createElement("span");
+    icon.className = "cm-alert-icon";
+    icon.setAttribute("aria-hidden", "true");
+    const name = document.createElement("span");
+    name.className = "cm-alert-name";
+    name.textContent = TITLE[this.type];
+    wrap.append(icon, name);
+    wrap.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      let at = this.pos;
+      /* v8 ignore start -- char-from-point is the real-DOM path (not in happy-dom). */
+      const nameEl = (e.target as HTMLElement | null)?.closest?.(".cm-alert-name") as HTMLElement | null;
+      if (nameEl) {
+        const off = caretOffsetIn(nameEl, e.clientX, e.clientY);
+        if (off != null) at = this.pos + 2 + off; // skip the literal `[!` before the name
+      }
+      /* v8 ignore stop */
+      view.dispatch({ selection: EditorSelection.cursor(at), scrollIntoView: true });
+      view.focus();
+    });
+    return wrap;
+  }
+  /* v8 ignore start -- pointer-event plumbing; not dispatchable in happy-dom. */
+  ignoreEvent() {
+    return true;
   }
   /* v8 ignore stop */
-  return base;
 }
-
-/**
- * Clicking the rendered alert label reveals the literal `[!TYPE]` with the caret
- * at the clicked character. Uses CM's domEventHandlers (return true fully takes
- * over) — a listener on the widget loses to CM's built-in inline-widget caret
- * placement, which lands at the atomic-range edge ("start or end").
- */
-/* v8 ignore start -- DOM-event wrapper: CM fires it on real pointer events,
-   which happy-dom can't dispatch through CM's plumbing. Logic is alertLabelPos. */
-export const alertInteraction = EditorView.domEventHandlers({
-  mousedown(e, view) {
-    const el = e.target as HTMLElement | null;
-    const label = el?.closest?.(".cm-alert-label") as HTMLElement | null;
-    if (!label) return false;
-    const name = el?.closest?.(".cm-alert-name") as HTMLElement | null;
-    const at = alertLabelPos(view, label, name, e.clientX, e.clientY);
-    view.dispatch({ selection: EditorSelection.cursor(at), scrollIntoView: true });
-    e.preventDefault();
-    return true;
-  },
-});
-/* v8 ignore stop */
 
 const hide = Decoration.replace({});
 const lineCache = new Map<string, Decoration>();
@@ -183,7 +162,10 @@ function buildAlertDecos(view: EditorView): AlertDecos {
             const labelFrom = first.from + pfx[1].length; // right after the `>`
             const labelTo = first.from + close + 1; // through the `]`
             decos.push(
-              Decoration.replace({ widget: new AlertLabelWidget(type) }).range(labelFrom, labelTo),
+              Decoration.replace({ widget: new AlertLabelWidget(type, labelFrom) }).range(
+                labelFrom,
+                labelTo,
+              ),
             );
             hidden.push(hide.range(labelFrom, labelTo));
           }

@@ -32,10 +32,10 @@ import {
 } from "./render-mode";
 import { markerDecorations, markerAtomicRanges } from "./markers";
 import { blockConstructDecorations } from "./blocks";
-import { hrDecorations, hrAtomicRanges, hrInteraction } from "./hr";
+import { hrExtension } from "./hr";
 import { taskDecorations, taskAtomicRanges } from "./tasks";
 import { imageDecorations, imageAtomicRanges } from "./images";
-import { alertDecorations, alertAtomicRanges, alertInteraction } from "./alerts";
+import { alertDecorations, alertAtomicRanges } from "./alerts";
 import { tableExtension } from "./tables";
 import { editingKeymap } from "./keymap";
 import { indentExtension, type IndentConfig } from "./indent";
@@ -372,10 +372,7 @@ export function editorExtensions(
     tableExtension,
     alertDecorations,
     alertAtomicRanges,
-    alertInteraction,
-    hrDecorations,
-    hrAtomicRanges,
-    hrInteraction,
+    hrExtension,
     taskDecorations,
     taskAtomicRanges,
     imageDecorations,
