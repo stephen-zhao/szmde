@@ -191,7 +191,7 @@ update with `If-Match` → `412`⇒`conflict`), `stat` (metadata-only etag). Map
 parses new rev; 412→conflict, 401→auth, network throw→offline, 404→not-found.
 **Live tail:** real client ID + consent + network → LLM workflow.
 
-### S8 — OneDrive backend ⬜  (`REQ-CLOUD-2`)
+### S8 — OneDrive backend ✅  (`REQ-CLOUD-2`)
 `OneDriveProvider` over Microsoft Graph, same shape as S7 (Graph item content GET; PUT/upload
 session with `if-match`; etag→`rev`; `403/401`⇒`auth`). Shared error-mapping + multipart
 helpers factored out of S7 so the two backends differ only in endpoints/auth.

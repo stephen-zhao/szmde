@@ -260,6 +260,15 @@ have a `.md` file in that Drive.
 - Let the access token expire (or revoke it) → Expected: a transparent refresh, or
   a re-auth prompt if the refresh token is gone (no silent failure).
 
+### WF-18 · OneDrive open/save round-trip · `REQ-CLOUD-2`
+**Why:** same rationale as WF-17, against Microsoft Graph. **Needs the Tauri dev
+app + an Azure app registration ([m3-cloud-setup.md](m3-cloud-setup.md)).**
+**Setup:** connect a Microsoft account (hamburger → Storage accounts → OneDrive);
+have a `.md` file in that OneDrive.
+**Steps:** mirror WF-17 — open loads content; Ctrl+S writes back (verify in
+OneDrive web); an out-of-band change → conflict modal on next save; offline →
+queued + flush on reconnect; token expiry → refresh / re-auth.
+
 ### WF-16 · Autosave fires after the interval · `REQ-SAVE-2`
 **Why:** the debounce/coalesce logic is unit-tested, but the editor→scheduler→
 save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.**
@@ -296,6 +305,7 @@ save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.
 | REQ-SAVE-1 | logic (`storage/local.test.ts`, `storage/conflict.test.ts`, cargo) | WF-15 (conflict modal) |
 | REQ-SAVE-2 | logic (`storage/autosave.test.ts`) | WF-16 (autosave fires) |
 | REQ-CLOUD-1 | logic (`storage/gdrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-17 (Drive round-trip) |
+| REQ-CLOUD-2 | logic (`storage/onedrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-18 (OneDrive round-trip) |
 
 The three former [traceability.md](traceability.md) gaps with no automated test
 (REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest

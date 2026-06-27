@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { cloudRequest, mapStatus, type AuthedFetch } from "./cloud-http";
 import { StorageError } from "./provider";
 
-describe("[REQ-CLOUD-1] cloud-http", () => {
+describe("[REQ-CLOUD-1][REQ-CLOUD-2] cloud-http", () => {
   it("mapStatus classifies HTTP statuses into StorageError kinds", () => {
     expect(mapStatus(401)).toBe("auth");
     expect(mapStatus(403)).toBe("auth");
