@@ -8,9 +8,12 @@ import { renderMode } from "./render-mode";
  *  unordered-list marker (a dash, asterisk, or plus). List markers are semantic
  *  content, not pure syntax, so they stay visible (just rendered) not hidden. */
 class BulletWidget extends WidgetType {
+  /* v8 ignore start -- `bullet` is a single shared decoration instance, so CM
+     reuses its widget DOM by reference and never calls eq; defensive only. */
   eq() {
     return true;
   }
+  /* v8 ignore stop */
   toDOM() {
     const s = document.createElement("span");
     s.className = "cm-md-bullet";
@@ -69,9 +72,12 @@ class HangIndentWidget extends WidgetType {
     if (this.trailing) wrap.appendChild(document.createTextNode(this.trailing));
     return wrap;
   }
+  /* v8 ignore start -- CM only calls ignoreEvent on real pointer/DOM events,
+     which happy-dom cannot dispatch faithfully. */
   ignoreEvent() {
     return true;
   }
+  /* v8 ignore stop */
 }
 
 /** The leading `indent + marker + trailing space(s)` of a list item line. */

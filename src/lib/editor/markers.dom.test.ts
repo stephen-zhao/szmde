@@ -3,6 +3,7 @@ import { EditorView } from "@codemirror/view";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { forceParsing } from "@codemirror/language";
 import { editorExtensions } from "./setup";
+import { markerAtomicRanges } from "./markers";
 import type { RenderMode } from "./render-mode";
 
 // These assert on the RENDERED DOM (decorations/widgets), not just the document
@@ -141,5 +142,85 @@ describe("Source (markers-rendered) mode — rendered DOM", () => {
     const v = build("- one", "markers-rendered", 0);
     expect(count(v, ".cm-md-bullet")).toBe(0);
     expect(lineText(v, 0)).toContain("-");
+  });
+
+  it("styles strikethrough markers with .cm-mk-strike while keeping them visible", () => {
+    // GFM ~~ markers: in Source mode both the opening and closing ~~ get the
+    // cm-mk-strike class (StrikethroughMark case) and stay in the text.
+    const v = build("~~gone~~", "markers-rendered", 0);
+    expect(count(v, ".cm-mk-strike")).toBe(2);
+    expect(lineText(v, 0)).toContain("~~");
+  });
+
+  it("styles inline-code backticks with .cm-mk-code while keeping them visible", () => {
+    // CodeMark inside InlineCode → cm-mk-code; opening and closing backtick.
+    const v = build("a `code` b", "markers-rendered", 0);
+    expect(count(v, ".cm-mk-code")).toBe(2);
+    expect(lineText(v, 0)).toContain("`");
+  });
+
+  it("does NOT style fenced-code fence markers (CodeMark outside InlineCode is skipped)", () => {
+    // The ``` fences are CodeMark nodes too, but their parent is FencedCode, not
+    // InlineCode, so the rendered branch is `undefined` and no cm-mk-code is emitted.
+    const v = build("```\nx\n```", "markers-rendered", 0);
+    expect(count(v, ".cm-mk-code")).toBe(0);
+    expect(lineText(v, 0)).toContain("```");
+  });
+});
+
+describe("Clean mode — strikethrough marker hiding", () => {
+  it("hides ~~ markers when the caret is off the construct, leaving only the word", () => {
+    // StrikethroughMark in clean mode with the caret elsewhere → both ~~ hidden.
+    const v = build("a ~~gone~~ b", "clean", 0);
+    expect(lineText(v, 0)).toBe("a gone b");
+  });
+});
+
+describe("BulletWidget DOM reuse (eq returns true)", () => {
+  // BulletWidget.eq() returns true unconditionally: all bullets are
+  // interchangeable, so CodeMirror reuses the existing widget DOM across edits
+  // instead of re-rendering it. If eq returned false the node would be replaced.
+  it("keeps the same • DOM node after an edit elsewhere on the line", () => {
+    const v = build("- one", "clean", 5); // caret at end, bullet at col 0
+    const before = v.contentDOM.querySelector(".cm-md-bullet");
+    expect(before?.textContent).toBe("•");
+    // Append text far from the marker; decorations rebuild but the bullet is
+    // identical, so eq() lets CodeMirror reuse the very same element instance.
+    v.dispatch({ changes: { from: 5, insert: "X" }, selection: EditorSelection.cursor(6) });
+    forceParsing(v, v.state.doc.length, 5000);
+    const after = v.contentDOM.querySelector(".cm-md-bullet");
+    expect(after).toBe(before); // same instance → DOM was reused, not recreated
+    expect(v.state.doc.toString()).toBe("- oneX");
+  });
+});
+
+describe("markerAtomicRanges — hidden markers become atomic", () => {
+  // The exported facet maps the view to the marker plugin's `hidden` RangeSet so
+  // arrow keys skip hidden markers. It defends with `?? RangeSet.empty` when the
+  // plugin isn't installed.
+  it("contributes an atomic range for a hidden marker in clean mode", () => {
+    const v = build("para\n# H", "clean", 0); // caret on line 1 → '# ' on line 2 hidden
+    let total = 0;
+    for (const fn of v.state.facet(EditorView.atomicRanges)) total += fn(v).size;
+    expect(total).toBeGreaterThan(0);
+  });
+
+  it("contributes no atomic ranges in Source mode (nothing is hidden)", () => {
+    const v = build("para\n# H", "markers-rendered", 0);
+    let total = 0;
+    for (const fn of v.state.facet(EditorView.atomicRanges)) total += fn(v).size;
+    expect(total).toBe(0);
+  });
+
+  it("falls back to an empty set when the marker plugin is absent", () => {
+    // markerAtomicRanges alone, with no markerDecorations plugin to read from:
+    // the `view.plugin(...) ?? RangeSet.empty` fallback must yield an empty set.
+    view = new EditorView({
+      state: EditorState.create({ doc: "# H", extensions: [markerAtomicRanges] }),
+      parent: document.body,
+    });
+    const fns = view.state.facet(EditorView.atomicRanges);
+    expect(fns.length).toBe(1);
+    expect(fns[0](view).size).toBe(0);
   });
 });

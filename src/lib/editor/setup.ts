@@ -52,9 +52,12 @@ class WrapOverride extends RangeValue {
   constructor(readonly wrap: boolean) {
     super();
   }
+  /* v8 ignore start -- RangeValue.eq is CM-internal set-diff plumbing; the
+     wrapOverrides field is read via between(), which never invokes eq. */
   eq(other: RangeValue) {
     return other instanceof WrapOverride && other.wrap === this.wrap;
   }
+  /* v8 ignore stop */
 }
 
 const setBlockWrap = StateEffect.define<{ from: number; to: number; wrap: boolean }>();
@@ -153,9 +156,11 @@ class WrapToggleWidget extends WidgetType {
     });
     return b;
   }
+  /* v8 ignore start -- pointer-event plumbing; not dispatchable in happy-dom. */
   ignoreEvent() {
     return true;
   }
+  /* v8 ignore stop */
 }
 
 // ---------------------------------------------------------------------------
@@ -304,6 +309,9 @@ const revealCursorInCodeBox = ViewPlugin.fromClass(
     update(u: ViewUpdate) {
       if (!u.selectionSet && !u.docChanged) return;
       const view = u.view;
+      /* v8 ignore start -- runs only inside CM's measure phase (requestMeasure),
+         which needs real layout (coordsAtPos / getBoundingClientRect / scrollLeft)
+         that happy-dom does not provide; exercised in the real WebView only. */
       view.requestMeasure({
         read: () => {
           const head = view.state.selection.main.head;
@@ -324,6 +332,7 @@ const revealCursorInCodeBox = ViewPlugin.fromClass(
           if (res) res.box.scrollLeft += res.delta;
         },
       });
+      /* v8 ignore stop */
     }
   },
 );

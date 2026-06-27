@@ -219,4 +219,56 @@ describe("Ctrl/Cmd+B / +I — toggle emphasis", () => {
     press(v, "i", { ctrl: true });
     expect(doc(v)).toBe("hello *world*");
   });
+
+  it("Ctrl+B is inert inside inline code (the inCode guard)", () => {
+    // Caret between the backticks, inside `code`. inCode() walks the tree, finds
+    // InlineCode, and bails — the document must be left exactly as-is.
+    const v = make("a `code` b", 5); // cursor inside the inline-code span
+    press(v, "b", { ctrl: true });
+    expect(doc(v)).toBe("a `code` b");
+  });
+
+  it("Ctrl+I is inert inside a fenced code block", () => {
+    const v = make("```\nlet x\n```", 8); // cursor inside the fenced code body
+    press(v, "i", { ctrl: true });
+    expect(doc(v)).toBe("```\nlet x\n```");
+  });
+
+  it("Ctrl+B does nothing when the cursor isn't on a word (nothing to wrap)", () => {
+    // Empty selection sitting on whitespace: wordAt() returns null, so the
+    // command finds nothing to wrap and leaves the document untouched.
+    const v = make("hi   there", 3); // cursor in the run of spaces
+    press(v, "b", { ctrl: true });
+    expect(doc(v)).toBe("hi   there");
+  });
+});
+
+describe("Keymap guard fallbacks (non-list / in-code paths)", () => {
+  it("Tab with a non-empty selection indents the line(s) (indentMore)", () => {
+    const v = make("hi", 0, 2); // "hi" selected
+    press(v, "Tab");
+    expect(doc(v)).toBe("  hi");
+  });
+
+  it("Tab inside a fenced code block inserts spaces, not list nesting", () => {
+    const v = make("```\ncode\n```", 8); // end of the code line, inside the fence
+    press(v, "Tab");
+    expect(doc(v)).toBe("```\ncode  \n```");
+  });
+
+  it("Enter inside a fenced code block does not continue a list", () => {
+    // "- x" inside a fence is literal code; the inCode guard must skip list logic.
+    const v = make("```\n- x\n```", 7); // end of the "- x" line, inside the fence
+    const before = doc(v).length;
+    press(v, "Enter");
+    expect(doc(v)).not.toContain("- x\n- "); // no bullet continuation
+    expect(doc(v).length).toBeGreaterThan(before); // a line break was inserted
+  });
+
+  it("Shift+Enter inside a fenced code block does not hang-indent", () => {
+    const v = make("```\n- x\n```", 7);
+    press(v, "Enter", { shift: true });
+    expect(doc(v)).not.toContain("- x\n  "); // no list hang-indent inside code
+    expect(doc(v).startsWith("```\n- x\n")).toBe(true);
+  });
 });

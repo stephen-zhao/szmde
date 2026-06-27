@@ -1,8 +1,10 @@
 # Testing strategy
 
-_Status: **requirements defined; implementation scheduled after M1 (post-S6), before M2** —
-a "testing gate" milestone. See [SPEC.md §10](../SPEC.md). This doc is the source of truth for
-how szmde is tested; it will gain a live traceability matrix when T3 is implemented._
+_Status: **testing gate in progress** (after M1, before M2). See [SPEC.md §10](../SPEC.md).
+**T1 — done** (coverage tooling + ratchet; 100% lines, see below). **T2 — substantially in
+place** (editor integration tests); orchestration-needing cases deferred. **T3 — pending**
+(requirement↔test traceability matrix). **T4 — in practice** (TDD). This doc is the source of
+truth for how szmde is tested; it gains a live traceability matrix when T3 lands._
 
 ## Requirements
 
@@ -56,9 +58,24 @@ how szmde is tested; it will gain a live traceability matrix when T3 is implemen
 Failing-test-first once a behavior is planned. Demonstrated this iteration: the empty-nested-list-item
 Enter bug was reproduced by a failing test (the realistic "sibling above" structure) before the fix.
 
+## T1 results (done)
+
+- **Tooling:** `@vitest/coverage-v8`, run via `npm run test:coverage`. v8 provider, `all: true`,
+  scope `src/**/*.ts`. Explicit exclusions (no silent gaps): `*.test.ts`; `.svelte` UI components
+  (integration/E2E, deferred); `src-tauri` Rust (→ `cargo test`); generated/types/config.
+- **Backfill:** 71% → **100% lines** (statements 98.7%, functions 98.7%, branches 93.4%) across
+  124 unit/integration tests. New suites: `setup`, `frontmatter`, `render-mode`, `blocks`,
+  `theme.dom`, `layout`, plus edge extensions to `indent`/`markers.dom`/`editing`.
+- **Honest residual (not chased to 100%):** the sub-100% statement/branch/function gaps are
+  defensive `state.field(_, false)` guards, single-line-fence edges, and CodeMirror widget-diff
+  plumbing that only the real WebView exercises. The genuinely-unreachable bits carry explicit
+  `/* v8 ignore */` with reasons; we hold ratchet floors (lines 100, stmts/funcs 98, branches 93)
+  rather than fake the last few percent with contrived tests.
+- **Pending under T1:** `cargo test` + `cargo-llvm-cov` for the Rust units in `src-tauri`.
+
 ## Implementation order (the testing gate, after S6 / before M2)
 
-1. Add coverage tooling + reporting; set an initial threshold and ratchet toward 100% (T1).
-2. Backfill unit tests for existing modules to reach the threshold; add `cargo test` for Rust units.
-3. Build the requirement catalog + traceability matrix; tag tests with requirement IDs (T3).
-4. Expand integration tests for critical combinations; note any deferred (orchestration-needing) ones (T2).
+1. ✅ Add coverage tooling + reporting; set thresholds and ratchet toward 100% (T1).
+2. ✅ Backfill unit tests for existing modules to reach the threshold. ⬜ `cargo test` for Rust units.
+3. ⬜ Build the requirement catalog + traceability matrix; tag tests with requirement IDs (T3).
+4. 🔜 Expand integration tests for critical combinations; note any deferred (orchestration-needing) ones (T2).

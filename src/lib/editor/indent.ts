@@ -31,7 +31,8 @@ export function setIndent(view: EditorView, c: IndentConfig) {
 export function indentConfigOf(state: EditorState): IndentConfig {
   const u = state.facet(indentUnit);
   if (u[0] === "\t") return { style: "tab", width: state.tabSize };
-  return { style: "spaces", width: u.length || 2 };
+  // CodeMirror rejects an empty indentUnit, so a spaces unit always has length >= 1.
+  return { style: "spaces", width: u.length };
 }
 
 /** Visual column width of leading whitespace, given a tab size. */
