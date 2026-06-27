@@ -100,6 +100,36 @@ describe("token exchange / refresh", () => {
     const t = await refreshTokens(CFG, "OLD_RT", post, 0);
     expect(t.refreshToken).toBe("NEW_RT");
   });
+
+  it("includes client_secret in the exchange when the config has one (Google desktop)", async () => {
+    let sentForm: Record<string, string> = {};
+    const post: TokenPoster = async (_url, form) => {
+      sentForm = form;
+      return ok({ access_token: "AT", expires_in: 1 });
+    };
+    await exchangeCode({ ...CFG, clientSecret: "SECRET" }, "V", "C", post, 0);
+    expect(sentForm.client_secret).toBe("SECRET");
+  });
+
+  it("omits client_secret when the config has none", async () => {
+    let sentForm: Record<string, string> = {};
+    const post: TokenPoster = async (_url, form) => {
+      sentForm = form;
+      return ok({ access_token: "AT", expires_in: 1 });
+    };
+    await exchangeCode(CFG, "V", "C", post, 0); // CFG has no clientSecret
+    expect(sentForm.client_secret).toBeUndefined();
+  });
+
+  it("includes client_secret on refresh too", async () => {
+    let sentForm: Record<string, string> = {};
+    const post: TokenPoster = async (_url, form) => {
+      sentForm = form;
+      return ok({ access_token: "AT2", expires_in: 1 });
+    };
+    await refreshTokens({ ...CFG, clientSecret: "SECRET" }, "RT", post, 0);
+    expect(sentForm.client_secret).toBe("SECRET");
+  });
 });
 
 describe("OAuthClient", () => {
