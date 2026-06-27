@@ -79,9 +79,9 @@ export const DEFAULTS: Settings = {
   editor: {
     renderMode: "clean",
     revealMarkersOnCursor: true,
-    // Honest default: autosave is NOT implemented yet, so the effective behavior
-    // is "off". (SPEC §8's illustrative schema shows true; we'll flip the default
-    // when autosave actually ships, in a versioned migration.)
+    // Autosave is implemented (M3 S3 / REQ-SAVE-2) but ships OPT-IN: default off,
+    // pending a decision to flip it on by default. Set editor.autosave=true to
+    // enable. (SPEC §8's illustrative schema shows true.)
     autosave: false,
     autosaveIntervalMs: 2000,
     spellcheck: false,

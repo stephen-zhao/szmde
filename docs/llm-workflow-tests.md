@@ -243,6 +243,20 @@ on-disk revision changes; make an edit in szmde so it's dirty; press Ctrl+S.
 - **Cancel** / **Esc** → nothing is written, the document stays dirty.
 **Notes:** Save As to a brand-new path never conflicts (unconditional write).
 
+### WF-16 · Autosave fires after the interval · `REQ-SAVE-2`
+**Why:** the debounce/coalesce logic is unit-tested, but the editor→scheduler→
+save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.**
+**Setup:** in `user.json` set `editor.autosave=true` and a short
+`editor.autosaveIntervalMs` (e.g. 1000); launch and open a saved file.
+**Steps:**
+- Type an edit; the status dirty dot (`•`) appears. Wait ~1 s without typing →
+  Expected: the file is written to disk (verify externally) and the dirty dot
+  clears, with no Save dialog.
+- Type a fast burst → Expected: a single save fires ~1 s after the LAST edit, not
+  one per keystroke (coalesced).
+- A brand-new untitled buffer is **not** autosaved (no Save As dialog pops); it
+  only autosaves after a first manual Save gives it a path.
+
 ---
 
 ## Requirement coverage
@@ -263,6 +277,7 @@ on-disk revision changes; make an edit in szmde so it's dirty; press Ctrl+S.
 | REQ-LOOK-1 | — (gap) | WF-13 (look) |
 | REQ-PERF-1 | — (gap) | WF-14 (lag) |
 | REQ-SAVE-1 | logic (`storage/local.test.ts`, `storage/conflict.test.ts`, cargo) | WF-15 (conflict modal) |
+| REQ-SAVE-2 | logic (`storage/autosave.test.ts`) | WF-16 (autosave fires) |
 
 The three former [traceability.md](traceability.md) gaps with no automated test
 (REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest

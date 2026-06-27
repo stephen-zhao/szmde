@@ -19,12 +19,22 @@
   import { ProviderRegistry } from "$lib/storage/registry";
   import { StorageError, type Revision } from "$lib/storage/provider";
   import { copyPathFor, type ConflictChoice } from "$lib/storage/conflict";
+  import { AutosaveScheduler } from "$lib/storage/autosave";
 
   // File I/O goes through the StorageProvider seam (SPEC §6) rather than raw
   // `invoke`. All v1 files are local; cloud providers + account-driven selection
   // register here in a later M3 slice — `get("local")` is always safe.
   const providers = new ProviderRegistry([new LocalProvider()]);
   const storage = providers.get("local");
+
+  // Debounced autosave (REQ-SAVE-2). Disabled until effective settings load
+  // (initSettings below seeds enabled/interval). Only autosaves a file that has a
+  // path and unsaved edits — never pops a Save As dialog for an untitled buffer.
+  const autosave = new AutosaveScheduler({
+    save: () => (filePath && dirty ? doSave() : undefined),
+    intervalMs: 2000,
+    enabled: false,
+  });
 
   let editor: EditorApi | undefined;
   let filePath = $state<string | null>(null);
@@ -299,9 +309,13 @@
     initSettings().then((eff) => {
       if (!filePath) eol = eff.editor.defaultEol;
       seedEditorFromSettings();
+      // Seed autosave from effective settings (REQ-SAVE-2).
+      autosave.setIntervalMs(eff.editor.autosaveIntervalMs);
+      autosave.setEnabled(eff.editor.autosave);
     });
 
     return () => {
+      autosave.cancel();
       unlistenP.then((un) => un());
       unCloseP.then((un) => un());
     };
@@ -328,7 +342,10 @@
       editor = api;
       seedEditorFromSettings();
     }}
-    onchange={() => (dirty = true)}
+    onchange={() => {
+      dirty = true;
+      autosave.notifyDirty();
+    }}
     onwrapstate={(s) => (wrapState = s)}
     onrendermode={(m) => {
       renderMode = m;
