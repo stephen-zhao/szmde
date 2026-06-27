@@ -57,6 +57,9 @@ tags in the test files and flags either side that's missing._
 | REQ-CLI-1 | CLI parsing: flags, render-mode validation, help/version exit codes, usage errors | §2.1 | unit (Rust) | `src-tauri/src/lib.rs` |
 | REQ-CLI-2 | CLI path resolution: relative→cwd, absolute unchanged | §2.1/§6.1 | unit (Rust) | `src-tauri/src/lib.rs` |
 | REQ-BUILD-1 | App ships as a static SPA (SSR disabled) for the Tauri shell | §3 | unit | `routes/layout.test.ts` |
+| REQ-SET-1 | Two-tier settings service: DEFAULTS<system<user deep-merge, minimal-diff persistence, no-op write guard, resilient load (missing/corrupt/I-O all degrade, never throw) | §8 | unit | `settings/service.test.ts`, `settings/backend.test.ts`, `settings/tauri-backend.test.ts` |
+| REQ-SET-2 | Settings schema/validation/migration: DEFAULTS, drop-invalid-or-unknown→default, thin partials, version-stamped forward migration | §8 | unit | `settings/schema.test.ts`, `settings/validate.test.ts`, `settings/migrate.test.ts`, `settings/merge.test.ts` |
+| REQ-SET-3 | Appearance applied to CSS custom properties; atomic settings-file IO with absent→None vs I/O→Err | §8 | unit + unit (Rust) | `settings/appearance.test.ts`, `src-tauri/src/lib.rs` |
 
 ## Requirements with no automated test (honest gaps — tracked, not silent)
 
@@ -67,7 +70,6 @@ tags in the test files and flags either side that's missing._
 | REQ-LOOK-1 | "Modern, sleek, unified" dark-default look | §1/§7 | Subjective/visual — LLM-judged against a rubric over screenshots; infra deferred. |
 | REQ-CLI-3 | `wsl_to_unc` translates a WSL path to a UNC path | §6.1 | Shells out to `wsl.exe` → integration, not a unit; needs WSL present. |
 | REQ-FS-1 | Open/save via local FS, Google Drive, OneDrive, network storage | §6 | Cloud/network backends not yet implemented (post-v1). |
-| REQ-SET-1 | Two-tier (system + user) JSON settings | §8 | Settings system is M2; not yet implemented. |
 
 _Future requirements (tables editing §7.4, Alt-hints §7.5, tabs/panes §7.2, zoom §7.3, and the
 rest of §5.4) enter this table with linked tests as they're built._

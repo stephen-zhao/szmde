@@ -18,9 +18,10 @@ fn read_file(path: String) -> Result<String, String> {
 /// replaces the destination on both Windows and Unix and is atomic on the same
 /// volume, so a mid-write failure (disk full, I/O error, power loss) can never
 /// truncate or destroy the file the user already had on disk.
-#[tauri::command]
-fn write_file(path: String, content: String) -> Result<(), String> {
-    let target = std::path::PathBuf::from(&path);
+/// Atomically write `content` to `target`: write a sibling temp file then rename
+/// it over the target (atomic on the same volume, replaces on Windows + Unix).
+/// Shared by `write_file` and `write_settings_file`.
+fn write_atomic(target: &std::path::Path, content: &str) -> Result<(), String> {
     let dir = target
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
@@ -33,11 +34,59 @@ fn write_file(path: String, content: String) -> Result<(), String> {
     let tmp = dir.join(format!(".{}.{}.szmde-tmp", name, std::process::id()));
 
     std::fs::write(&tmp, content.as_bytes()).map_err(|e| e.to_string())?;
-    if let Err(e) = std::fs::rename(&tmp, &target) {
+    if let Err(e) = std::fs::rename(&tmp, target) {
         let _ = std::fs::remove_file(&tmp); // best-effort cleanup; original untouched
         return Err(e.to_string());
     }
     Ok(())
+}
+
+#[tauri::command]
+fn write_file(path: String, content: String) -> Result<(), String> {
+    write_atomic(std::path::Path::new(&path), &content)
+}
+
+/// Read a file as an Option: Ok(None) when it's absent (a normal first run for a
+/// settings file), Ok(Some) when present, Err on a real I/O error. Pure helper so
+/// the None-vs-Err contract is unit-testable without an AppHandle.
+fn read_optional(path: &std::path::Path) -> Result<Option<String>, String> {
+    match std::fs::read_to_string(path) {
+        Ok(s) => Ok(Some(s)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// Resolve a settings file ("user" | "system") under a config base dir. Pure (no
+/// AppHandle) so the path logic is cargo-testable against a temp dir. Unknown
+/// `which` → None (the command turns that into an error).
+fn settings_path(base: &std::path::Path, which: &str) -> Option<std::path::PathBuf> {
+    match which {
+        "user" => Some(base.join("user.json")),
+        "system" => Some(base.join("system.json")),
+        _ => None,
+    }
+}
+
+/// Read a settings file ("user" | "system") from the OS app-config dir. The dir
+/// leaf is the bundle identifier (com.zhaostephen.szmde) — Tauri's convention;
+/// SPEC §8's "%APPDATA%/szmde/" was illustrative. Ok(None) if the file is absent
+/// (normal first run); Err on a real I/O error or an unknown `which`.
+#[tauri::command]
+fn read_settings_file(app: tauri::AppHandle, which: String) -> Result<Option<String>, String> {
+    let base = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    let path = settings_path(&base, &which).ok_or_else(|| format!("unknown settings file: {which}"))?;
+    read_optional(&path)
+}
+
+/// Atomically write the USER settings file (system.json is never written by the
+/// app — it's read-only/admin-provided). Creates the config dir on first write.
+#[tauri::command]
+fn write_settings_file(app: tauri::AppHandle, content: String) -> Result<(), String> {
+    let base = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&base).map_err(|e| e.to_string())?;
+    let path = settings_path(&base, "user").expect("\"user\" always resolves");
+    write_atomic(&path, &content)
 }
 
 /// Returns (once) the file path szmde was launched with, e.g. `szmde notes.md`.
@@ -238,7 +287,13 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_dialog::init())
         .manage(LaunchFile(Mutex::new(launch_file)))
-        .invoke_handler(tauri::generate_handler![read_file, write_file, get_launch_file])
+        .invoke_handler(tauri::generate_handler![
+            read_file,
+            write_file,
+            get_launch_file,
+            read_settings_file,
+            write_settings_file
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -248,6 +303,7 @@ mod tests {
     // Requirement coverage (docs/traceability.md):
     //   [REQ-CLI-1] parse_cli   ·  [REQ-CLI-2] resolve_path
     //   [REQ-FILE-1] read_file   ·  [REQ-FILE-2] write_file (atomic)
+    //   [REQ-SET-3] settings file IO (settings_path / write_atomic / read_optional)
     use super::*;
 
     fn args(v: &[&str]) -> std::vec::IntoIter<String> {
@@ -359,5 +415,41 @@ mod tests {
     fn read_file_on_missing_path_is_err() {
         let missing = std::env::temp_dir().join("szmde-definitely-absent-xyz.md");
         assert!(read_file(missing.to_string_lossy().into_owned()).is_err());
+    }
+
+    // --- [REQ-SET-3] settings file IO -------------------------------------
+    #[test]
+    fn settings_path_maps_known_files_and_rejects_unknown() {
+        let base = std::path::Path::new("/cfg");
+        assert_eq!(settings_path(base, "user"), Some(base.join("user.json")));
+        assert_eq!(settings_path(base, "system"), Some(base.join("system.json")));
+        assert_eq!(settings_path(base, "bogus"), None);
+    }
+
+    #[test]
+    fn read_optional_is_some_when_present_and_none_when_absent() {
+        let dir = std::env::temp_dir().join(format!("szmde-set-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let user = settings_path(&dir, "user").unwrap();
+        assert_eq!(read_optional(&user).unwrap(), None); // absent → None, not Err
+        write_atomic(&user, "{\"version\":1}").unwrap();
+        assert_eq!(read_optional(&user).unwrap(), Some("{\"version\":1}".to_string()));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn settings_write_atomic_overwrites_and_leaves_no_residue() {
+        let dir = std::env::temp_dir().join(format!("szmde-setrt-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let user = settings_path(&dir, "user").unwrap();
+        write_atomic(&user, "{\"a\":1}").unwrap();
+        write_atomic(&user, "{\"a\":2}").unwrap(); // in-place atomic replace
+        assert_eq!(read_optional(&user).unwrap(), Some("{\"a\":2}".to_string()));
+        let residue = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .any(|e| e.file_name().to_string_lossy().contains("szmde-tmp"));
+        assert!(!residue, "atomic write left a temp file behind");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
