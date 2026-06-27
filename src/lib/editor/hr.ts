@@ -34,7 +34,7 @@ class HrWidget extends WidgetType {
     return o.to === this.to;
   }
   toDOM(view: EditorView) {
-    const s = document.createElement("span");
+    const s = document.createElement("div");
     s.className = "cm-md-hr";
     s.setAttribute("aria-hidden", "true");
     s.addEventListener("mousedown", (e) => {

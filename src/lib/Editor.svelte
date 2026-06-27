@@ -142,6 +142,8 @@
   onMount(() => {
     view = new EditorView({ state: buildState(""), parent: container });
     view.focus();
+    // Dev-only debug handle so the preview harness can drive/inspect the editor.
+    if (import.meta.env.DEV) (window as unknown as { __cmview: EditorView }).__cmview = view;
     onready?.({
       setContent,
       getContent,

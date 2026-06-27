@@ -65,12 +65,12 @@ function caretOffsetIn(node: HTMLElement, x: number, y: number): number | null {
 class AlertLabelWidget extends WidgetType {
   constructor(
     readonly type: AlertType,
-    readonly pos: number, // doc position of the `[` (label start)
+    readonly markFrom: number, // doc position of the `[` of `[!TYPE]`
   ) {
     super();
   }
   eq(o: AlertLabelWidget) {
-    return o.type === this.type && o.pos === this.pos;
+    return o.type === this.type && o.markFrom === this.markFrom;
   }
   toDOM(view: EditorView) {
     const wrap = document.createElement("span");
@@ -86,12 +86,12 @@ class AlertLabelWidget extends WidgetType {
     wrap.addEventListener("mousedown", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      let at = this.pos;
+      let at = this.markFrom;
       /* v8 ignore start -- char-from-point is the real-DOM path (not in happy-dom). */
       const nameEl = (e.target as HTMLElement | null)?.closest?.(".cm-alert-name") as HTMLElement | null;
       if (nameEl) {
         const off = caretOffsetIn(nameEl, e.clientX, e.clientY);
-        if (off != null) at = this.pos + 2 + off; // skip the literal `[!` before the name
+        if (off != null) at = this.markFrom + 2 + off; // `[`(+0) `!`(+1) name(+2…)
       }
       /* v8 ignore stop */
       view.dispatch({ selection: EditorSelection.cursor(at), scrollIntoView: true });
@@ -157,12 +157,14 @@ function buildAlertDecos(view: EditorView): AlertDecos {
         if (mode === "clean" && !caretLines.has(startLine)) {
           const first = state.doc.line(startLine);
           const pfx = QUOTE_PREFIX.exec(first.text);
+          const open = first.text.indexOf("["); // the `[` of `[!TYPE]`
           const close = first.text.indexOf("]");
-          if (pfx && close !== -1) {
-            const labelFrom = first.from + pfx[1].length; // right after the `>`
+          if (pfx && open !== -1 && close !== -1) {
+            const labelFrom = first.from + pfx[1].length; // right after the `>` (hides the space too)
             const labelTo = first.from + close + 1; // through the `]`
+            const markFrom = first.from + open; // the `[` — base for click→char mapping
             decos.push(
-              Decoration.replace({ widget: new AlertLabelWidget(type, labelFrom) }).range(
+              Decoration.replace({ widget: new AlertLabelWidget(type, markFrom) }).range(
                 labelFrom,
                 labelTo,
               ),

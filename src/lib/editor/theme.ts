@@ -226,16 +226,21 @@ export const baseTheme = EditorView.theme(
       verticalAlign: "middle",
       accentColor: "var(--accent)",
     },
-    // Horizontal rule (Clean mode): the `---` run is replaced by this divider.
-    // Box-model height (not margin) so CM's height map stays in sync and the
-    // line is comfortably clickable (clicking it reveals the literal chars).
+    // Horizontal rule (Clean mode): the `---` line is replaced by this block
+    // divider. A full-height flex band (em-based so it scales with the font)
+    // makes the WHOLE line clickable — not just a thin strip — so a click always
+    // lands on the widget (which drops the caret at the line end), and the rule
+    // is drawn centered via the flex-filling ::after.
     ".cm-md-hr": {
-      display: "inline-block",
-      boxSizing: "border-box",
-      width: "100%",
-      height: "0.75em",
-      borderBottom: "2px solid var(--border)",
-      verticalAlign: "middle",
+      display: "flex",
+      alignItems: "center",
+      height: "1.6em",
+      cursor: "pointer",
+    },
+    ".cm-md-hr::after": {
+      content: '""',
+      flex: "1",
+      borderTop: "2px solid var(--border)",
     },
   },
   { dark: true },

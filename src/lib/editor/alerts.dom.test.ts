@@ -93,7 +93,7 @@ describe("[REQ-ALERT-2] GFM alerts — reveal, modes, and non-alerts", () => {
     const v = build("> [!NOTE]\n> body", "clean", 16); // caret on body → label rendered
     const label = v.contentDOM.querySelector(".cm-alert-label")!;
     label.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-    expect(v.state.selection.main.head).toBe(1); // caret at the `[!NOTE]` start (after `>`)
+    expect(v.state.selection.main.head).toBe(2); // caret at the `[` of `[!NOTE]`
     expect(count(v, ".cm-alert-label")).toBe(0); // revealed to literal text
   });
 
