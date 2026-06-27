@@ -189,6 +189,24 @@ export const baseTheme = EditorView.theme(
     ".cm-alert-label-important .cm-alert-icon::before": { content: '"❖"' },
     ".cm-alert-label-warning .cm-alert-icon::before": { content: '"△"' },
     ".cm-alert-label-caution .cm-alert-icon::before": { content: '"⊘"' },
+    // GFM table (Clean mode): the pipe source is replaced by this real <table>.
+    // Block widget, so it carries its own spacing; collapse borders for crisp
+    // grid lines and tint the header row.
+    ".cm-md-table": {
+      borderCollapse: "collapse",
+      margin: "0.4em 0",
+      fontSize: "0.95em",
+      lineHeight: "1.5",
+    },
+    ".cm-md-table th, .cm-md-table td": {
+      border: "1px solid var(--border)",
+      padding: "5px 12px",
+      textAlign: "left",
+    },
+    ".cm-md-table th": {
+      backgroundColor: "var(--code-header-bg)",
+      fontWeight: "700",
+    },
     // Inline image (Clean mode): replaces `![alt](src)`. Constrain to the reading
     // column width and keep aspect ratio; rounded to match the code-card style.
     ".cm-md-image": {
