@@ -71,11 +71,16 @@ Enter bug was reproduced by a failing test (the realistic "sibling above" struct
   plumbing that only the real WebView exercises. The genuinely-unreachable bits carry explicit
   `/* v8 ignore */` with reasons; we hold ratchet floors (lines 100, stmts/funcs 98, branches 93)
   rather than fake the last few percent with contrived tests.
-- **Pending under T1:** `cargo test` + `cargo-llvm-cov` for the Rust units in `src-tauri`.
+- **Rust units (done):** 14 `cargo test` tests for the pure backend logic — `parse_cli`
+  (flags, render-mode validation, help/version exit codes, usage errors), `resolve_path`
+  (absolute / relative-joins-cwd / no-cwd), and atomic `write_file` + `read_file` (roundtrip,
+  in-place overwrite, no temp residue, missing-file error). Run via
+  `cargo test --manifest-path src-tauri/Cargo.toml --lib`. (`wsl_to_unc` shells out to
+  `wsl.exe` → integration, not unit-tested. `cargo-llvm-cov` line coverage: optional, deferred.)
 
 ## Implementation order (the testing gate, after S6 / before M2)
 
 1. ✅ Add coverage tooling + reporting; set thresholds and ratchet toward 100% (T1).
-2. ✅ Backfill unit tests for existing modules to reach the threshold. ⬜ `cargo test` for Rust units.
+2. ✅ Backfill unit tests for existing modules to reach the threshold. ✅ `cargo test` for Rust units (14).
 3. ⬜ Build the requirement catalog + traceability matrix; tag tests with requirement IDs (T3).
 4. 🔜 Expand integration tests for critical combinations; note any deferred (orchestration-needing) ones (T2).

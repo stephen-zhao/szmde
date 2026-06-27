@@ -72,6 +72,7 @@ const RENDER_MODES: [&str; 3] = ["clean", "markers-rendered", "markers-syntax"];
 /// as a file or rejected as unknown) but not yet acted on — multi-window and the
 /// render-mode engine are later-milestone work.
 #[allow(dead_code)]
+#[derive(Debug)]
 struct Cli {
     file: Option<String>,
     new_window: bool,
@@ -240,4 +241,120 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![read_file, write_file, get_launch_file])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(v: &[&str]) -> std::vec::IntoIter<String> {
+        v.iter().map(|s| s.to_string()).collect::<Vec<_>>().into_iter()
+    }
+
+    #[test]
+    fn parse_cli_bare_file_resolves_against_cwd() {
+        let cwd = std::env::temp_dir();
+        let cwd_s = cwd.to_string_lossy().into_owned();
+        let cli = parse_cli(args(&["notes.md"]), Some(&cwd_s)).unwrap();
+        let f = cli.file.expect("file should be set");
+        assert!(std::path::Path::new(&f).is_absolute());
+        assert!(f.ends_with("notes.md"));
+        assert!(!cli.new_window);
+        assert!(cli.render_mode.is_none());
+    }
+
+    #[test]
+    fn parse_cli_new_window_flag() {
+        let cli = parse_cli(args(&["--new-window"]), None).unwrap();
+        assert!(cli.new_window);
+        assert!(cli.file.is_none());
+    }
+
+    #[test]
+    fn parse_cli_accepts_each_valid_render_mode() {
+        for m in RENDER_MODES {
+            let cli = parse_cli(args(&["--render-mode", m]), None).unwrap();
+            assert_eq!(cli.render_mode.as_deref(), Some(m));
+        }
+    }
+
+    #[test]
+    fn parse_cli_invalid_render_mode_is_usage_error() {
+        assert_eq!(parse_cli(args(&["--render-mode", "nope"]), None).unwrap_err(), 2);
+    }
+
+    #[test]
+    fn parse_cli_render_mode_without_value_is_usage_error() {
+        assert_eq!(parse_cli(args(&["--render-mode"]), None).unwrap_err(), 2);
+    }
+
+    #[test]
+    fn parse_cli_help_and_version_exit_zero() {
+        for flag in ["--help", "-h", "--version", "-V"] {
+            assert_eq!(parse_cli(args(&[flag]), None).unwrap_err(), 0, "{flag}");
+        }
+    }
+
+    #[test]
+    fn parse_cli_unknown_option_is_usage_error() {
+        assert_eq!(parse_cli(args(&["--bogus"]), None).unwrap_err(), 2);
+    }
+
+    #[test]
+    fn parse_cli_second_positional_is_usage_error() {
+        assert_eq!(parse_cli(args(&["a.md", "b.md"]), None).unwrap_err(), 2);
+    }
+
+    #[test]
+    fn resolve_path_absolute_is_returned_unchanged() {
+        let abs = std::env::temp_dir().join("szmde-abs.md");
+        let abs_s = abs.to_string_lossy().into_owned();
+        // cwd is irrelevant for an already-absolute path
+        assert_eq!(resolve_path(&abs_s, Some("/some/other/dir")), abs_s);
+    }
+
+    #[test]
+    fn resolve_path_relative_joins_cwd() {
+        let cwd = std::env::temp_dir();
+        let cwd_s = cwd.to_string_lossy().into_owned();
+        let r = resolve_path("notes.md", Some(&cwd_s));
+        assert!(std::path::Path::new(&r).is_absolute());
+        assert!(r.ends_with("notes.md"));
+    }
+
+    #[test]
+    fn resolve_path_relative_without_cwd_is_unchanged() {
+        assert_eq!(resolve_path("notes.md", None), "notes.md");
+    }
+
+    #[test]
+    fn write_then_read_roundtrips_and_overwrites_atomically() {
+        let path = std::env::temp_dir().join(format!("szmde-rt-{}.md", std::process::id()));
+        let p = path.to_string_lossy().into_owned();
+        write_file(p.clone(), "hello\nworld".into()).unwrap();
+        assert_eq!(read_file(p.clone()).unwrap(), "hello\nworld");
+        // Atomic rename replaces an existing file in place.
+        write_file(p.clone(), "replaced".into()).unwrap();
+        assert_eq!(read_file(p.clone()).unwrap(), "replaced");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn write_file_leaves_no_temp_residue() {
+        let dir = std::env::temp_dir().join(format!("szmde-tmpcheck-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        write_file(dir.join("note.md").to_string_lossy().into_owned(), "x".into()).unwrap();
+        let residue = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .any(|e| e.file_name().to_string_lossy().contains("szmde-tmp"));
+        assert!(!residue, "atomic write left a temp file behind");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn read_file_on_missing_path_is_err() {
+        let missing = std::env::temp_dir().join("szmde-definitely-absent-xyz.md");
+        assert!(read_file(missing.to_string_lossy().into_owned()).is_err());
+    }
 }
