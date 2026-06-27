@@ -1,6 +1,6 @@
 import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
-import { RangeSet, type EditorState, type Range } from "@codemirror/state";
+import { EditorSelection, RangeSet, type EditorState, type Range } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
 import { syntaxTree } from "@codemirror/language";
 import { renderMode } from "./render-mode";
@@ -42,13 +42,16 @@ const TITLE: Record<AlertType, string> = {
 
 /** Icon + name shown in place of `[!TYPE]` on the title line (Clean mode). */
 class AlertLabelWidget extends WidgetType {
-  constructor(readonly type: AlertType) {
+  constructor(
+    readonly type: AlertType,
+    readonly pos: number, // where to drop the caret when the label is clicked
+  ) {
     super();
   }
   eq(o: AlertLabelWidget) {
-    return o.type === this.type;
+    return o.type === this.type && o.pos === this.pos;
   }
-  toDOM() {
+  toDOM(view: EditorView) {
     const wrap = document.createElement("span");
     wrap.className = `cm-alert-label cm-alert-label-${this.type}`;
     wrap.setAttribute("contenteditable", "false");
@@ -59,6 +62,13 @@ class AlertLabelWidget extends WidgetType {
     name.className = "cm-alert-name";
     name.textContent = TITLE[this.type];
     wrap.append(icon, name);
+    // Clicking the label reveals the literal `[!TYPE]` for editing (otherwise you
+    // could only edit by gliding the caret in from the side).
+    wrap.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      view.dispatch({ selection: EditorSelection.cursor(this.pos), scrollIntoView: true });
+      view.focus();
+    });
     return wrap;
   }
   /* v8 ignore start -- pointer-event plumbing; not dispatchable in happy-dom. */
@@ -124,7 +134,10 @@ function buildAlertDecos(view: EditorView): AlertDecos {
             const labelFrom = first.from + pfx[1].length; // right after the `>`
             const labelTo = first.from + close + 1; // through the `]`
             decos.push(
-              Decoration.replace({ widget: new AlertLabelWidget(type) }).range(labelFrom, labelTo),
+              Decoration.replace({ widget: new AlertLabelWidget(type, labelFrom) }).range(
+                labelFrom,
+                labelTo,
+              ),
             );
             hidden.push(hide.range(labelFrom, labelTo));
           }

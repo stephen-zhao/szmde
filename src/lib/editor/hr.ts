@@ -1,6 +1,6 @@
 import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
-import { RangeSet, type Range } from "@codemirror/state";
+import { EditorSelection, RangeSet, type Range } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import { renderMode } from "./render-mode";
 
@@ -16,21 +16,32 @@ import { renderMode } from "./render-mode";
  * as a rule.
  */
 class HrWidget extends WidgetType {
-  /* v8 ignore start -- single shared decoration instance, so CM reuses the
-     widget DOM by reference and never calls eq; defensive only. */
-  eq() {
-    return true;
+  constructor(readonly to: number) {
+    super();
   }
-  /* v8 ignore stop */
-  toDOM() {
+  eq(o: HrWidget) {
+    return o.to === this.to;
+  }
+  toDOM(view: EditorView) {
     const s = document.createElement("span");
     s.className = "cm-md-hr";
     s.setAttribute("aria-hidden", "true");
+    // Clicking the divider reveals the literal `---` with the caret deterministically
+    // at the END of the line (CM would otherwise pick start/end by click x-position).
+    s.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      view.dispatch({ selection: EditorSelection.cursor(this.to), scrollIntoView: true });
+      view.focus();
+    });
     return s;
   }
+  /* v8 ignore start -- pointer-event plumbing; not dispatchable in happy-dom. */
+  ignoreEvent() {
+    return true;
+  }
+  /* v8 ignore stop */
 }
 
-const hrWidget = Decoration.replace({ widget: new HrWidget() });
 const hide = Decoration.replace({});
 const syntaxMark = Decoration.mark({ class: "cm-md-mark-syntax" });
 
@@ -65,7 +76,7 @@ function buildHrDecos(view: EditorView): HrDecos {
         if (node.name !== "HorizontalRule") return;
         if (mode === "clean") {
           if (caretLines.has(state.doc.lineAt(node.from).number)) return; // reveal
-          decos.push(hrWidget.range(node.from, node.to));
+          decos.push(Decoration.replace({ widget: new HrWidget(node.to) }).range(node.from, node.to));
           hidden.push(hide.range(node.from, node.to));
         } else if (mode === "markers-syntax") {
           decos.push(syntaxMark.range(node.from, node.to));

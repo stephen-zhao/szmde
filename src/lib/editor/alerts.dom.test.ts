@@ -89,6 +89,14 @@ describe("[REQ-ALERT-2] GFM alerts — reveal, modes, and non-alerts", () => {
     expect(count(v, ".cm-blockquote")).toBeGreaterThanOrEqual(2);
   });
 
+  it("reveals the literal [!TYPE] for editing when the label is clicked", () => {
+    const v = build("> [!NOTE]\n> body", "clean", 16); // caret on body → label rendered
+    const label = v.contentDOM.querySelector(".cm-alert-label")!;
+    label.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    expect(v.state.selection.main.head).toBe(1); // caret on the title line (after `>`)
+    expect(count(v, ".cm-alert-label")).toBe(0); // revealed to literal text
+  });
+
   it("reuses the alert-label DOM across an edit elsewhere (AlertLabelWidget.eq)", () => {
     const v = build("> [!NOTE]\n> body", "clean", 16); // caret on the body line (end)
     const before = v.contentDOM.querySelector(".cm-alert-label");

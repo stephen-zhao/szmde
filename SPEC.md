@@ -595,4 +595,3 @@ bound to `Ctrl/Cmd+Shift+M` (§7).
 be ranked later; not needed for v1.
 
 No open questions block starting v1.
-```

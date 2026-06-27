@@ -3,6 +3,7 @@ import { EditorView } from "@codemirror/view";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { forceParsing } from "@codemirror/language";
 import { editorExtensions } from "./setup";
+import { renderInlineMarkdown } from "./tables";
 import type { RenderMode } from "./render-mode";
 
 // Rendered-DOM tests for GFM tables (M2 S5, render-only). Clean mode replaces the
@@ -105,5 +106,41 @@ describe("[REQ-TABLE-2] Tables — reveal-to-source and other modes", () => {
     const v = build(DOC, "markers-syntax", 0);
     expect(count(v, "table.cm-md-table")).toBe(0);
     expect(text(v)).toContain("| a | b |");
+  });
+
+  it("reveals the source with the caret in the table when clicked", () => {
+    const v = build(DOC, "clean", 0); // table rendered (caret on line 0)
+    const table = v.contentDOM.querySelector("table.cm-md-table")!;
+    table.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    // caret lands at the table's start (line 2) → the table reveals to source.
+    expect(v.state.selection.main.head).toBe(v.state.doc.line(3).from);
+    expect(count(v, "table.cm-md-table")).toBe(0);
+  });
+
+  it("renders inline markdown inside cells (bold/italic/code)", () => {
+    const v = build("intro\n\n| a | b |\n| - | - |\n| **x** | `y` |", "clean", 0);
+    expect(v.contentDOM.querySelector("table.cm-md-table td strong")?.textContent).toBe("x");
+    expect(v.contentDOM.querySelector("table.cm-md-table td code")?.textContent).toBe("y");
+  });
+});
+
+describe("[REQ-TABLE-1] renderInlineMarkdown — cell inline tokens", () => {
+  const render = (s: string) => {
+    const d = document.createElement("div");
+    renderInlineMarkdown(d, s);
+    return d;
+  };
+  it("renders each inline construct + surrounding text", () => {
+    expect(render("a **b** c").querySelector("strong")?.textContent).toBe("b");
+    expect(render("~~s~~").querySelector("del")?.textContent).toBe("s");
+    expect(render("`c`").querySelector("code")?.textContent).toBe("c");
+    expect(render("*i*").querySelector("em")?.textContent).toBe("i");
+    expect(render("_u_").querySelector("em")?.textContent).toBe("u");
+    const a = render("[t](http://x)").querySelector("a");
+    expect(a?.textContent).toBe("t");
+    expect(a?.getAttribute("href")).toBe("http://x");
+  });
+  it("leaves plain text as a text node", () => {
+    expect(render("just text").textContent).toBe("just text");
   });
 });

@@ -180,10 +180,23 @@ describe("[REQ-LIST-4][REQ-INDENT-1] Tab — soft tab vs list nesting", () => {
     expect(doc(v)).toBe("  - ");
   });
 
+  it("Tab on an empty task item nests it (like an empty bullet)", () => {
+    const v = make("- [ ] ", 6);
+    press(v, "Tab");
+    expect(doc(v)).toBe("  - [ ] ");
+  });
+
   it("Tab on a plain line inserts 2 spaces", () => {
     const v = make("hi", 2);
     press(v, "Tab");
     expect(doc(v)).toBe("hi  ");
+  });
+
+  it("Tab is preventDefault'd (no browser focus-traversal)", () => {
+    const v = make("hi", 2);
+    const ev = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+    v.contentDOM.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true);
   });
 
   it("Tab inserts a tab character when the indent style is Tab", () => {

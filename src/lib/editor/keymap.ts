@@ -74,9 +74,11 @@ function toggleWrap(marker: string, construct: string): StateCommand {
 export const toggleBold = toggleWrap("**", "StrongEmphasis");
 export const toggleItalic = toggleWrap("*", "Emphasis");
 
-/** An empty list item: leading indent (captured as group 1) + marker + space.
- *  Shared by the Tab (nest) and Enter (outdent/exit) handlers. */
-const EMPTY_LIST_ITEM = /^(\s*)(?:[-*+]|\d+[.)])\s+$/;
+/** An empty list item: leading indent (group 1) + marker + space, optionally a
+ *  task checkbox `[ ]`/`[x]` with no text after it (an empty task). Shared by the
+ *  Tab (nest) and Enter (outdent/exit) handlers, so empty tasks behave like
+ *  empty bullets. */
+const EMPTY_LIST_ITEM = /^(\s*)(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?$/;
 
 /**
  * If the caret sits on a CONTINUATION line of a list item — a soft-broken line
@@ -121,8 +123,9 @@ function listContinuationMarker(
   return indent + markText + " ";
 }
 
-/** Leading `indent + marker + trailing space(s)` of a list item line. */
-const LIST_PREFIX = /^(\s*(?:[-*+]|\d+[.)])\s+)/;
+/** Leading `indent + marker + trailing space(s)` of a list item line, including
+ *  a task checkbox prefix so a task's soft-break hangs under its content too. */
+const LIST_PREFIX = /^(\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?)/;
 
 /**
  * The hang-indent (spaces) that aligns a soft-broken line under the CONTENT of

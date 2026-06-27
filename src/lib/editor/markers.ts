@@ -46,6 +46,82 @@ function bulletDeco(glyph: string): Decoration {
   return d;
 }
 
+// Ordered-list numbering. By ORDERED nesting depth the style cycles
+// decimal → lower-alpha → lower-roman, and each list restarts: the DISPLAYED
+// ordinal is the item's POSITION within its own OrderedList (not the literal
+// number), so display is always correct and resets when nested.
+function orderedDepth(node: SyntaxNode): number {
+  let d = 0;
+  for (let p: SyntaxNode | null = node.parent; p; p = p.parent)
+    if (p.name === "OrderedList") d++;
+  return d;
+}
+function orderedIndex(item: SyntaxNode): number {
+  let i = 0;
+  for (let c = item.parent?.firstChild ?? null; c; c = c.nextSibling) {
+    if (c.name === "ListItem") {
+      i++;
+      if (c.from === item.from) return i;
+    }
+  }
+  /* v8 ignore start -- defensive: an ordered item is always among its parent
+     list's children, so the loop returns above; this fallback is unreachable. */
+  return i || 1;
+  /* v8 ignore stop */
+}
+function toAlpha(n: number): string {
+  let s = "";
+  while (n > 0) {
+    n--;
+    s = String.fromCharCode(97 + (n % 26)) + s;
+    n = Math.floor(n / 26);
+  }
+  return s;
+}
+const ROMAN: [number, string][] = [
+  [1000, "m"], [900, "cm"], [500, "d"], [400, "cd"], [100, "c"], [90, "xc"],
+  [50, "l"], [40, "xl"], [10, "x"], [9, "ix"], [5, "v"], [4, "iv"], [1, "i"],
+];
+function toRoman(n: number): string {
+  let s = "";
+  for (const [v, r] of ROMAN) while (n >= v) (s += r), (n -= v);
+  return s;
+}
+function orderedLabel(depth: number, index: number): string {
+  const style = (depth - 1) % 3;
+  return style === 1 ? toAlpha(index) : style === 2 ? toRoman(index) : String(index);
+}
+/** Computed ordinal (with the item's `.`/`)` delimiter) for an ordered ListMark. */
+function orderedMarkLabel(state: EditorView["state"], mark: SyntaxNode): string {
+  const item = mark.parent!;
+  const delim = state.doc.sliceString(mark.to - 1, mark.to) === ")" ? ")" : ".";
+  return orderedLabel(orderedDepth(mark), orderedIndex(item)) + delim;
+}
+
+class OrderedNumberWidget extends WidgetType {
+  constructor(readonly label: string) {
+    super();
+  }
+  /* v8 ignore start -- cached per label → reused by reference, eq not called. */
+  eq(o: OrderedNumberWidget) {
+    return o.label === this.label;
+  }
+  /* v8 ignore stop */
+  toDOM() {
+    const s = document.createElement("span");
+    s.className = "cm-md-list-number";
+    s.textContent = this.label;
+    return s;
+  }
+}
+const orderedCache = new Map<string, Decoration>();
+function orderedNumberDeco(label: string): Decoration {
+  let d = orderedCache.get(label);
+  if (!d)
+    orderedCache.set(label, (d = Decoration.replace({ widget: new OrderedNumberWidget(label) })));
+  return d;
+}
+
 const hide = Decoration.replace({});
 const syntaxMark = Decoration.mark({ class: "cm-md-mark-syntax" });
 const renderedMarks: Record<string, Decoration> = {
@@ -54,9 +130,6 @@ const renderedMarks: Record<string, Decoration> = {
   "cm-mk-strike": Decoration.mark({ class: "cm-mk-strike" }),
   "cm-mk-code": Decoration.mark({ class: "cm-mk-code" }),
 };
-// In Formatted mode an ordered-list number is real content, not syntax — render
-// it in normal text color, overriding lezer's muted processingInstruction tag.
-const listNumberClean = Decoration.mark({ class: "cm-md-list-number" });
 
 /**
  * An invisible clone of a list item's marker prefix, used in Formatted mode to
@@ -120,12 +193,13 @@ function pushHangIndents(
   hiddenRanges: Range<Decoration>[],
 ) {
   if (!item.getChild("ListMark")) return;
+  if (item.getChild("Task")) return; // task items hang-indent via tasks.ts (checkbox clone)
   const pfx = LIST_PREFIX.exec(state.doc.lineAt(item.from).text);
   if (!pfx) return;
   const ordered = item.parent?.name === "OrderedList";
   const widget = new HangIndentWidget(
     pfx[1],
-    ordered ? pfx[2] : bulletGlyph(item),
+    ordered ? orderedMarkLabel(state, item.getChild("ListMark")!) : bulletGlyph(item),
     ordered ? "cm-md-list-number" : "cm-md-bullet",
     pfx[3],
   );
@@ -208,7 +282,11 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
             break;
           case "ListMark":
             if (parent?.parent?.name === "OrderedList") {
-              if (mode === "clean") decos.push(listNumberClean.range(node.from, node.to));
+              // Replace the literal `1.` with the computed ordinal (depth-styled,
+              // position-based so nested lists restart). Like bullets, it's
+              // always-shown content (edit the literal in Source/Syntax mode).
+              if (mode === "clean")
+                decos.push(orderedNumberDeco(orderedMarkLabel(state, node.node)).range(node.from, node.to));
               return;
             }
             rendered = null;

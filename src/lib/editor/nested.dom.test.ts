@@ -65,3 +65,24 @@ describe("[REQ-NEST-1] Nested lists — mixed ordered / unordered", () => {
     expect(count(v, ".cm-md-bullet")).toBe(0);
   });
 });
+
+describe("[REQ-NEST-1] Ordered lists — depth-styled numbering that resets per list", () => {
+  const nums = (v: EditorView) =>
+    [...v.contentDOM.querySelectorAll(".cm-md-list-number")].map((n) => n.textContent);
+
+  it("cycles decimal → lower-alpha → lower-roman by ordered nesting depth", () => {
+    const v = build("1. a\n2. b\n   1. x\n   2. y\n      1. p\n      2. q");
+    expect(nums(v)).toEqual(["1.", "2.", "a.", "b.", "i.", "ii."]);
+  });
+
+  it("restarts numbering in a nested list regardless of the literal numbers", () => {
+    // Literal nested numbers are 5 and 9, but display is position-based → a, b.
+    const v = build("1. a\n2. b\n   5. x\n   9. y");
+    expect(nums(v)).toEqual(["1.", "2.", "a.", "b."]);
+  });
+
+  it("preserves the item's delimiter style ( ) vs . )", () => {
+    const v = build("1) a\n2) b");
+    expect(nums(v)).toEqual(["1)", "2)"]);
+  });
+});

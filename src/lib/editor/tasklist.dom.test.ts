@@ -66,6 +66,27 @@ describe("[REQ-TASK-1] Task lists — Clean (Formatted) mode", () => {
     expect(cb.length).toBe(2);
     expect(cb[1].checked).toBe(true);
   });
+
+  it("renders the checkbox out of the browser tab order (tabindex -1)", () => {
+    // So Tab stays a CodeMirror command instead of moving focus to the checkbox.
+    const v = build("- [ ] todo");
+    expect(boxes(v)[0].tabIndex).toBe(-1);
+  });
+});
+
+describe("[REQ-TASK-1] Task lists — continuation hang-indent (alignment)", () => {
+  it("clones an invisible checkbox+space on a task continuation line", () => {
+    const v = build("- [ ] one\n      two"); // soft-break continuation under content
+    const hang = v.contentDOM.querySelector(".cm-md-hang-indent");
+    expect(hang).not.toBeNull();
+    expect(hang?.querySelector("input.cm-md-task")).not.toBeNull();
+  });
+
+  it("does NOT draw a bullet clone for a task continuation (markers.ts skips tasks)", () => {
+    const v = build("- [ ] one\n      two");
+    const hang = v.contentDOM.querySelector(".cm-md-hang-indent");
+    expect(hang?.textContent?.includes("•")).toBe(false);
+  });
 });
 
 describe("[REQ-TASK-2] Task lists — click toggles the on-disk char", () => {
@@ -105,11 +126,15 @@ describe("[REQ-TASK-1] Task lists — Source / Syntax modes", () => {
     expect(lineText(v, 0)).toContain("[ ]");
   });
 
-  it("Syntax mode greys the marker but keeps `[ ]` in the text", () => {
+  it("Syntax mode keeps `[ ]` as real content — NOT a tiny grey token", () => {
+    // The checkbox chars represent the real widget, not "just syntax", so they
+    // must not get the small-grey cm-md-mark-syntax treatment (the leading `-`
+    // list marker still may).
     const v = build("- [ ] todo", "markers-syntax");
     expect(count(v, "input.cm-md-task")).toBe(0);
     expect(lineText(v, 0)).toContain("[ ]");
-    expect(count(v, ".cm-md-mark-syntax")).toBeGreaterThan(0);
+    const greyed = [...v.contentDOM.querySelectorAll(".cm-md-mark-syntax")].map((e) => e.textContent);
+    expect(greyed.some((t) => t?.includes("["))).toBe(false);
   });
 
   it("falls back to an empty atomic set when the task plugin is absent", () => {

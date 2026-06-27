@@ -63,6 +63,23 @@ describe("[REQ-HR-1] Horizontal rule — Clean (Formatted) mode", () => {
     expect(atomicTotal(build(DOC, "clean", 0))).toBeGreaterThan(0);
   });
 
+  it("places the caret at the END of the line when the divider is clicked", () => {
+    const v = build(DOC, "clean", 0); // HR rendered (caret on line 0)
+    const hr = v.contentDOM.querySelector(".cm-md-hr")!;
+    hr.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    expect(v.state.selection.main.head).toBe(6); // end of the `---` line, deterministically
+  });
+
+  it("reuses the divider DOM across an edit after it (HrWidget.eq)", () => {
+    const v = build(DOC, "clean", 0);
+    const before = v.contentDOM.querySelector(".cm-md-hr");
+    expect(before).not.toBeNull();
+    const end = v.state.doc.length;
+    v.dispatch({ changes: { from: end, insert: "!" }, selection: EditorSelection.cursor(end + 1) });
+    forceParsing(v, v.state.doc.length, 5000);
+    expect(v.contentDOM.querySelector(".cm-md-hr")).toBe(before); // same `to` → eq true → reused
+  });
+
   it("does NOT treat a top-of-document frontmatter --- as a rule", () => {
     const v = build("---\ntitle: x\n---\n\nbody", "clean", 20);
     expect(count(v, ".cm-md-hr")).toBe(0);
