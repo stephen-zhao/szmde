@@ -160,16 +160,17 @@ function buildAlertDecos(view: EditorView): AlertDecos {
           const open = first.text.indexOf("["); // the `[` of `[!TYPE]`
           const close = first.text.indexOf("]");
           if (pfx && open !== -1 && close !== -1) {
-            const labelFrom = first.from + pfx[1].length; // right after the `>` (hides the space too)
             const labelTo = first.from + close + 1; // through the `]`
-            const markFrom = first.from + open; // the `[` — base for click→char mapping
+            const markFrom = first.from + open; // the `[`. markers.ts hides the `> ` up to
+            // here (incl. the syntax space), so the label replace must start at the `[` — not
+            // after the `>` — or the two replace decorations would overlap.
             decos.push(
               Decoration.replace({ widget: new AlertLabelWidget(type, markFrom) }).range(
-                labelFrom,
+                markFrom,
                 labelTo,
               ),
             );
-            hidden.push(hide.range(labelFrom, labelTo));
+            hidden.push(hide.range(markFrom, labelTo));
           }
         }
       },

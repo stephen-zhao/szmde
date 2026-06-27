@@ -79,6 +79,11 @@ describe("[REQ-RENDER-2][REQ-RENDER-3] Clean (Formatted) mode — rendered DOM",
     const v = build("para\n#", "clean", 0);
     expect(lineText(v, 1)).toBe(""); // `#` hidden; nothing to trim after it
   });
+
+  it("[REQ-RENDER-8] hides the blockquote marker's trailing space too (quote text is flush)", () => {
+    const v = build("para\n> quote", "clean", 0); // caret on line 0 → quote rendered
+    expect(lineText(v, 1)).toBe("quote"); // no leading space from the `> `
+  });
 });
 
 describe("[REQ-LIST-6] Clean mode — list continuation hang-indent", () => {

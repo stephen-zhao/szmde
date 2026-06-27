@@ -260,7 +260,6 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
         let rendered: string | null | undefined; // undefined = unmanaged
         let isBullet = false;
         let isBlockMark = false; // heading/quote marker — reveals per line
-        let isHeading = false; // ATX heading marker — its trailing space is syntax too
         switch (node.name) {
           case "EmphasisMark":
             rendered =
@@ -277,10 +276,6 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
             rendered = parentName === "InlineCode" ? "cm-mk-code" : undefined; // skip fenced
             break;
           case "HeaderMark":
-            rendered = null;
-            isBlockMark = true;
-            isHeading = true;
-            break;
           case "QuoteMark":
             rendered = null;
             isBlockMark = true;
@@ -317,9 +312,11 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
               );
           if (!revealed) {
             let to = node.to;
-            if (isHeading) {
-              // The marker's trailing space(s) are syntax too — hide them so the
-              // heading text sits flush (no leading space) in Clean mode.
+            if (isBlockMark) {
+              // A fully-hidden block marker's trailing space(s) are syntax too —
+              // hide them so the content sits flush (no leading space) in Clean
+              // mode. Applies to headings (`# `) and blockquotes (`> `). (Bullets
+              // and ordered numbers keep their space — they show a glyph there.)
               const line = state.doc.lineAt(node.from);
               to += /^[ \t]+/.exec(line.text.slice(node.to - line.from))?.[0].length ?? 0;
             }

@@ -26,7 +26,7 @@ tags in the test files and flags either side that's missing._
 | REQ-RENDER-5 | Source mode keeps markers visible while styling the construct | §4.1 | integration (DOM) | `markers.dom.test.ts` |
 | REQ-RENDER-6 | Clean-mode hidden markers are atomic (arrow-skip / single delete) | §4.1 | integration (DOM) | `markers.dom.test.ts` |
 | REQ-RENDER-7 | Render-mode cycle command advances through the order and wraps around | §4.1 | unit | `render-mode.test.ts` |
-| REQ-RENDER-8 | Clean mode hides the ATX heading marker's trailing space too (it's syntax) — heading text renders flush, no leading space | §4.1 | integration (DOM) | `markers.dom.test.ts` |
+| REQ-RENDER-8 | Clean mode hides a fully-hidden block marker's trailing space too (it's syntax) — heading (`# `) and blockquote (`> `) text render flush, no leading space | §4.1 | integration (DOM) | `markers.dom.test.ts` |
 | REQ-FORMAT-1 | Bold toggle (`Ctrl/Cmd+B`) wraps/unwraps `**`; inert in code | §4.2/§5.1 | integration | `editing.test.ts` |
 | REQ-FORMAT-2 | Italic toggle (`Ctrl/Cmd+I`) wraps/unwraps `*`; inert in code | §4.2/§5.1 | integration | `editing.test.ts` |
 | REQ-LIST-1 | Enter continues a list (new bullet / incremented ordinal) | §5.1 | integration | `editing.test.ts` |
