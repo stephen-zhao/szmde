@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validate } from "./validate";
+import { validate, validatePartial } from "./validate";
 import { DEFAULTS, SCHEMA_VERSION } from "./schema";
 
 describe("[REQ-SET-2] validate — coerce arbitrary JSON to valid Settings", () => {
@@ -69,5 +69,29 @@ describe("[REQ-SET-2] validate — coerce arbitrary JSON to valid Settings", () 
 
   it("falls back to an empty accounts list when accounts is not an array", () => {
     expect(validate({ storage: { accounts: "nope" } }).storage.accounts).toEqual([]);
+  });
+});
+
+describe("[REQ-SET-2] validatePartial — thin override tier (no default filling)", () => {
+  it("returns only the present, valid keys (no defaults filled in)", () => {
+    const out = validatePartial({ editor: { renderMode: "markers-syntax" } });
+    expect(out).toEqual({ editor: { renderMode: "markers-syntax" } });
+  });
+
+  it("omits groups that are absent or fully invalid", () => {
+    expect(validatePartial({ appearance: { theme: "neon" }, editor: { indentWidth: 4 } })).toEqual({
+      editor: { indentWidth: 4 },
+    });
+  });
+
+  it("returns {} for non-object / empty input", () => {
+    expect(validatePartial(null)).toEqual({});
+    expect(validatePartial({})).toEqual({});
+  });
+
+  it("keeps a partial storage tier (provider only)", () => {
+    expect(validatePartial({ storage: { defaultProvider: "gdrive" } })).toEqual({
+      storage: { defaultProvider: "gdrive" },
+    });
   });
 });

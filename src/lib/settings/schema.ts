@@ -56,6 +56,16 @@ export interface Settings {
   storage: StorageSettings;
 }
 
+/** A deep-partial of Settings (arrays are replaced wholesale, not deep-partialed)
+ *  — the shape of an update patch and of a stored override tier. */
+export type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends (infer _U)[]
+    ? T[K]
+    : T[K] extends object
+      ? DeepPartial<T[K]>
+      : T[K];
+};
+
 export const DEFAULTS: Settings = {
   version: SCHEMA_VERSION,
   appearance: {
