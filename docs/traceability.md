@@ -65,11 +65,17 @@ tags in the test files and flags either side that's missing._
 
 | ID | Requirement | SPEC | Why no test (yet) |
 |----|-------------|------|-------------------|
-| REQ-PERF-1 | No perceptible typing lag | §4.3 | Performance/perception — needs profiling or an LLM-judged rubric over captured interaction; infra deferred. |
-| REQ-UI-2 | Status-bar widgets (filename / render-mode / EOL / indent chips) drive their actions | §7.1 | Lives in `.svelte` UI; needs a component/E2E harness (WebView E2E deferred). The underlying editor APIs they call **are** unit-tested. |
-| REQ-LOOK-1 | "Modern, sleek, unified" dark-default look | §1/§7 | Subjective/visual — LLM-judged against a rubric over screenshots; infra deferred. |
+| REQ-PERF-1 | No perceptible typing lag | §4.3 | No *automated* test — covered by LLM workflow **WF-14** ([llm-workflow-tests.md](llm-workflow-tests.md)); deterministic profiling harness still TODO. |
+| REQ-UI-2 | Status-bar widgets (filename / render-mode / EOL / indent chips) drive their actions | §7.1 | `.svelte` UI — covered by LLM workflow **WF-12**; the underlying editor APIs they call **are** unit-tested. |
+| REQ-LOOK-1 | "Modern, sleek, unified" dark-default look | §1/§7 | Subjective/visual — covered by LLM-judged workflow **WF-13** (rubric over screenshots). |
 | REQ-CLI-3 | `wsl_to_unc` translates a WSL path to a UNC path | §6.1 | Shells out to `wsl.exe` → integration, not a unit; needs WSL present. |
 | REQ-FS-1 | Open/save via local FS, Google Drive, OneDrive, network storage | §6 | Cloud/network backends not yet implemented (post-v1). |
+
+**Live-behavior layer.** The Vitest/cargo tests above cover document model + decoration structure,
+not real layout/click/caret/visual behavior. Those are covered by the LLM-driven workflow suite in
+[llm-workflow-tests.md](llm-workflow-tests.md) (WF-1…WF-14), each linked back to a `REQ-*` and the bug
+that motivated it. Run it before releases and after editor-interaction changes (it is **not** part of
+the CI `npm run test`/`test:trace` gate — it needs an LLM agent + a live WebView).
 
 _Future requirements (tables editing §7.4, Alt-hints §7.5, tabs/panes §7.2, zoom §7.3, and the
 rest of §5.4) enter this table with linked tests as they're built._

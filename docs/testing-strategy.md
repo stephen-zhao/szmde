@@ -48,10 +48,15 @@ _Status: **testing gate complete** (after M1, before M2; deferred E2E/LLM infra 
 3. **Link mechanism:** tag tests with the requirement ID (e.g. `it("[REQ-RENDERMODE-1] markers hidden in
    Formatted mode", …)`) so a small script can extract which requirements are covered and flag any
    without a test — making the audit automatable, not manual.
-4. **LLM-driven behavioral tests:** for fuzzy/visual/UX requirements that resist deterministic assertions
-   (e.g. "modern, sleek look", "no typing lag perception"), use an LLM judge against a written rubric over
-   captured output/screenshots. Infra **deferred**; the requirement still gets a linked test entry (even if
-   "manual/LLM-judged") so it's accounted for.
+4. **LLM-driven behavioral / live-WebView tests:** for requirements that resist deterministic
+   happy-dom assertions — real layout, mouse clicks, caret placement, and fuzzy/visual/UX qualities
+   ("modern, sleek look", "no typing lag") — there is a concrete catalog in
+   [llm-workflow-tests.md](llm-workflow-tests.md): per-workflow setup → actions → expected outcomes,
+   each linked to a `REQ-*` and the bug that motivated it, **run by an LLM agent against the live editor**
+   (Vite dev server in a preview browser, driven via `window.__cmview`). This is the layer the unit
+   tests structurally cannot cover — every M2 click/caret bug (HR start-vs-end, alert off-by-one, ordered
+   nesting) was green in Vitest yet broken live. Add a workflow there *before* fixing any reported
+   live-behavior bug (TDD for interaction).
 
 ## T4 — TDD
 

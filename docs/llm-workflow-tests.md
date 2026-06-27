@@ -1,0 +1,245 @@
+# LLM-driven workflow tests (live WebView behavior)
+
+_The behavioral test layer for things the Vitest/happy-dom suite **cannot** cover:
+real layout, mouse clicks, caret placement, and visual appearance. These are the
+"LLM-judged / deferred" tests promised in [testing-strategy.md](testing-strategy.md)
+§T3 — now concrete. Every recurring click/caret bug in M2 (HR landing at the line
+start, the alert off-by-one, ordered lists not nesting) passed the unit tests and
+still shipped broken, because no test drove the live editor. This suite closes
+that gap._
+
+> **This suite MUST be run by an LLM agent with a live WebView.** There is no
+> headless assertion runner here — a human or agent performs each workflow's
+> actions in the real editor and checks the expected outcomes. happy-dom has no
+> CSS box model, `getBoundingClientRect`, `caretPositionFromPoint`, or pointer
+> dispatch, so none of this is expressible as a normal unit test.
+
+## When to run
+
+- Before tagging a release.
+- After any change to the editor interaction layer (`src/lib/editor/*` widgets,
+  click handlers, keymap, theme) — at minimum the workflows whose `REQ` it touches.
+- Whenever a visual/interaction bug is reported (add a new workflow for it first —
+  red, then fix to green; this is TDD for live behavior).
+
+## How to run (harness)
+
+The Tauri dev `szmde.exe` is **not** controllable via computer-use (it's an
+unregistered dev binary). Instead drive the **identical** UI from the Vite dev
+server in a preview browser. See [reference: visual debugging](../docs/) and the
+session memory `reference-szmde-visual-debugging`.
+
+1. **Free port 1420** (kill any running `node`/`szmde`), then `preview_start` the
+   `szmde-web` config (`.claude/launch.json`: `npm --prefix szmde run dev`, port
+   1420). Vite uses a fixed strict port, so it won't share.
+2. **Bootstrap the harness** — run this once per session via `preview_eval`. It
+   relies on the DEV-only `window.__cmview` handle exposed by `Editor.svelte`:
+
+   ```js
+   (() => {
+     const v = window.__cmview;
+     const T = {
+       setDoc(t){ v.dispatch({changes:{from:0,to:v.state.doc.length,insert:t},selection:{anchor:0}}); return v.state.doc.length; },
+       caretTo(p){ v.dispatch({selection:{anchor:p}}); },
+       doc(){ return v.state.doc.toString(); },
+       text(){ return v.contentDOM.textContent; },
+       count(s){ return v.contentDOM.querySelectorAll(s).length; },
+       caret(){ const m=v.state.selection.main; return {head:m.head, char:v.state.doc.sliceString(m.head,m.head+1)}; },
+       // realistic click at a fractional point inside the i-th `sel` element
+       click(sel, fx=0.5, fy=0.5, i=0){
+         const e=v.contentDOM.querySelectorAll(sel)[i]; if(!e) return {error:'no '+sel};
+         const r=e.getBoundingClientRect(), x=r.left+r.width*fx, y=r.top+r.height*fy;
+         const tgt=document.elementFromPoint(x,y)||e, o={bubbles:true,cancelable:true,clientX:x,clientY:y,button:0};
+         tgt.dispatchEvent(new PointerEvent('pointerdown',o));
+         tgt.dispatchEvent(new MouseEvent('mousedown',o));
+         tgt.dispatchEvent(new MouseEvent('mouseup',o));
+         tgt.dispatchEvent(new MouseEvent('click',o));
+         return T.caret();
+       },
+       // press a keymap key (Enter/Tab/Backspace) — returns the resulting doc
+       key(k, shift=false){ v.contentDOM.dispatchEvent(new KeyboardEvent('keydown',{key:k,shiftKey:shift,bubbles:true,cancelable:true})); return v.state.doc.toString(); },
+     };
+     window.__T = T; return 'harness ready';
+   })()
+   ```
+
+3. **Per workflow:** call `__T.setDoc(...)` for the setup, perform the steps with
+   `__T.click/key/caretTo`, read outcomes with `__T.caret/doc/text/count` and
+   `preview_screenshot`, and compare to **Expected**. Reload (`location.reload()`)
+   between workflows that need a clean editor (CM themes/extensions don't fully
+   hot-swap).
+4. **Record** each workflow as PASS/FAIL with the observed value. A single FAIL
+   fails the suite.
+
+### Harness limitations (be honest about these)
+
+- **Typing characters**: synthetic `keydown` drives the *keymap* (Enter/Tab/
+  Backspace fire their commands), but it does **not** feed CodeMirror's
+  `beforeinput`/IME path, so inserting literal text should be done via `setDoc`
+  or a direct dispatch, not by simulating letter keys.
+- **Real browser-default side effects** (e.g. Tab moving focus to the next
+  element when *not* prevented) need a real keypress, which the eval harness can't
+  produce. That specific aspect is covered by the unit test
+  `editing.test.ts › "Tab is preventDefault'd"`; here we verify the functional
+  result (spaces inserted / item nested).
+- **Char-level click coords**: `fx` is a fraction of the element width; pick it to
+  land on the target glyph. Allow ±1 character of tolerance unless the workflow
+  says otherwise.
+
+## Workflow catalog
+
+Each workflow: **ID**, the `REQ-*` it exercises, the **bug** that motivated it (so
+regressions are traceable to a real report), the **setup** doc, **steps**
+(action → expected), and **notes**.
+
+---
+
+### WF-1 · Horizontal-rule click → caret at end · `REQ-HR-1`
+**Bug:** "HR click lands at the beginning sometimes / non-deterministic."
+**Setup:** `__T.setDoc("para\n\n---\n\npara2")`
+**Steps:**
+- Click the divider near its **top** edge: `__T.click(".cm-md-hr", 0.3, 0.05)` →
+  Expected: `caret().head === 6` (the END of the `---` line, doc index 6), and the
+  literal `---` is now revealed (`text()` contains `---`, `count(".cm-md-hr")===0`).
+- Reset (`caretTo(0)`), click the divider **center**: `__T.click(".cm-md-hr")` →
+  Expected: caret at the line end again (deterministic — never the start).
+
+### WF-2 · GFM alert label click → exact character · `REQ-ALERT-2`
+**Bug:** "alert click does nothing / lands at start or end / off by one."
+**Setup:** `__T.setDoc("> [!WARNING]\n> body")` then `caretTo(20)` (caret on the
+body line so the label renders).
+**Steps:**
+- Click roughly the 3rd char of the rendered name "Warning":
+  `__T.click(".cm-alert-name", 0.35, 0.5)` → Expected: the source `[!WARNING]` is
+  revealed (`count(".cm-alert-label")===0`) and the caret sits on the matching
+  character of the source name (around `caret().char === "R"`/`"N"`, within ±1).
+- Reset, click the **icon**: `__T.click(".cm-alert-icon")` → Expected: caret at the
+  `[` of `[!WARNING]`.
+**Notes:** the rendered name maps 1:1 onto the source name after `[!`.
+
+### WF-3 · Table cell click → caret in that cell · `REQ-TABLE-2`
+**Bug:** "table only editable by gliding the caret in; click does nothing."
+**Setup:** `__T.setDoc("intro\n\n| a | b |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |")`
+**Steps:**
+- Click the body cell containing `2`: `__T.click("table.cm-md-table tbody td", 0.5, 0.5, 1)`
+  → Expected: source revealed (`count("table.cm-md-table")===0`) and the caret is
+  inside that cell's source (`caret().char === "2"`).
+**Notes / deferred (SPEC §7.4):** up/down arrows skipping the whole table, and
+exact char offset inside *markdown-formatted* cells, are out of scope until the
+rich table-editing milestone — do not fail this workflow for them.
+
+### WF-4 · Ordered-list nesting via Tab → depth styling · `REQ-NEST-1`
+**Bug:** "ordered nesting doesn't work — everything stays decimal, numbering
+continues across levels instead of resetting."
+**Setup:** `__T.setDoc("1. first\n2. second")`, then `caretTo(<end of line 2>)`.
+**Steps:**
+- `__T.key("Enter")` then `__T.key("Tab")` → Expected `doc()` indents the new item
+  by 3 spaces (`"…\n   3. "` — the marker width, so it actually nests).
+- Load `__T.setDoc("1. a\n2. b\n   1. x\n   2. y")` →
+  Expected: the rendered ordinals are `1. 2. a. b.` (level-1 decimal, level-2
+  lower-alpha), confirmed via `preview_screenshot` or the `.cm-md-list-number`
+  text contents. Numbering **restarts** in the nested list.
+- Load `"1. a\n2. b\n      1. p\n      2. q"` (level 3) → Expected level-3 shows
+  lower-roman `i. ii.`.
+
+### WF-5 · Task Enter continuation → new task item · `REQ-LIST-3`
+**Bug:** "after a multi-line task, Enter makes a raw bullet, not a task item."
+**Setup:** `__T.setDoc("- [ ] one")`, `caretTo(9)`, `__T.key("Enter", true)`
+(Shift-Enter soft break), type a continuation via `setDoc` to `"- [ ] one\n      two"`,
+`caretTo(19)`.
+**Steps:**
+- `__T.key("Enter")` → Expected `doc()` ends with a new `\n- [ ] ` task item (not
+  `\n- `).
+
+### WF-6 · Task checkbox click toggles on disk · `REQ-TASK-2`
+**Setup:** `__T.setDoc("- [ ] todo")`
+**Steps:**
+- `__T.click("input.cm-md-task")` → Expected `doc() === "- [x] todo"`; click again
+  → `"- [ ] todo"`.
+
+### WF-7 · Tab is a soft tab, not focus-traversal · `REQ-LIST-4`
+**Bug:** "Tab moved focus to the next element like a browser."
+**Setup:** `__T.setDoc("hi")`, `caretTo(2)`
+**Steps:**
+- `__T.key("Tab")` → Expected `doc() === "hi  "` (2 spaces inserted).
+- `__T.setDoc("- [ ] ")`, `caretTo(6)`, `__T.key("Tab")` → Expected `"  - [ ] "`
+  (empty task nests).
+**Notes:** the browser-default focus-traversal aspect is covered by the unit
+preventDefault test; this verifies the editor command result.
+
+### WF-8 · Syntax mode keeps `[ ]` full-size · `REQ-TASK-1`
+**Bug:** "task checkboxes render tiny-grey in Syntax mode — they're real content."
+**Setup:** `__T.setDoc("- [ ] todo")`, switch render mode to **Syntax** (hamburger
+menu → Syntax, or `Ctrl/Cmd+Shift+M` twice).
+**Steps:**
+- Expected: the line shows literal `[ ]` at **normal text size** (no
+  `.cm-md-mark-syntax` wrapping the `[`/`]` — `preview_inspect` the font-size of
+  the bracket vs a paragraph char; they match). The leading `-` may still be a
+  grey token.
+
+### WF-9 · Task multi-line hang-indent alignment · `REQ-TASK-1`
+**Bug:** "multi-line task continuation lines don't align under the content."
+**Setup:** `__T.setDoc("- [ ] first line\n      second line")` (Formatted mode).
+**Steps:**
+- Screenshot / measure: the left edge of `second line` aligns with the left edge of
+  `first line`'s text (i.e. past the checkbox + space), not at the margin. Confirm
+  via the `.cm-md-hang-indent` clone width tracking the checkbox (must hold at any
+  font size — change `--editor-font-size` and re-check).
+
+### WF-10 · Image renders inline · `REQ-IMG-1`
+**Setup:** `__T.setDoc("intro\n\n![cat](https://placekitten.com/80/80)")`
+**Steps:**
+- Expected: `count("img.cm-md-image") === 1`; with the caret off the image line it
+  shows the image; clicking into the line reveals `![cat](…)`.
+
+### WF-11 · Scrollbar doesn't shift the column · `REQ-UI-1`
+**Bug (M1):** "scrollbar appearing shifts the centered column horizontally."
+**Setup:** `__T.setDoc("x\n".repeat(2))` (no scrollbar), record the `.cm-content`
+left offset; then `setDoc("x\n".repeat(400))` (forces a vertical scrollbar).
+**Steps:**
+- Expected: the `.cm-content` `getBoundingClientRect().left` is **unchanged**
+  between the two (scrollbar-gutter reserved).
+
+### WF-12 · Status-bar chips drive their actions · `REQ-UI-2`
+**Bug class:** chip behavior is `.svelte` glue, untested by unit tests.
+**Steps:** click the render-mode chip → mode cycles (chip label changes
+Formatted→Source→Syntax); click the EOL chip → toggles LF⇄CRLF; click the indent
+chip → menu opens, picking "Spaces: 4" updates the chip. After a change, reload —
+the choice **persists** (settings, `REQ-SET-1`).
+
+### WF-13 · "Modern, sleek, dark" look · `REQ-LOOK-1` _(LLM-judged)_
+**Setup:** a representative doc (heading, paragraph, list, code block, table, alert).
+**Steps:** `preview_screenshot` and judge against the rubric: dark background by
+default, a single accent color, generous whitespace, a centered readable column,
+no visual clutter/chrome beyond the hamburger + corner chips. Record a pass/fail
++ one-line rationale.
+
+### WF-14 · No perceptible typing lag · `REQ-PERF-1` _(LLM-judged / measured)_
+**Setup:** a ~5,000-line doc.
+**Steps:** dispatch a burst of edits and sample `performance.now()` around the
+view update; expect keystroke-to-update well under one frame (~16 ms). Coarse, but
+flags gross regressions.
+
+---
+
+## Requirement coverage
+
+| REQ | Unit/integration (Vitest/cargo) | LLM workflow (this doc) |
+|-----|---------------------------------|--------------------------|
+| REQ-HR-1 | structure (`hr.dom.test.ts`) | WF-1 (click→end) |
+| REQ-ALERT-2 | structure (`alerts.dom.test.ts`) | WF-2 (click→char) |
+| REQ-TABLE-2 | structure (`table.dom.test.ts`) | WF-3 (cell click) |
+| REQ-NEST-1 | structure (`nested.dom.test.ts`) | WF-4 (Tab nest + styling) |
+| REQ-LIST-3 | doc model (`editing.test.ts`) | WF-5 (task Enter) |
+| REQ-TASK-2 | doc model (`tasklist.dom.test.ts`) | WF-6 (toggle) |
+| REQ-LIST-4 | command + preventDefault (`editing.test.ts`) | WF-7 (soft tab) |
+| REQ-TASK-1 | structure (`tasklist.dom.test.ts`) | WF-8 (syntax size), WF-9 (alignment) |
+| REQ-IMG-1 | structure (`image.dom.test.ts`) | WF-10 (renders) |
+| REQ-UI-1 | DOM (`theme.dom.test.ts`) | WF-11 (no shift) |
+| REQ-UI-2 | — (gap) | WF-12 (chips) |
+| REQ-LOOK-1 | — (gap) | WF-13 (look) |
+| REQ-PERF-1 | — (gap) | WF-14 (lag) |
+
+The three former [traceability.md](traceability.md) gaps with no automated test
+(REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest
+gain a live-behavior layer on top of their structural unit tests.
