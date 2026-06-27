@@ -243,6 +243,23 @@ on-disk revision changes; make an edit in szmde so it's dirty; press Ctrl+S.
 - **Cancel** / **Esc** → nothing is written, the document stays dirty.
 **Notes:** Save As to a brand-new path never conflicts (unconditional write).
 
+### WF-17 · Google Drive open/save round-trip · `REQ-CLOUD-1`
+**Why:** the request/response/error mapping is unit-tested with a mocked fetch,
+but the live OAuth handshake, real network, and Drive's actual ETag/If-Match
+semantics can only be exercised end-to-end. **Needs the Tauri dev app + a Google
+OAuth client ([m3-cloud-setup.md](m3-cloud-setup.md)).**
+**Setup:** connect a Google account (hamburger → Storage accounts → Google Drive);
+have a `.md` file in that Drive.
+**Steps:**
+- Open the Drive file → Expected: its content loads; editing + Ctrl+S writes back
+  (verify the change in Drive's web UI).
+- Change the file in Drive's web UI, then save again in szmde → Expected: the
+  conflict modal (WF-15) appears (If-Match precondition failed → conflict).
+- Disconnect network mid-save → Expected: the write is queued offline (WF, S4
+  REQ-SAVE-3) and flushes on reconnect; no data loss.
+- Let the access token expire (or revoke it) → Expected: a transparent refresh, or
+  a re-auth prompt if the refresh token is gone (no silent failure).
+
 ### WF-16 · Autosave fires after the interval · `REQ-SAVE-2`
 **Why:** the debounce/coalesce logic is unit-tested, but the editor→scheduler→
 save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.**
@@ -278,6 +295,7 @@ save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.
 | REQ-PERF-1 | — (gap) | WF-14 (lag) |
 | REQ-SAVE-1 | logic (`storage/local.test.ts`, `storage/conflict.test.ts`, cargo) | WF-15 (conflict modal) |
 | REQ-SAVE-2 | logic (`storage/autosave.test.ts`) | WF-16 (autosave fires) |
+| REQ-CLOUD-1 | logic (`storage/gdrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-17 (Drive round-trip) |
 
 The three former [traceability.md](traceability.md) gaps with no automated test
 (REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest

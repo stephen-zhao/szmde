@@ -181,7 +181,7 @@ capture** is the Tauri-shell integration tail.
 auth-URL params (scope, redirect, challenge, state); token exchange parses the response into a
 `TokenSet`; refresh swaps tokens + repersists; an error response → `StorageError("auth")`.
 
-### S7 — Google Drive backend ⬜  (`REQ-CLOUD-1`)
+### S7 — Google Drive backend ✅  (`REQ-CLOUD-1`)
 `GoogleDriveProvider implements StorageProvider` over an injected **authenticated `fetch`**
 (supplied by S6): `read` (files.get `alt=media` + metadata etag → `rev`), `write` (multipart
 update with `If-Match` → `412`⇒`conflict`), `stat` (metadata-only etag). Map `401`⇒`auth`
