@@ -37,6 +37,8 @@ tags in the test files and flags either side that's missing._
 | REQ-HR-1 | Horizontal rule renders as a divider in Clean (atomic + reveal-on-cursor); literal chars kept/greyed in Source/Syntax; frontmatter `---` is not a rule | §5.1 | integration (DOM) | `hr.dom.test.ts` |
 | REQ-TASK-1 | Task items render a checkbox in Clean (no `•`, checked state reflects `[x]`); literal `[ ]`/`[x]` kept in Source/Syntax | §5.1 | integration (DOM) | `tasklist.dom.test.ts` |
 | REQ-TASK-2 | Clicking a task checkbox toggles the on-disk char (`[ ]`⇄`[x]`), only that item | §5.1 | integration (DOM) | `tasklist.dom.test.ts` |
+| REQ-IMG-1 | Inline image renders as `<img>` (src+alt) in Clean (atomic + reveal-on-cursor); literal markdown kept in Source/Syntax | §5.1 | integration (DOM) | `image.dom.test.ts` |
+| REQ-IMG-2 | Image src resolution: http(s)/data pass through; local/relative via injectable resolver; reference-style resolves, unresolved stays literal | §5.1 | integration (DOM) | `image.dom.test.ts` |
 | REQ-BLOCK-1 | ATX headings get `cm-h1`..`cm-h6` by level | §5.1 | integration (DOM) | `blocks.test.ts` |
 | REQ-BLOCK-2 | Blockquote lines get `cm-blockquote` (every line; no bleed) | §5.1 | integration (DOM) | `blocks.test.ts` |
 | REQ-BLOCK-3 | Fenced code blocks render as cards (open/close/content classes, content box, per-block + editor-wide wrap) | §5.1 | integration (DOM) | `setup.test.ts` |

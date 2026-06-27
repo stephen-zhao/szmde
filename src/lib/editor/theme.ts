@@ -161,6 +161,15 @@ export const baseTheme = EditorView.theme(
       borderLeft: "3px solid var(--border)",
       paddingLeft: "14px",
     },
+    // Inline image (Clean mode): replaces `![alt](src)`. Constrain to the reading
+    // column width and keep aspect ratio; rounded to match the code-card style.
+    ".cm-md-image": {
+      display: "inline-block",
+      maxWidth: "100%",
+      height: "auto",
+      borderRadius: "6px",
+      verticalAlign: "bottom",
+    },
     // Task-list checkbox (Clean mode): replaces the `[ ]`/`[x]` marker. Accent
     // color matches the editor accent; sits on the text baseline.
     ".cm-md-task": {

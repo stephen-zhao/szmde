@@ -126,6 +126,10 @@ dispatches the exact text change; literal in Source; nested task items.
 Source/Syntax: literal markdown (styled). Reference-style images render too (`LinkLabel`).
 **Tests** (`image.dom.test.ts`): `<img>` with src+alt in Clean; literal in Source;
 reveal-on-cursor; remote vs local resolution via the hook; reference-style resolves.
+_Editor capability done + tested (the `imageResolver` facet). **Deferred follow-up:**
+wiring Tauri `convertFileSrc` + the `tauri.conf.json` asset-protocol scope + resolving
+relative paths against the open file's dir, so local desktop images load (remote/`data:`
+render today). Lands with the S7 app-integration / settings pass._
 
 ### S4 — GFM alerts / callouts ⬜  (`REQ-ALERT-1`, `REQ-ALERT-2`)
 Detect a `Blockquote` whose first content line is `[!TYPE]` (5 types). Add
