@@ -23,7 +23,14 @@ spec + milestone + requirement so it can be scheduled without inventing scope._
 
 This completes the **§5.1 v1 markdown feature set** + the settings system. Everything below is post-v1.
 
-## Scheduled milestones (post-v1)
+## Scheduled milestones (priority order)
+
+> Listed **top = next**. The `M<n>` number is a **stable ID, not the sequence** —
+> reprioritizing just reorders this list, so existing references (e.g. SPEC §7.4 → M6,
+> §7.2 → M7) stay valid and milestones never get renumbered. Post-v1 order is yours to
+> set (SPEC §11).
+>
+> **Current order: M3 → M6 → M8 → M4 → M5 → M7.**
 
 ### M3 — Cloud storage 🔜  (SPEC §6, §8)
 | REQ | Requirement | SPEC |
@@ -35,7 +42,29 @@ This completes the **§5.1 v1 markdown feature set** + the settings system. Ever
 | REQ-SAVE-3 | Offline local-draft cache + queued writes until reconnect | §6 |
 | REQ-SEC-1 | OAuth tokens in the OS secure store (Credential Manager / Keychain / Keystore) | §6 |
 
-### M4 — Android 🔜  (SPEC §2)
+### M6 — Rich table editing ⬜  (SPEC §7.4 — "its own, larger effort")
+_Prioritized ahead of Android (2026-06-27)._ Absorbs the M2 table deferrals. On-disk stays portable GFM pipe tables.
+| REQ | Requirement | SPEC |
+|-----|-------------|------|
+| REQ-TBLED-1 | Insert an N×M table from scratch (grid picker / command, not hand-typed) | §7.4 |
+| REQ-TBLED-2 | Toggle the header row on/off | §7.4 |
+| REQ-TBLED-3 | Insert/delete rows & columns at any position (before/after/between) | §7.4 |
+| REQ-TBLED-4 | Drag to reorder columns/rows | §7.4 |
+| REQ-TBLED-5 | Cursor-context shortcuts (move/insert/delete current row/col) | §7.4 |
+| REQ-TBLED-6 | Auto-tidy source + per-column alignment UI (`:--`/`:-:`/`--:`) | §7.4 |
+| REQ-TBLED-7 | Edit-in-place: caret lands at the clicked char inside any cell; up/down arrows enter the table _(deferred from M2 — render-only click lands at cell start today)_ | §7.4, §5.1 |
+
+### M8 — Authoring essentials ⬜  (SPEC §5.4 — promoted from backlog)
+_New milestone (2026-06-27) — power-features the target user (Stephen) needs for daily
+markdown authoring; pulled out of the backlog ahead of Android._
+| REQ | Requirement | SPEC |
+|-----|-------------|------|
+| REQ-EMOJI-1 | Emoji shortcodes `:smile:` → rendered emoji | §5.4 |
+| REQ-FR-1 | Find & replace (incl. regex) | §5.4 |
+| REQ-COUNT-1 | Word / character count (bottom-right status area) | §5.4, §7.1 |
+| REQ-FOLD-1 | Collapsible / foldable sections & headings | §5.4 |
+
+### M4 — Android ⬜  (SPEC §2)
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
 | REQ-MOBILE-1 | Tauri 2 mobile build (APK) | §2 |
@@ -49,18 +78,6 @@ This completes the **§5.1 v1 markdown feature set** + the settings system. Ever
 | REQ-NET-2 | WebDAV backend (desktop + web + Android) | §6 |
 | REQ-THEME-1 | **Light + system theme** palettes (the `appearance.theme` hook + `data-theme` already exist) | §7, §8 |
 | REQ-A11Y-1 | Accessibility pass: full keyboard op, screen-reader labels, reduced-motion/high-contrast | §7 |
-
-### M6 — Rich table editing ⬜  (SPEC §7.4 — "its own, larger effort")
-Absorbs the M2 table deferrals. On-disk stays portable GFM pipe tables.
-| REQ | Requirement | SPEC |
-|-----|-------------|------|
-| REQ-TBLED-1 | Insert an N×M table from scratch (grid picker / command, not hand-typed) | §7.4 |
-| REQ-TBLED-2 | Toggle the header row on/off | §7.4 |
-| REQ-TBLED-3 | Insert/delete rows & columns at any position (before/after/between) | §7.4 |
-| REQ-TBLED-4 | Drag to reorder columns/rows | §7.4 |
-| REQ-TBLED-5 | Cursor-context shortcuts (move/insert/delete current row/col) | §7.4 |
-| REQ-TBLED-6 | Auto-tidy source + per-column alignment UI (`:--`/`:-:`/`--:`) | §7.4 |
-| REQ-TBLED-7 | Edit-in-place: caret lands at the clicked char inside any cell; up/down arrows enter the table _(deferred from M2 — render-only click lands at cell start today)_ | §7.4, §5.1 |
 
 ### M7 — Workspace: tabs & splittable panes ⬜  (SPEC §7.2 — "a dedicated milestone")
 | REQ | Requirement | SPEC |
@@ -90,6 +107,7 @@ Not product features, but tracked the same way (no ad-hoc infra work either).
 ## Backlog 🅑 (SPEC §5.4 orthogonal features — specced, unscheduled, ranked later per §11)
 
 Each is a real requirement with a home the moment it's prioritized — pull into a milestone when ranked.
+_(REQ-EMOJI-1, REQ-FR-1, REQ-COUNT-1, REQ-FOLD-1 were promoted to **M8 — Authoring essentials** on 2026-06-27.)_
 
 | REQ | Feature | SPEC |
 |-----|---------|------|
@@ -100,13 +118,9 @@ Each is a real requirement with a home the moment it's prioritized — pull into
 | REQ-FMED-1 | Front-matter (YAML/TOML) structured editing | §5.4 |
 | REQ-WIKI-1 | Wiki-links `[[…]]` | §5.4 |
 | REQ-CODEHL-1 | Per-language syntax highlighting in fenced code | §5.4 |
-| REQ-EMOJI-1 | Emoji shortcodes `:smile:` | §5.4 |
 | REQ-TOC-1 | Table-of-contents generation | §5.4 |
-| REQ-FR-1 | Find & replace (incl. regex) | §5.4 |
-| REQ-COUNT-1 | Word / character count (status area) | §5.4 |
 | REQ-SPELL-1 | Spell check (the reserved `editor.spellcheck` setting) | §5.4, §8 |
 | REQ-EXPORT-1 | Export to HTML / PDF | §5.4 |
-| REQ-FOLD-1 | Collapsible / foldable sections & headings | §5.4 |
 | REQ-CMT-1 | Comments / annotations | §5.4 |
 | REQ-MAP-1 | Outline / document-map sidebar | §5.4 |
 

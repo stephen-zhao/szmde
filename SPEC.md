@@ -577,21 +577,25 @@ the bridge interface only.
 4. **M2 – Remaining v1 blocks + settings:** tables, task lists, images, horizontal rule,
    nested lists, GFM alerts/callouts; settings system (system+user JSON). ✅
 
-**Scheduled (post-v1 — see [docs/roadmap.md](docs/roadmap.md) for the per-requirement breakdown;
-ordering is tentative per §11):**
+**Scheduled (post-v1, in priority order — the `M<n>` number is a stable ID, not the sequence;
+reordering just re-sorts the list, so milestones never get renumbered. See
+[docs/roadmap.md](docs/roadmap.md) for the per-requirement breakdown; order is yours to set per §11):**
 5. **M3 – Cloud storage:** Google Drive + OneDrive; conflict/autosave/offline cache.
-6. **M4 – Android:** Tauri mobile build; responsive UI; storage access framework.
-7. **M5 – Network storage + polish:** SMB/CIFS + WebDAV; light/system mode; a11y pass; selected
+6. **M6 – Rich table editing (§7.4):** structured editing over portable GFM tables (insert/reorder
+   rows & cols, drag handles, cursor-context shortcuts, edit-in-place). _(Prioritized ahead of Android.)_
+7. **M8 – Authoring essentials (§5.4):** emoji shortcodes, find & replace, word/character count,
+   foldable sections — daily-authoring power-features promoted from the backlog. _(New; ahead of Android.)_
+8. **M4 – Android:** Tauri mobile build; responsive UI; storage access framework.
+9. **M5 – Network storage + polish:** SMB/CIFS + WebDAV; light/system mode; a11y pass; selected
    polish (zoom/page-width §7.3, Alt-hints §7.5, HTML render §5.2 + underline §5.3, desktop image
    assets §6.1).
-8. **M6 – Rich table editing (§7.4):** structured editing over portable GFM tables (insert/reorder
-   rows & cols, drag handles, cursor-context shortcuts, edit-in-place).
-9. **M7 – Workspace: tabs & splittable panes (§7.2):** document registry + serializable layout tree.
+10. **M7 – Workspace: tabs & splittable panes (§7.2):** document registry + serializable layout tree.
 
 **Backlog (§5.4 orthogonal features — specced, unscheduled, ranked later):** footnotes, definition
-lists, math/LaTeX, mermaid, front-matter editing, wiki-links, per-language code highlighting, emoji,
-TOC, find & replace, word count, spell check, export, foldable sections, comments, outline sidebar.
-All catalogued with `REQ-*` IDs in [docs/roadmap.md](docs/roadmap.md).
+lists, math/LaTeX, mermaid, front-matter editing, wiki-links, per-language code highlighting, TOC,
+spell check, export, comments, outline sidebar. All catalogued with `REQ-*` IDs in
+[docs/roadmap.md](docs/roadmap.md). _(Emoji, find & replace, word count, and foldable sections were
+promoted to M8.)_
 
 ---
 
