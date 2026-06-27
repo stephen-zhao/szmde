@@ -161,6 +161,14 @@ export const baseTheme = EditorView.theme(
       borderLeft: "3px solid var(--border)",
       paddingLeft: "14px",
     },
+    // Task-list checkbox (Clean mode): replaces the `[ ]`/`[x]` marker. Accent
+    // color matches the editor accent; sits on the text baseline.
+    ".cm-md-task": {
+      cursor: "pointer",
+      margin: "0 0.15em 0 0",
+      verticalAlign: "middle",
+      accentColor: "var(--accent)",
+    },
     // Horizontal rule (Clean mode): the `---` run is replaced by this divider.
     // Box-model height (not margin) so CM's height map stays in sync and the
     // line is comfortably clickable (clicking it reveals the literal chars).

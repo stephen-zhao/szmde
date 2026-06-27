@@ -198,6 +198,8 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
 
         if (mode === "clean") {
           if (isBullet) {
+            // Task items render a checkbox (tasks.ts), not a •; suppress the bullet.
+            if (node.node.parent?.getChild("Task")) return;
             decos.push(bullet.range(node.from, node.to)); // always-visible decorative bullet
             return;
           }

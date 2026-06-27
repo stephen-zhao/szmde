@@ -33,6 +33,7 @@ import {
 import { markerDecorations, markerAtomicRanges } from "./markers";
 import { blockConstructDecorations } from "./blocks";
 import { hrDecorations, hrAtomicRanges } from "./hr";
+import { taskDecorations, taskAtomicRanges } from "./tasks";
 import { editingKeymap } from "./keymap";
 import { indentExtension, type IndentConfig } from "./indent";
 
@@ -367,6 +368,8 @@ export function editorExtensions(
     blockConstructDecorations,
     hrDecorations,
     hrAtomicRanges,
+    taskDecorations,
+    taskAtomicRanges,
     // Highest decoration precedence so the marker span is the INNERMOST DOM node
     // (CM nests higher-precedence decorations inside) — its absolute font-size
     // then wins over a heading's enclosing 1.9em span instead of compounding.
