@@ -109,12 +109,23 @@ isolation missed it). Run with `npm run test` (or `npm run test:watch`). Going f
 failing test that captures the intended behavior **before** changing the implementation. A
 project-wide 100%-coverage policy is planned later; for now, cover editor behaviors as we build.
 
-### S6 — EOL + indentation + status widgets ⬜
-EOL default LF, toggle LF↔CRLF rewrites the doc + writes chosen EOL on save; detect on open.
-Tab-inserts-spaces (`indentUnit`), width config, Spaces↔Tab toggle, convert-existing action.
-Two bottom-right click-to-edit chips. → `src/lib/editor/indent.ts`, status chips in `+page.svelte`.
-**Verify:** open a CRLF file → chip reads CRLF; toggle to LF → save writes LF; indent chip
-switches Spaces/Tab and width live.
+### S6 — EOL + indentation + status widgets ✅
+**EOL** (`eol.ts`): default LF; `detectEol`/`toLf`/`fromLf`; detected on open (mixed→LF),
+written on save. Toggle is write-time metadata (marks dirty; undo by re-toggling — SPEC §4.4
+updated to match, since CM keeps the buffer LF). **Indentation** (`indent.ts`): configurable
+via a Compartment — Spaces (2/4) ⇄ Tab; `indentConfigOf`/`setIndent`/`convertIndentation`
+(visual-width-preserving, skips fenced code). Tab inserts soft tabs honoring the active style.
+**Status bar** (`+page.svelte`): bottom-right chips — filename, render-mode (click cycles),
+EOL (click toggles), indentation (click → menu: Spaces 2/4, Tabs, Convert existing). EditorApi
+gains `setIndent`/`getIndent`/`convertIndentation` + `onindentstate` reporting.
+**Tests:** `eol.test.ts` (detect/normalize/serialize), `indent.test.ts` (unit string, config
+read-back, convert), plus an `editing.test.ts` integration test that Tab inserts a tab under
+Tab style. 35 tests pass; `npm run check` clean.
+
+---
+
+**M1 is complete (S1–S6).** Next: the **testing gate** ([testing-strategy.md](testing-strategy.md))
+before M2.
 
 ## New / changed files
 

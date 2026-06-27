@@ -174,9 +174,10 @@ Both are per-document, editable via a small status widget (§7.1) and defaulted 
 - On **open**, szmde detects the file's existing EOL (`LF` / `CRLF` / mixed) and the
   widget reflects it; the file is otherwise left as-is until edited/saved. A mixed-EOL
   file is reported as such and normalized to the active setting on first save.
-- The widget toggles `LF ⇄ CRLF`. **Toggling immediately rewrites every line ending in the
-  document** to the chosen style (a single undoable edit), and that becomes the EOL written
-  on save.
+- The widget toggles `LF ⇄ CRLF`. Since CodeMirror keeps the buffer as `LF` internally, EOL
+  is **write-time metadata**: toggling chooses the line ending written on save and marks the
+  document dirty (undo by re-toggling). The on-disk result is identical to rewriting every
+  line ending, without churning the buffer/undo history.
 - This supersedes the earlier "preserve EOL untouched" wording: szmde now *manages* EOL
   explicitly (default `LF`) rather than passively preserving it. The §6.1 WSL note is
   updated to match — `LF` is exactly what WSL files want anyway.
@@ -267,6 +268,10 @@ Candidate features, in no particular order:
 - Comments / annotations
 - Multi-document **tabs + splittable panes** with drag-and-drop layouting — see §7.2 (large,
   likely its own milestone; needs a workspace/layout-tree rearchitecture above the editor core)
+- Best-in-class **table editing experience** (insert any dimension, toggle header row,
+  insert/delete/reorder rows & columns from any position, cursor-context shortcuts,
+  drag-to-reorder) — see §7.4
+- **Alt-key shortcut hints** overlaid on chrome elements — see §7.5
 - Outline / document map sidebar
 
 _Prioritization to come later — not important for v1._
@@ -428,6 +433,39 @@ zoom/width persists once the settings system lands (M2). Implementation is small
 handler on the editor scroller updating the two values — but it's **not yet built**; schedule
 when convenient (it doesn't depend on other milestones).
 
+### 7.4 Table editing experience (later)
+
+Traditional markdown editors make tables miserable — hand-aligning pipes, counting columns,
+rebuilding a row to move a cell. szmde should make table editing genuinely pleasant: a
+first-class **structured-editing** experience over what is still, on disk, portable **GFM
+pipe tables**. Requirements:
+
+- **Insert from scratch at any dimension.** A fast way to drop in an _N×M_ table — e.g. a
+  drag-to-size grid picker or a command ("Insert table 3×4") — not a hand-typed skeleton.
+- **Toggle the header row** on/off for an existing table.
+- **Insert / delete rows and columns at any position** — before, after, or _between_ existing
+  ones, relative to wherever the cursor is, not just at the table edges.
+- **Drag to reorder** columns and rows (grab a column/row handle and drop it elsewhere).
+- **Cursor-context shortcuts** for every structural action, keyed off the cell the caret sits in:
+  - move current column left / right; move current row up / down;
+  - insert column before / after the current column; insert row above / below;
+  - delete current row / column.
+  (Exact keybindings TBD; must not collide with text editing or the §4.2 formatting keys.)
+- **Auto-tidy source.** Cells re-pad/realign as you edit so the saved GFM stays clean; per-column
+  alignment (`:--`, `:-:`, `--:`) is settable from the editing UI.
+
+Scope note: GFM table _rendering_ is M2 (§5.1). This rich _editing_ experience is a larger,
+later effort — block-widget interaction work in the §9 decoration/widget layer — and is **not
+required for v1**.
+
+### 7.5 Keyboard-shortcut hints (Alt overlay) (later)
+
+Holding **Alt** reveals keyboard-shortcut hint badges over the chrome elements that have
+accelerators — the hamburger menu and its items, the §7.1 status-bar chips, and any future
+toolbar affordances — in the spirit of classic desktop Alt-mnemonics. Releasing Alt hides them.
+This keeps the canvas clean by default (§7, "canvas-first") while making shortcuts discoverable
+on demand. Post-v1.
+
 ---
 
 ## 8. Settings & preferences (requirement 10)
@@ -531,7 +569,11 @@ the bridge interface only.
    bold/italic/strikethrough, headings, blockquote, lists, code blocks, inline code, links;
    EOL + indentation behavior and the bottom-right status widgets (§4.4, §7.1);
    performance target met.
-3. **M2 – Remaining v1 blocks + settings:** tables, task lists, images, horizontal rule,
+3. **Testing gate (after M1, before M2):** establish the quality bar per
+   [docs/testing-strategy.md](docs/testing-strategy.md) — 100% unit coverage (ratcheted),
+   integration tests for critical building-block combinations, and an auditable
+   requirement→test traceability matrix. TDD ongoing throughout.
+4. **M2 – Remaining v1 blocks + settings:** tables, task lists, images, horizontal rule,
    nested lists, GFM alerts/callouts; settings system (system+user JSON). _(Completes the
    full §5.1 v1 feature set.)_
 4. **M3 – Cloud storage:** Google Drive + OneDrive; conflict/autosave/offline cache.

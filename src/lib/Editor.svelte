@@ -1,6 +1,7 @@
 <script module lang="ts">
   import type { WrapState } from "./editor/setup";
   import type { RenderMode } from "./editor/render-mode";
+  import type { IndentConfig } from "./editor/indent";
 
   /** Imperative handle the page uses to drive the editor. */
   export interface EditorApi {
@@ -12,6 +13,11 @@
     /** Set the WYSIWYG render mode (clean / markers-rendered / markers-syntax). */
     setRenderMode(mode: RenderMode): void;
     getRenderMode(): RenderMode;
+    /** Set the indentation style/width (Spaces ⇄ Tab, width). */
+    setIndent(config: IndentConfig): void;
+    getIndent(): IndentConfig;
+    /** Convert all existing leading whitespace to the current indent style. */
+    convertIndentation(): void;
   }
 </script>
 
@@ -21,31 +27,42 @@
   import { EditorView } from "@codemirror/view";
   import { editorExtensions, setGlobalWrap, wrapStateOf } from "./editor/setup";
   import { renderModeOf, setRenderMode as applyRenderMode } from "./editor/render-mode";
+  import {
+    convertIndentation as applyConvertIndent,
+    indentConfigOf,
+    setIndent as applyIndent,
+  } from "./editor/indent";
 
   let {
     onchange,
     onready,
     onwrapstate,
     onrendermode,
+    onindentstate,
   }: {
     onchange?: (value: string) => void;
     onready?: (api: EditorApi) => void;
     onwrapstate?: (state: WrapState) => void;
     onrendermode?: (mode: RenderMode) => void;
+    onindentstate?: (config: IndentConfig) => void;
   } = $props();
 
   let container: HTMLDivElement;
   let view: EditorView | undefined;
   let codeWrap = true; // editor-wide default; preserved across document loads
   let renderMode: RenderMode = "clean"; // editor-wide; preserved across loads
+  let indent: IndentConfig = { style: "spaces", width: 2 }; // editor-wide
   let lastWrapState: WrapState | "" = "";
   let lastRenderMode: RenderMode | "" = "";
+  let lastIndentKey = "";
+
+  const indentKey = (c: IndentConfig) => `${c.style}:${c.width}`;
 
   function buildState(doc: string) {
     return EditorState.create({
       doc,
       extensions: [
-        ...editorExtensions(codeWrap, renderMode),
+        ...editorExtensions(codeWrap, renderMode, indent),
         EditorView.updateListener.of((u) => {
           // Only real user transactions mark the document dirty; a setState
           // document load produces no transactions.
@@ -61,6 +78,12 @@
             renderMode = rm;
             onrendermode?.(rm);
           }
+          const ic = indentConfigOf(u.state);
+          if (indentKey(ic) !== lastIndentKey) {
+            lastIndentKey = indentKey(ic);
+            indent = ic;
+            onindentstate?.(ic);
+          }
         }),
       ],
     });
@@ -74,8 +97,10 @@
     view.setState(buildState(text));
     lastWrapState = "";
     lastRenderMode = "";
+    lastIndentKey = "";
     onwrapstate?.(wrapStateOf(view.state));
     onrendermode?.(renderModeOf(view.state));
+    onindentstate?.(indentConfigOf(view.state));
     view.focus();
   }
 
@@ -101,12 +126,36 @@
     return view ? renderModeOf(view.state) : renderMode;
   }
 
+  function setIndent(config: IndentConfig) {
+    indent = config;
+    if (view) applyIndent(view, config);
+  }
+
+  function getIndent(): IndentConfig {
+    return view ? indentConfigOf(view.state) : indent;
+  }
+
+  function convertIndentation() {
+    if (view) applyConvertIndent(view);
+  }
+
   onMount(() => {
     view = new EditorView({ state: buildState(""), parent: container });
     view.focus();
-    onready?.({ setContent, getContent, focus, setCodeWrap, setRenderMode, getRenderMode });
+    onready?.({
+      setContent,
+      getContent,
+      focus,
+      setCodeWrap,
+      setRenderMode,
+      getRenderMode,
+      setIndent,
+      getIndent,
+      convertIndentation,
+    });
     onwrapstate?.(wrapStateOf(view.state));
     onrendermode?.(renderModeOf(view.state));
+    onindentstate?.(indentConfigOf(view.state));
   });
 
   onDestroy(() => view?.destroy());

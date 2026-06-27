@@ -32,7 +32,8 @@ import {
 } from "./render-mode";
 import { markerDecorations, markerAtomicRanges } from "./markers";
 import { blockConstructDecorations } from "./blocks";
-import { editingKeymap, indentExtension } from "./keymap";
+import { editingKeymap } from "./keymap";
+import { indentExtension, type IndentConfig } from "./indent";
 
 // ---------------------------------------------------------------------------
 // Word-wrap state for code blocks
@@ -338,6 +339,7 @@ const revealCursorInCodeBox = ViewPlugin.fromClass(
 export function editorExtensions(
   initialCodeWrap = true,
   initialRenderMode: RenderMode = "clean",
+  initialIndent: IndentConfig = { style: "spaces", width: 2 },
 ): Extension[] {
   return [
     history(),
@@ -346,7 +348,7 @@ export function editorExtensions(
     // editingKeymap (keymap.ts) so its Enter-continuation beats the default
     // keymap. If you remove editingKeymap, re-enable addKeymap here.
     markdown({ base: markdownLanguage, extensions: [GFM, Frontmatter], addKeymap: false }),
-    indentExtension,
+    indentExtension(initialIndent),
     codeWrapCompartment.of(codeBlockWrap.of(initialCodeWrap)),
     renderModeCompartment.of(renderMode.of(initialRenderMode)),
     cleanModeContentAttr,

@@ -25,6 +25,12 @@ export const baseTheme = EditorView.theme(
       overflow: "auto",
       lineHeight: "1.7",
       fontFamily: "var(--font-body)",
+      // Always reserve the vertical scrollbar's space on BOTH edges so that the
+      // centered reading column (.cm-content margin:0 auto) keeps an identical,
+      // symmetric position whether or not the document overflows. Without this,
+      // the scrollbar appearing steals width from the right and the column
+      // recenters a few px leftward (a visible jump while typing).
+      scrollbarGutter: "stable both-edges",
     },
     ".cm-content": {
       caretColor: "var(--accent)",
@@ -139,6 +145,10 @@ export const baseTheme = EditorView.theme(
     // Clean mode: list markers are real content, not syntax — normal text color.
     ".cm-md-bullet": { color: "var(--text)" },
     ".cm-md-list-number": { color: "var(--text)" },
+    // Hang-indent: an invisible clone of the marker prefix on a continuation
+    // line. visibility:hidden keeps its layout width (so text aligns under the
+    // item content) while drawing nothing; white-space:pre preserves the spaces.
+    ".cm-md-hang-indent": { visibility: "hidden", whiteSpace: "pre" },
 
     // --- Block constructs (headings / blockquote) ---------------------------
     // Heading size/weight come from the highlight tag; these add vertical

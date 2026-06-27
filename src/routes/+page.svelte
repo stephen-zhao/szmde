@@ -10,7 +10,9 @@
   } from "@tauri-apps/plugin-dialog";
   import Editor, { type EditorApi } from "$lib/Editor.svelte";
   import type { WrapState } from "$lib/editor/setup";
-  import type { RenderMode } from "$lib/editor/render-mode";
+  import { MODE_LABELS, MODE_ORDER, type RenderMode } from "$lib/editor/render-mode";
+  import type { IndentConfig } from "$lib/editor/indent";
+  import { detectEol, fromLf, toLf, type Eol } from "$lib/editor/eol";
   import HamburgerMenu from "$lib/HamburgerMenu.svelte";
 
   let editor: EditorApi | undefined;
@@ -18,6 +20,9 @@
   let dirty = $state(false);
   let wrapState = $state<WrapState>("on");
   let renderMode = $state<RenderMode>("clean");
+  let eol = $state<Eol>("lf");
+  let indent = $state<IndentConfig>({ style: "spaces", width: 2 });
+  let indentMenuOpen = $state(false);
 
   // Editor-wide toggle: forces all blocks (clearing per-block overrides).
   // 'off' or 'partial' → turn wrap on for all; 'on' → turn it off for all.
@@ -27,6 +32,27 @@
 
   function setRenderMode(mode: RenderMode) {
     editor?.setRenderMode(mode);
+  }
+
+  function cycleRenderMode() {
+    editor?.setRenderMode(MODE_ORDER[(MODE_ORDER.indexOf(renderMode) + 1) % MODE_ORDER.length]);
+  }
+
+  // EOL is write-time metadata (the buffer is always LF); toggling marks the
+  // document dirty so the new line ending is written on Save (SPEC §4.4).
+  function toggleEol() {
+    eol = eol === "lf" ? "crlf" : "lf";
+    dirty = true;
+  }
+
+  const indentLabel = $derived(indent.style === "tab" ? "Tab" : `Spaces: ${indent.width}`);
+  function chooseIndent(config: IndentConfig) {
+    indentMenuOpen = false;
+    editor?.setIndent(config);
+  }
+  function convertIndent() {
+    indentMenuOpen = false;
+    editor?.convertIndentation();
   }
 
   const MD_FILTERS = [
@@ -72,8 +98,10 @@
   // --- File operations --------------------------------------------------------
   async function openPath(path: string) {
     try {
-      const text = await invoke<string>("read_file", { path });
-      editor?.setContent(text);
+      const raw = await invoke<string>("read_file", { path });
+      const detected = detectEol(raw);
+      eol = detected === "mixed" ? "lf" : detected; // mixed normalizes to LF on save
+      editor?.setContent(toLf(raw)); // the editor buffer is always LF
       filePath = path;
       dirty = false;
       editor?.focus();
@@ -90,6 +118,7 @@
     editor?.setContent("");
     filePath = null;
     dirty = false;
+    eol = "lf"; // new documents default to LF (SPEC §4.4)
     editor?.focus();
   }
 
@@ -102,7 +131,10 @@
   async function doSave(): Promise<boolean> {
     if (!filePath) return doSaveAs();
     try {
-      await invoke("write_file", { path: filePath, content: editor?.getContent() ?? "" });
+      await invoke("write_file", {
+        path: filePath,
+        content: fromLf(editor?.getContent() ?? "", eol),
+      });
       dirty = false;
       return true;
     } catch (e) {
@@ -121,7 +153,7 @@
     });
     if (!path) return false;
     try {
-      await invoke("write_file", { path, content: editor?.getContent() ?? "" });
+      await invoke("write_file", { path, content: fromLf(editor?.getContent() ?? "", eol) });
       filePath = path;
       dirty = false;
       return true;
@@ -214,11 +246,39 @@
     onchange={() => (dirty = true)}
     onwrapstate={(s) => (wrapState = s)}
     onrendermode={(m) => (renderMode = m)}
+    onindentstate={(c) => (indent = c)}
   />
 
-  <!-- Minimal status hint, bottom-right (precursor to the §7.1 EOL/indent widgets).
-       Sits clear of the scrollbar and on a subtle chip so it stays legible. -->
-  <div class="status">{fileName}{dirty ? " •" : ""}</div>
+  <!-- Bottom-right status bar (§7.1): filename + click-to-edit chips. Tiny and
+       low-contrast to honor the blank-canvas ethos (requirement 9). -->
+  <div class="statusbar">
+    <span class="status-name">{fileName}{dirty ? " •" : ""}</span>
+    <button class="chip" title="Render mode (Ctrl+Shift+M)" onclick={cycleRenderMode}>
+      {MODE_LABELS[renderMode]}
+    </button>
+    <button class="chip" title="Line endings — click to toggle" onclick={toggleEol}>
+      {eol.toUpperCase()}
+    </button>
+    <div class="chip-wrap">
+      <button class="chip" title="Indentation" onclick={() => (indentMenuOpen = !indentMenuOpen)}>
+        {indentLabel}
+      </button>
+      {#if indentMenuOpen}
+        <button class="menu-backdrop" aria-label="Close" onclick={() => (indentMenuOpen = false)}
+        ></button>
+        <div class="chip-menu" role="menu">
+          <button role="menuitemradio" aria-checked={indent.style === "spaces" && indent.width === 2}
+            onclick={() => chooseIndent({ style: "spaces", width: 2 })}>Spaces: 2</button>
+          <button role="menuitemradio" aria-checked={indent.style === "spaces" && indent.width === 4}
+            onclick={() => chooseIndent({ style: "spaces", width: 4 })}>Spaces: 4</button>
+          <button role="menuitemradio" aria-checked={indent.style === "tab"}
+            onclick={() => chooseIndent({ style: "tab", width: indent.width })}>Tabs</button>
+          <hr />
+          <button role="menuitem" onclick={convertIndent}>Convert existing indentation</button>
+        </div>
+      {/if}
+    </div>
+  </div>
 
   {#if confirmOpen}
     <div class="modal-backdrop" role="presentation">
@@ -242,18 +302,87 @@
     width: 100%;
   }
 
-  .status {
+  .statusbar {
     position: fixed;
-    bottom: 10px;
-    right: 18px;
+    bottom: 8px;
+    right: 14px;
     z-index: 15;
-    padding: 2px 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    pointer-events: none; /* gaps pass clicks through to the editor */
+  }
+  .status-name {
+    color: var(--muted);
+    padding: 2px 6px;
     border-radius: 6px;
     background: color-mix(in srgb, var(--bg-raised) 78%, transparent);
+    user-select: none;
+  }
+  .chip {
+    pointer-events: auto;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--bg-raised) 88%, transparent);
     color: var(--muted);
     font-size: 12px;
-    user-select: none;
-    pointer-events: none;
+    cursor: pointer;
+  }
+  .chip:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  .chip-wrap {
+    position: relative;
+    pointer-events: auto;
+  }
+  .menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 18;
+    border: none;
+    background: transparent;
+    cursor: default;
+  }
+  .chip-menu {
+    position: absolute;
+    bottom: 28px;
+    right: 0;
+    z-index: 19;
+    min-width: 200px;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-raised);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  }
+  .chip-menu button {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 7px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .chip-menu button:hover {
+    background: var(--bg-hover);
+  }
+  .chip-menu button[aria-checked="true"]::after {
+    content: "✓";
+    color: var(--accent);
+  }
+  .chip-menu hr {
+    margin: 6px 4px;
+    border: none;
+    border-top: 1px solid var(--border);
   }
 
   .modal-backdrop {

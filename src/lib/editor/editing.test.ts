@@ -103,6 +103,76 @@ describe("Enter — list/quote continuation", () => {
   });
 });
 
+describe("Enter — multi-line list items (continuation lines)", () => {
+  // Repro: type "- one", Shift-Enter (soft break, no marker), type "two", then
+  // Enter. The caret sits on a CONTINUATION line that the parser folds into the
+  // ListItem (it doesn't start with a marker). Enter must still open a new bullet.
+  it("Enter on a bullet's continuation line opens a new bullet", () => {
+    const v = make("- one\ntwo", 9); // caret at end of the continuation line
+    press(v, "Enter");
+    expect(doc(v)).toBe("- one\ntwo\n- ");
+  });
+
+  it("Enter on an ordered item's continuation line continues the numbering", () => {
+    const v = make("1. one\ntwo", 10);
+    press(v, "Enter");
+    expect(doc(v)).toBe("1. one\ntwo\n2. ");
+  });
+
+  it("Enter mid-continuation-line splits into a new bullet", () => {
+    const v = make("- one\ntwo", 8); // caret after "tw", before the final "o"
+    press(v, "Enter");
+    expect(doc(v)).toBe("- one\ntw\n- o");
+  });
+
+  it("Enter on a nested bullet's continuation line adds a sibling at that level", () => {
+    const v = make("- a\n  - b\n  cont", 16); // caret at end of the nested continuation
+    press(v, "Enter");
+    expect(doc(v)).toBe("- a\n  - b\n  cont\n  - ");
+  });
+
+  it("Enter on a properly-indented continuation line still opens a new bullet", () => {
+    const v = make("- one\n  two", 11); // continuation hang-indented under the content
+    press(v, "Enter");
+    expect(doc(v)).toBe("- one\n  two\n- ");
+  });
+});
+
+describe("Shift+Enter — soft break hangs under list content", () => {
+  // A soft break inside a list item should align the new line under the item's
+  // CONTENT (past the marker), not drop to column 0.
+  it("hangs a bullet continuation under the text (2-space marker)", () => {
+    const v = make("- one", 5);
+    press(v, "Enter", { shift: true });
+    expect(doc(v)).toBe("- one\n  ");
+    expect(v.state.selection.main.head).toBe(8);
+  });
+
+  it("hangs an ordered continuation under the text (3-space marker)", () => {
+    const v = make("1. one", 6);
+    press(v, "Enter", { shift: true });
+    expect(doc(v)).toBe("1. one\n   ");
+  });
+
+  it("hangs a nested bullet continuation under the nested text", () => {
+    const v = make("- a\n  - b", 9); // caret at end of "  - b"
+    press(v, "Enter", { shift: true });
+    expect(doc(v)).toBe("- a\n  - b\n    ");
+  });
+
+  it("keeps the same hang indent on a repeated soft break", () => {
+    const v = make("- one\n  two", 11);
+    press(v, "Enter", { shift: true });
+    expect(doc(v)).toBe("- one\n  two\n  ");
+  });
+
+  it("does not indent a soft break outside any list", () => {
+    const v = make("hello", 5);
+    press(v, "Enter", { shift: true });
+    expect(doc(v)).toBe("hello\n");
+  });
+});
+
 describe("Tab — soft tab vs list nesting", () => {
   it("Tab on an empty list item nests it instead of inserting spaces", () => {
     const v = make("- ", 2);
@@ -114,6 +184,20 @@ describe("Tab — soft tab vs list nesting", () => {
     const v = make("hi", 2);
     press(v, "Tab");
     expect(doc(v)).toBe("hi  ");
+  });
+
+  it("Tab inserts a tab character when the indent style is Tab", () => {
+    view = new EditorView({
+      state: EditorState.create({
+        doc: "x",
+        selection: EditorSelection.cursor(1),
+        extensions: editorExtensions(true, "clean", { style: "tab", width: 4 }),
+      }),
+      parent: document.body,
+    });
+    forceParsing(view, 1, 5000);
+    press(view, "Tab");
+    expect(doc(view)).toBe("x\t");
   });
 });
 
