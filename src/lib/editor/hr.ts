@@ -16,24 +16,16 @@ import { renderMode } from "./render-mode";
  * as a rule.
  */
 class HrWidget extends WidgetType {
-  constructor(readonly to: number) {
-    super();
+  /* v8 ignore start -- single shared decoration instance → CM reuses by reference
+     and never calls eq; defensive only. */
+  eq() {
+    return true;
   }
-  eq(o: HrWidget) {
-    return o.to === this.to;
-  }
-  toDOM(view: EditorView) {
+  /* v8 ignore stop */
+  toDOM() {
     const s = document.createElement("span");
     s.className = "cm-md-hr";
     s.setAttribute("aria-hidden", "true");
-    // Clicking the divider reveals the literal `---` with the caret deterministically
-    // at the END of the line (CM would otherwise pick start/end by click x-position).
-    s.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      e.stopPropagation(); // beat CM's own mousedown, which would re-pick start/end by x
-      view.dispatch({ selection: EditorSelection.cursor(this.to), scrollIntoView: true });
-      view.focus();
-    });
     return s;
   }
   /* v8 ignore start -- pointer-event plumbing; not dispatchable in happy-dom. */
@@ -42,6 +34,34 @@ class HrWidget extends WidgetType {
   }
   /* v8 ignore stop */
 }
+
+const hrWidget = Decoration.replace({ widget: new HrWidget() });
+
+/** The deterministic caret target for a click on the divider: the END of the
+ *  rule's line. Pure (testable); the event wrapper below is thin DOM plumbing. */
+export function hrLineEnd(view: EditorView, el: HTMLElement): number {
+  return view.state.doc.lineAt(view.posAtDOM(el)).to;
+}
+
+/**
+ * Clicking the rendered divider reveals the literal `---` with the caret at the
+ * END of the rule line. Uses CM's domEventHandlers (returning true fully takes
+ * over the event) — a listener on the widget itself loses to CM's built-in
+ * click→caret placement for INLINE widgets, which lands at the atomic-range edge
+ * (the "start or end" non-determinism).
+ */
+/* v8 ignore start -- DOM-event wrapper: CM fires it on real pointer events,
+   which happy-dom can't dispatch through CM's plumbing. Logic is hrLineEnd. */
+export const hrInteraction = EditorView.domEventHandlers({
+  mousedown(e, view) {
+    const el = (e.target as HTMLElement | null)?.closest?.(".cm-md-hr") as HTMLElement | null;
+    if (!el) return false;
+    view.dispatch({ selection: EditorSelection.cursor(hrLineEnd(view, el)), scrollIntoView: true });
+    e.preventDefault();
+    return true;
+  },
+});
+/* v8 ignore stop */
 
 const hide = Decoration.replace({});
 const syntaxMark = Decoration.mark({ class: "cm-md-mark-syntax" });
@@ -77,7 +97,7 @@ function buildHrDecos(view: EditorView): HrDecos {
         if (node.name !== "HorizontalRule") return;
         if (mode === "clean") {
           if (caretLines.has(state.doc.lineAt(node.from).number)) return; // reveal
-          decos.push(Decoration.replace({ widget: new HrWidget(node.to) }).range(node.from, node.to));
+          decos.push(hrWidget.range(node.from, node.to));
           hidden.push(hide.range(node.from, node.to));
         } else if (mode === "markers-syntax") {
           decos.push(syntaxMark.range(node.from, node.to));

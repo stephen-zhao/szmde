@@ -3,7 +3,7 @@ import { EditorView } from "@codemirror/view";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { forceParsing } from "@codemirror/language";
 import { editorExtensions } from "./setup";
-import { hrAtomicRanges } from "./hr";
+import { hrAtomicRanges, hrLineEnd } from "./hr";
 import type { RenderMode } from "./render-mode";
 
 // Rendered-DOM tests for the horizontal-rule divider (M2 S1). happy-dom has no
@@ -63,11 +63,10 @@ describe("[REQ-HR-1] Horizontal rule — Clean (Formatted) mode", () => {
     expect(atomicTotal(build(DOC, "clean", 0))).toBeGreaterThan(0);
   });
 
-  it("places the caret at the END of the line when the divider is clicked", () => {
+  it("targets the END of the rule line for a divider click (deterministic)", () => {
     const v = build(DOC, "clean", 0); // HR rendered (caret on line 0)
-    const hr = v.contentDOM.querySelector(".cm-md-hr")!;
-    hr.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-    expect(v.state.selection.main.head).toBe(6); // end of the `---` line, deterministically
+    const hr = v.contentDOM.querySelector<HTMLElement>(".cm-md-hr")!;
+    expect(hrLineEnd(v, hr)).toBe(6); // end of the `---` line, never the start
   });
 
   it("reuses the divider DOM across an edit after it (HrWidget.eq)", () => {
