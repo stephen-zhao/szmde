@@ -581,10 +581,11 @@ schedule by **moving requirements between slots** and retitling, not by reorderi
 to `REQ-*` IDs — never milestone numbers — since slot contents are fluid. Per-requirement breakdown +
 the current slotting in [docs/roadmap.md](docs/roadmap.md); order is yours to set (§11). Current slots:
 5. **M3 – Cloud storage:** Google Drive + OneDrive; conflict/autosave/offline cache.
-6. **M4 – Rich table editing (§7.4):** structured editing over portable GFM tables (insert/reorder
+6. **M4 – Authoring essentials (§5.4, §7.3, §4.1):** emoji shortcodes, find & replace,
+   word/character count, foldable sections, scroll-zoom/page-width, syntax-mode margin overhang —
+   daily-authoring power-features.
+7. **M5 – Rich table editing (§7.4):** structured editing over portable GFM tables (insert/reorder
    rows & cols, drag handles, cursor-context shortcuts, edit-in-place).
-7. **M5 – Authoring essentials (§5.4):** emoji shortcodes, find & replace, word/character count,
-   foldable sections — daily-authoring power-features.
 8. **M6 – Android:** Tauri mobile build; responsive UI; storage access framework.
 9. **M7 – Network storage + polish:** SMB/CIFS + WebDAV; light/system mode; a11y pass.
 10. **M8 – Workspace: tabs & splittable panes (§7.2):** document registry + serializable layout tree.

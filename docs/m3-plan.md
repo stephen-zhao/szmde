@@ -27,8 +27,8 @@ The on-disk artifact stays portable GFM markdown everywhere; cloud backends stor
 bytes the local backend would.
 
 Out of scope (explicitly): SMB/CIFS + WebDAV network backends (**M7**, `REQ-NET-*`); the
-Android storage-access-framework backend (**M6**, `REQ-MOBILE-3`); rich table editing (**M4**);
-authoring features (**M5**). Live-change `watch()` is best-effort/optional per provider, not a
+Android storage-access-framework backend (**M6**, `REQ-MOBILE-3`); authoring essentials (**M4**);
+rich table editing (**M5**). Live-change `watch()` is best-effort/optional per provider, not a
 v1 deliverable.
 
 ## The testable-core vs. live-wiring boundary (read this first)

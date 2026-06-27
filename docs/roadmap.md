@@ -31,8 +31,10 @@ This completes the **§5.1 v1 markdown feature set** + the settings system. Ever
 > retitled as they flow. The stable handles are the requirement IDs (`REQ-*`) — refer to those, not
 > milestone numbers, since a milestone's contents and title are fluid. Order is yours to set (§11).
 >
-> _Last reslotted 2026-06-27: table editing (REQ-TBLED-*) and a new authoring set (REQ-EMOJI/FR/
-> COUNT/FOLD) pulled ahead of Android; Android/network/workspace shifted down a slot each._
+> _Last reslotted 2026-06-27: **authoring essentials (REQ-EMOJI/FR/COUNT/FOLD/ZOOM/RENDER-9)
+> moved ahead of rich table editing (REQ-TBLED-*)** — now the M4 and M5 slots respectively (the
+> two slots' requirements were swapped; numbers stay ascending). Earlier the same day: both sets
+> were pulled ahead of Android, shifting Android/network/workspace down a slot each._
 
 ### M3 — Cloud storage 🔜  (SPEC §6, §8)
 _In progress ([m3-plan.md](m3-plan.md)). Shipped: the `StorageProvider` seam +
@@ -50,7 +52,20 @@ user's OAuth client registrations + the OS-keyring / redirect-capture Tauri comm
 | REQ-CLOUD-1 | Google Drive backend (OAuth + Drive REST) behind the StorageProvider interface | §6 | ⬜ S7 |
 | REQ-CLOUD-2 | OneDrive backend (OAuth + Microsoft Graph) | §6 | ⬜ S8 |
 
-### M4 — Rich table editing ⬜  (SPEC §7.4)
+### M4 — Authoring essentials ⬜  (SPEC §5.4, §7.3, §4.1)
+Daily-authoring + reading-experience power-features for the target user (Stephen).
+Pulled ahead of table editing on 2026-06-27.
+| REQ | Requirement | SPEC |
+|-----|-------------|------|
+| REQ-EMOJI-1 | Emoji shortcodes `:smile:` → rendered emoji | §5.4 |
+| REQ-FR-1 | Find & replace (incl. regex) | §5.4 |
+| REQ-COUNT-1 | Word / character count (bottom-right status area) | §5.4, §7.1 |
+| REQ-FOLD-1 | Collapsible / foldable sections & headings | §5.4 |
+| REQ-ZOOM-1 | Ctrl/Cmd+scroll → zoom base text size (persists to `appearance.fontSize`) | §7.3 |
+| REQ-ZOOM-2 | Shift+scroll → page width (persists to `appearance.lineWidth`; the `--reading-width` var already exists) | §7.3 |
+| REQ-RENDER-9 | **Syntax mode:** block markers (heading `#`/`##`…, blockquote `>`) hang in the LEFT margin as an overhanging indent, right-aligned to the content margin, so text stays flush (the §4.1 deferred refinement) | §4.1 |
+
+### M5 — Rich table editing ⬜  (SPEC §7.4)
 Absorbs the M2 table deferrals. On-disk stays portable GFM pipe tables.
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
@@ -61,18 +76,6 @@ Absorbs the M2 table deferrals. On-disk stays portable GFM pipe tables.
 | REQ-TBLED-5 | Cursor-context shortcuts (move/insert/delete current row/col) | §7.4 |
 | REQ-TBLED-6 | Auto-tidy source + per-column alignment UI (`:--`/`:-:`/`--:`) | §7.4 |
 | REQ-TBLED-7 | Edit-in-place: caret lands at the clicked char inside any cell; up/down arrows enter the table _(deferred from M2 — render-only click lands at cell start today)_ | §7.4, §5.1 |
-
-### M5 — Authoring essentials ⬜  (SPEC §5.4, §7.3, §4.1)
-Daily-authoring + reading-experience power-features for the target user (Stephen).
-| REQ | Requirement | SPEC |
-|-----|-------------|------|
-| REQ-EMOJI-1 | Emoji shortcodes `:smile:` → rendered emoji | §5.4 |
-| REQ-FR-1 | Find & replace (incl. regex) | §5.4 |
-| REQ-COUNT-1 | Word / character count (bottom-right status area) | §5.4, §7.1 |
-| REQ-FOLD-1 | Collapsible / foldable sections & headings | §5.4 |
-| REQ-ZOOM-1 | Ctrl/Cmd+scroll → zoom base text size (persists to `appearance.fontSize`) | §7.3 |
-| REQ-ZOOM-2 | Shift+scroll → page width (persists to `appearance.lineWidth`; the `--reading-width` var already exists) | §7.3 |
-| REQ-RENDER-9 | **Syntax mode:** block markers (heading `#`/`##`…, blockquote `>`) hang in the LEFT margin as an overhanging indent, right-aligned to the content margin, so text stays flush (the §4.1 deferred refinement) | §4.1 |
 
 ### M6 — Android ⬜  (SPEC §2)
 | REQ | Requirement | SPEC |
@@ -99,7 +102,7 @@ Daily-authoring + reading-experience power-features for the target user (Stephen
 | REQ-WS-5 | Serializable layout tree + session persistence | §7.2, §8 |
 
 ### Polish pool 🅑 (specced, small — unslotted; fold into a milestone slot when ranked)
-_(REQ-ZOOM-1/2 were moved into M5 on 2026-06-27.)_
+_(REQ-ZOOM-1/2 were moved into the authoring slot — now M4 — on 2026-06-27.)_
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
 | REQ-ALT-1 | Alt-key shortcut-hint badges over chrome | §7.5 |
@@ -116,7 +119,7 @@ Not product features, but tracked the same way (no ad-hoc infra work either).
 ## Backlog 🅑 (SPEC §5.4 orthogonal features — specced, unscheduled, ranked later per §11)
 
 Each is a real requirement with a home the moment it's prioritized — pull into a milestone when ranked.
-_(REQ-EMOJI-1, REQ-FR-1, REQ-COUNT-1, REQ-FOLD-1 were promoted to **M5 — Authoring essentials** on 2026-06-27.)_
+_(REQ-EMOJI-1, REQ-FR-1, REQ-COUNT-1, REQ-FOLD-1 were promoted to **M4 — Authoring essentials** on 2026-06-27.)_
 
 | REQ | Feature | SPEC |
 |-----|---------|------|
