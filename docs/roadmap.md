@@ -35,14 +35,18 @@ This completes the **§5.1 v1 markdown feature set** + the settings system. Ever
 > COUNT/FOLD) pulled ahead of Android; Android/network/workspace shifted down a slot each._
 
 ### M3 — Cloud storage 🔜  (SPEC §6, §8)
-| REQ | Requirement | SPEC |
-|-----|-------------|------|
-| REQ-CLOUD-1 | Google Drive backend (OAuth + Drive REST) behind the StorageProvider interface | §6 |
-| REQ-CLOUD-2 | OneDrive backend (OAuth + Microsoft Graph) | §6 |
-| REQ-SAVE-1 | Save conflict detection (etag/mtime) + merge/overwrite/save-copy | §6 |
-| REQ-SAVE-2 | **Autosave** + interval (wires the reserved `editor.autosave`/`autosaveIntervalMs` settings) | §8 |
-| REQ-SAVE-3 | Offline local-draft cache + queued writes until reconnect | §6 |
-| REQ-SEC-1 | OAuth tokens in the OS secure store (Credential Manager / Keychain / Keystore) | §6 |
+_In progress ([m3-plan.md](m3-plan.md)). Shipped: the `StorageProvider` seam +
+`LocalProvider` (S1) and the resilience layer — conflict (S2) / autosave (S3) /
+offline queue (S4). Remaining: the OAuth/cloud slices (S5–S8), which need the user's
+OAuth client registrations for their live wiring._
+| REQ | Requirement | SPEC | Status |
+|-----|-------------|------|--------|
+| REQ-SAVE-1 | Save conflict detection (etag/mtime) + overwrite/save-copy/reload | §6 | ✅ S2 |
+| REQ-SAVE-2 | **Autosave** + interval (wires the reserved `editor.autosave`/`autosaveIntervalMs` settings) | §8 | ✅ S3 |
+| REQ-SAVE-3 | Offline local-draft cache + queued writes until reconnect | §6 | ✅ S4 (logic; activates with cloud) |
+| REQ-SEC-1 | OAuth tokens in the OS secure store (Credential Manager / Keychain / Keystore) | §6 | ⬜ S5 |
+| REQ-CLOUD-1 | Google Drive backend (OAuth + Drive REST) behind the StorageProvider interface | §6 | ⬜ S7 |
+| REQ-CLOUD-2 | OneDrive backend (OAuth + Microsoft Graph) | §6 | ⬜ S8 |
 
 ### M4 — Rich table editing ⬜  (SPEC §7.4)
 Absorbs the M2 table deferrals. On-disk stays portable GFM pipe tables.

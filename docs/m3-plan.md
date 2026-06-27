@@ -121,7 +121,7 @@ changes; this is service + shell-wiring work. Viewport/decoration layers are unt
 > tag the tests, then commit. Live-behavior aspects (real OAuth/network/secure-store) get a
 > workflow in [llm-workflow-tests.md](llm-workflow-tests.md), not a unit test.
 
-### S1 — `StorageProvider` seam + `LocalProvider` refactor ⬜  _(seam; no behavior change)_
+### S1 — `StorageProvider` seam + `LocalProvider` refactor ✅  _(seam; no behavior change)_
 Define `provider.ts` (interface + types + `StorageError`). Add `local.ts` (`LocalProvider`
 over an **injected** `invoke`, default the real one; `rev: null` for now — capability flags
 all false). Add `registry.ts` (`ProviderRegistry`: id → provider; default from
@@ -132,7 +132,7 @@ identical.**
 instanceof; `LocalProvider.read/write` delegate to the injected invoke with the right args;
 invoke rejection → `StorageError("io")`; registry resolves ids + default + unknown-id throw.
 
-### S2 — Save conflict detection ⬜  (`REQ-SAVE-1`)
+### S2 — Save conflict detection ✅  (`REQ-SAVE-1`)
 Give `LocalProvider` a real `rev`: extend Rust with `read_file_meta(path) -> {content, rev}`
 and `stat_file(path) -> rev?` (`rev = "{mtime_nanos}-{len}"`, pure `compose_rev` cargo-tested).
 A pure `ConflictGuard`: the document tracks `baseRev` (rev at open / last successful save);
@@ -143,7 +143,7 @@ modal UI is shell wiring (LLM workflow).
 **Tests**: `compose_rev` (cargo); `LocalProvider` conflict path (stat ≠ expected → throw);
 `ConflictGuard` choice mapping (overwrite/save-copy/reload) over a fake provider.
 
-### S3 — Autosave ⬜  (`REQ-SAVE-2`)
+### S3 — Autosave ✅  (`REQ-SAVE-2`)
 `AutosaveScheduler`: `notifyDirty()` debounces by `autosaveIntervalMs`, then calls an injected
 `save()` thunk; honors the `editor.autosave` enable flag; `flush()` forces an immediate save
 (used by the unsaved-changes guard); `cancel()` on disable/teardown. **Injected clock**
@@ -152,7 +152,7 @@ modal UI is shell wiring (LLM workflow).
 coalesce; disabled ⇒ never fires; `flush` saves immediately + clears the pending timer;
 a failed save doesn't wedge the scheduler.
 
-### S4 — Offline cache + write queue ⬜  (`REQ-SAVE-3`)
+### S4 — Offline cache + write queue ✅  (`REQ-SAVE-3`)
 `DraftCache` (key = `providerId:path` → latest unsaved content) + `OfflineQueue` (pending
 writes held when a write throws `StorageError("offline")`, flushed in order on reconnect;
 same-path writes coalesce to the last). Both over an injected persistence seam (in-memory
