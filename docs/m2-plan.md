@@ -164,6 +164,50 @@ effective settings on boot; status-bar toggles persist via `update()`.
 (`SettingsService` over an in-memory backend: load→merge→update→persist→notify), Rust
 config read/write roundtrip (`src-tauri/src/lib.rs`).
 
+#### S7 chosen design (from the judge-panel design workflow, 2026-06-27)
+
+Panel converged on **pure deterministic core + a string-I/O `SettingsBackend` seam + a thin
+(coverage-excluded) Svelte runes adapter**. Sub-slices, each TDD + committed:
+
+- **S7a — pure core** (`src/lib/settings/`): `schema.ts` (`Settings` types + `DEFAULTS`
+  matching app.css: theme `dark`, accent `#7c9cff`, font `Inter`, size `16`, `lineWidth:
+  "medium"`→740px, `defaultEol: lf`, `indentStyle: spaces`, `indentWidth: 2`, `renderMode:
+  clean`; `autosave: false` — honest, not yet wired — divergence from §8's illustrative
+  `true` noted) + `SCHEMA_VERSION` + per-field validators (reuse `RenderMode`/`IndentConfig`/
+  `Eol` unions); `merge.ts` (`deepMerge`, **prototype-pollution-safe** — skips
+  `__proto__`/`constructor`/`prototype`; arrays/scalars/null replace, objects recurse);
+  `validate.ts` (`validate(raw): Settings` walks DEFAULTS, drops unknown/invalid→default,
+  never throws; `accounts[]` field-whitelisted so no secrets); `migrate.ts` (version-stamped
+  forward `MIGRATIONS`, v1 baseline + a loop-mechanism test); `appearance.ts` (pure
+  `applyAppearance(target, appearance)` → CSS vars `--editor-font-size`/`--accent`/
+  `--font-body`(composed w/ fallback stack)/`--reading-width`; theme → `color-scheme` +
+  `data-theme`). lineWidth stays the SPEC §8 **enum** {narrow,medium,wide}, mapped to px here.
+- **S7b — service + backend** (`backend.ts`, `service.ts`, `tauri-backend.ts`):
+  `SettingsBackend` = raw-string I/O (`readUser`/`readSystem`/`writeUser`); **null ⇒ absent
+  file, reject ⇒ real I/O error** (service defaults-and-continues on null, surfaces the
+  latter). `InMemorySettingsBackend` test double (seedable + failure flags + records writes).
+  `SettingsService` (framework-free): `load/get/getValue/update/set/subscribe/flush`;
+  **minimal-diff persistence** (store only `userOverrides`, recompute effective =
+  `deepMerge(system, validate(userOverrides))`); **no-op write guard in `update()`** (skip
+  persist+notify when effective is unchanged → boot-seeding can't loop, the write-loop the
+  panel flagged); validate user tier again before persist; deep-frozen `get()` snapshot.
+  `tauri-backend.ts` kept **in** coverage via a `vi.mock('@tauri-apps/api/core')` test (no
+  silent gap).
+- **S7c — Rust** (`src-tauri/src/lib.rs`): refactor `write_file`'s body into a private
+  `write_atomic(path, content)`; add `read_settings_file(app, which)` (Ok(None) on missing,
+  Err on real I/O) + `write_settings_file(app, content)` (user.json only; `create_dir_all`
+  then `write_atomic`). Config dir = `app.path().app_config_dir()` (leaf is the bundle id
+  `com.zhaostephen.szmde` — Tauri convention; §8's "szmde" was illustrative; documented).
+  Extract a pure `settings_path(base, which)` so dir/path logic is cargo-testable w/o an
+  AppHandle. cargo tests for `write_atomic` + `settings_path` + the None/Err split.
+- **S7d — wiring**: `store.svelte.ts` (Svelte-5 runes adapter — getter-object export,
+  `$effect`→`applyAppearance`; **coverage-excluded** as framework glue, since vitest has no
+  Svelte plugin — add `src/**/*.svelte.ts` to the exclude with a reason); `+page.svelte` boot
+  (seed render-mode/indent via `EditorApi`, eol + appearance from effective settings) + chip
+  write-back (the existing `onrendermode`/`onindentstate`/`toggleEol` handlers call
+  `service.set(...)`); `theme.ts` `.cm-content` maxWidth → `var(--reading-width, 740px)`.
+  Then catalog `REQ-SET-1/2/3`.
+
 ## New / changed files (anticipated)
 
 - **New:** `src/lib/editor/images.ts` (S3), `src/lib/editor/tables.ts` (S5),
