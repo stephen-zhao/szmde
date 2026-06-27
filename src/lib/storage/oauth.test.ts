@@ -177,6 +177,17 @@ describe("OAuthClient", () => {
     expect((await loadTokens(store, "acct"))?.accessToken).toBe("AT2"); // repersisted
   });
 
+  it("dedupes concurrent refreshes into a single token POST", async () => {
+    const store = new InMemorySecureStore();
+    await store.set("acct", JSON.stringify({ accessToken: "OLD", refreshToken: "RT", expiresAt: 0 }));
+    const post = vi.fn(async () => ok({ access_token: "AT2", expires_in: 3600 }));
+    const c = new OAuthClient(CFG, store, "acct", post as unknown as TokenPoster, { now: () => 1_000_000 });
+    const [a, b] = await Promise.all([c.getAccessToken(), c.getAccessToken()]);
+    expect(a).toBe("AT2");
+    expect(b).toBe("AT2");
+    expect(post).toHaveBeenCalledTimes(1); // one refresh despite two concurrent callers
+  });
+
   it("getAccessToken throws auth when expired and there is no refresh token", async () => {
     const store = new InMemorySecureStore();
     const c = new OAuthClient(CFG, store, "acct", vi.fn(), { now: () => 1_000_000 });

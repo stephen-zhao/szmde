@@ -197,19 +197,30 @@ fn parse_redirect(request: &str) -> Option<(String, String)> {
     Some((code?, state?))
 }
 
+fn hex_val(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
+}
+
 /// Minimal percent-decoding for the redirect query (pure → cargo-testable).
+/// Operates on BYTES (never slices the &str) so a `%` followed by a multi-byte
+/// UTF-8 char can't panic on a non-char-boundary slice.
 fn urldecode(s: &str) -> String {
     let b = s.as_bytes();
     let mut out = Vec::with_capacity(b.len());
     let mut i = 0;
     while i < b.len() {
         match b[i] {
-            b'%' if i + 3 <= b.len() => match u8::from_str_radix(&s[i + 1..i + 3], 16) {
-                Ok(byte) => {
-                    out.push(byte);
+            b'%' if i + 2 < b.len() => match (hex_val(b[i + 1]), hex_val(b[i + 2])) {
+                (Some(hi), Some(lo)) => {
+                    out.push(hi * 16 + lo);
                     i += 3;
                 }
-                Err(_) => {
+                _ => {
                     out.push(b'%');
                     i += 1;
                 }
@@ -786,6 +797,7 @@ mod tests {
         assert_eq!(urldecode("plain"), "plain");
         assert_eq!(urldecode("bad%zz"), "bad%zz"); // malformed escape kept literally
         assert_eq!(urldecode("trailing%"), "trailing%"); // truncated escape kept
+        assert_eq!(urldecode("%\u{20AC}"), "%\u{20AC}"); // % before a multi-byte char: no panic
     }
 
     #[test]

@@ -178,11 +178,13 @@
   // --- File operations --------------------------------------------------------
   async function openPath(path: string, pid = "local") {
     try {
-      providerId = pid;
       const { content: raw, rev } = await providerFor(pid).read(path);
       const detected = detectEol(raw);
       eol = detected === "mixed" ? "lf" : detected; // mixed normalizes to LF on save
       editor?.setContent(toLf(raw)); // the editor buffer is always LF
+      // Switch the active provider only AFTER a successful read, so a failed open
+      // (auth/offline/bad id) leaves the currently-open document untouched.
+      providerId = pid;
       filePath = path;
       baseRev = rev; // conflict baseline (REQ-SAVE-1)
       dirty = false;
@@ -225,6 +227,7 @@
       defaultPath: filePath ?? "Untitled.md",
     });
     if (!path) return false;
+    providerId = "local"; // a chosen filesystem path is local, even from a Drive doc
     return writeTo(path, null); // a user-chosen new path → unconditional write
   }
 
@@ -302,7 +305,10 @@
   }
 
   // --- Google Drive (M3 L2) ---------------------------------------------------
+  let driveConnecting = false; // re-entrancy guard — one handshake at a time
   async function doConnectDrive() {
+    if (driveConnecting) return; // a connect flow is already in progress
+    driveConnecting = true;
     try {
       await connectGoogleDrive(); // opens the system browser; user signs in
       driveProvider = await makeGoogleDriveProvider();
@@ -313,6 +319,8 @@
         title: "Connect failed",
         kind: "error",
       });
+    } finally {
+      driveConnecting = false;
     }
   }
 
@@ -320,6 +328,14 @@
     await disconnectGoogleDrive();
     driveProvider = null;
     driveConnected = false;
+    if (providerId === "gdrive") {
+      // The open doc lived on Drive — detach it to an unsaved local buffer so a
+      // save can't route a Drive id to the local disk; the next save is a Save As.
+      providerId = "local";
+      filePath = null;
+      baseRev = null;
+      dirty = true;
+    }
   }
 
   async function doOpenDrive() {
@@ -355,9 +371,13 @@
 
   // --- Shortcuts --------------------------------------------------------------
   function onKeydown(e: KeyboardEvent) {
-    // The Drive-id modal has a text input that owns its own keys (Enter/Escape);
-    // just stop app shortcuts from firing while it's open.
-    if (driveInputOpen) return;
+    // The Drive-id modal has a text input that owns its own keys (Enter/Escape).
+    // Trap Tab so focus can't escape to the editor behind it; let other keys reach
+    // the input. (App shortcuts stay disabled while it's open.)
+    if (driveInputOpen) {
+      if (e.key === "Tab") e.preventDefault();
+      return;
+    }
     // While a modal is open, swallow EVERY key (not just its shortcuts) so nothing
     // leaks into the editor behind it. Focus is also trapped into the modal (see
     // use:trapFocus), so CM never receives the keystroke in the first place; this

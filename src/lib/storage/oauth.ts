@@ -150,6 +150,7 @@ export class OAuthClient {
   #post: TokenPoster;
   #now: () => number;
   #random: (n: number) => Uint8Array;
+  #refreshing: Promise<TokenSet> | null = null;
 
   constructor(
     cfg: OAuthConfig,
@@ -191,9 +192,21 @@ export class OAuthClient {
     if (!tokens) throw new StorageError("auth", "not connected");
     if (!isExpired(tokens, this.#now())) return tokens.accessToken;
     if (!tokens.refreshToken) throw new StorageError("auth", "session expired, reconnect");
-    const refreshed = await refreshTokens(this.#cfg, tokens.refreshToken, this.#post, this.#now());
-    await saveTokens(this.#store, this.#accountKey, refreshed);
-    return refreshed.accessToken;
+    // Collapse concurrent refreshes (autosave + a manual save share this client)
+    // into one network call + one token write — critical when the Google project
+    // has refresh-token rotation on, where a duplicate refresh would invalid_grant.
+    if (!this.#refreshing) {
+      const rt = tokens.refreshToken;
+      this.#refreshing = refreshTokens(this.#cfg, rt, this.#post, this.#now())
+        .then(async (refreshed) => {
+          await saveTokens(this.#store, this.#accountKey, refreshed);
+          return refreshed;
+        })
+        .finally(() => {
+          this.#refreshing = null;
+        });
+    }
+    return (await this.#refreshing).accessToken;
   }
 
   async disconnect(): Promise<void> {
