@@ -161,6 +161,34 @@ export const baseTheme = EditorView.theme(
       borderLeft: "3px solid var(--border)",
       paddingLeft: "14px",
     },
+    // GFM alerts / callouts: a colored left bar + faint tint per type. Each line
+    // carries the class (continuous bar like the blockquote); per-type accent +
+    // tint come from CSS custom properties set by the type modifier class.
+    ".cm-alert": {
+      borderLeft: "3px solid var(--alert-accent, var(--border))",
+      paddingLeft: "14px",
+      backgroundColor: "var(--alert-tint, transparent)",
+    },
+    ".cm-alert-title": { paddingTop: "0.2em" },
+    ".cm-alert-note": { "--alert-accent": "#4493f8", "--alert-tint": "rgba(68,147,248,0.08)" },
+    ".cm-alert-tip": { "--alert-accent": "#3fb950", "--alert-tint": "rgba(63,185,80,0.08)" },
+    ".cm-alert-important": { "--alert-accent": "#ab7df8", "--alert-tint": "rgba(171,125,248,0.08)" },
+    ".cm-alert-warning": { "--alert-accent": "#d29922", "--alert-tint": "rgba(210,153,34,0.09)" },
+    ".cm-alert-caution": { "--alert-accent": "#f85149", "--alert-tint": "rgba(248,81,73,0.08)" },
+    // The icon + name shown in Clean mode in place of `[!TYPE]`.
+    ".cm-alert-label": {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "0.4em",
+      fontWeight: "700",
+      color: "var(--alert-accent)",
+    },
+    ".cm-alert-icon": { fontWeight: "700" },
+    ".cm-alert-label-note .cm-alert-icon::before": { content: '"ⓘ"' },
+    ".cm-alert-label-tip .cm-alert-icon::before": { content: '"✦"' },
+    ".cm-alert-label-important .cm-alert-icon::before": { content: '"❖"' },
+    ".cm-alert-label-warning .cm-alert-icon::before": { content: '"△"' },
+    ".cm-alert-label-caution .cm-alert-icon::before": { content: '"⊘"' },
     // Inline image (Clean mode): replaces `![alt](src)`. Constrain to the reading
     // column width and keep aspect ratio; rounded to match the code-card style.
     ".cm-md-image": {

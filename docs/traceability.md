@@ -39,6 +39,8 @@ tags in the test files and flags either side that's missing._
 | REQ-TASK-2 | Clicking a task checkbox toggles the on-disk char (`[ ]`⇄`[x]`), only that item | §5.1 | integration (DOM) | `tasklist.dom.test.ts` |
 | REQ-IMG-1 | Inline image renders as `<img>` (src+alt) in Clean (atomic + reveal-on-cursor); literal markdown kept in Source/Syntax | §5.1 | integration (DOM) | `image.dom.test.ts` |
 | REQ-IMG-2 | Image src resolution: http(s)/data pass through; local/relative via injectable resolver; reference-style resolves, unresolved stays literal | §5.1 | integration (DOM) | `image.dom.test.ts` |
+| REQ-ALERT-1 | GFM alerts (`> [!TYPE]`) render as per-type callout boxes with an icon+name label (5 types, case-insensitive) | §5.1 | integration (DOM) | `alerts.dom.test.ts` |
+| REQ-ALERT-2 | Alert box shows in every mode; the `[!TYPE]` label reveals literally on cursor / in Source; a normal or bogus blockquote is unaffected | §5.1 | integration (DOM) | `alerts.dom.test.ts` |
 | REQ-BLOCK-1 | ATX headings get `cm-h1`..`cm-h6` by level | §5.1 | integration (DOM) | `blocks.test.ts` |
 | REQ-BLOCK-2 | Blockquote lines get `cm-blockquote` (every line; no bleed) | §5.1 | integration (DOM) | `blocks.test.ts` |
 | REQ-BLOCK-3 | Fenced code blocks render as cards (open/close/content classes, content box, per-block + editor-wide wrap) | §5.1 | integration (DOM) | `setup.test.ts` |

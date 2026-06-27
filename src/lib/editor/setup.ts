@@ -35,6 +35,7 @@ import { blockConstructDecorations } from "./blocks";
 import { hrDecorations, hrAtomicRanges } from "./hr";
 import { taskDecorations, taskAtomicRanges } from "./tasks";
 import { imageDecorations, imageAtomicRanges } from "./images";
+import { alertDecorations, alertAtomicRanges } from "./alerts";
 import { editingKeymap } from "./keymap";
 import { indentExtension, type IndentConfig } from "./indent";
 
@@ -367,6 +368,8 @@ export function editorExtensions(
     wrapOverrides,
     blockLineDecorations,
     blockConstructDecorations,
+    alertDecorations,
+    alertAtomicRanges,
     hrDecorations,
     hrAtomicRanges,
     taskDecorations,

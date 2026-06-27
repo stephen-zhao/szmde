@@ -2,6 +2,7 @@ import { Decoration, EditorView, ViewPlugin } from "@codemirror/view";
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import { RangeSetBuilder } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
+import { alertType } from "./alerts";
 
 /**
  * Line decorations for block constructs: heading line spacing and the blockquote
@@ -40,6 +41,9 @@ function buildBlockConstructDecos(view: EditorView): DecorationSet {
         if (/^ATXHeading[1-6]$/.test(name)) {
           add(state.doc.lineAt(node.from).number, "cm-h" + name[name.length - 1]);
         } else if (name === "Blockquote") {
+          // Alerts (`> [!NOTE]`) are styled as callout boxes by alerts.ts, not as
+          // the plain quote bar — skip them here so the two don't double up.
+          if (alertType(state, node.node)) return;
           const startLine = state.doc.lineAt(node.from).number;
           const endLine = state.doc.lineAt(node.to - 1).number;
           const lo = Math.max(startLine, state.doc.lineAt(Math.max(node.from, from)).number);
