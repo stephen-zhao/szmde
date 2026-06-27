@@ -142,6 +142,40 @@ fn get_launch_file(state: tauri::State<'_, LaunchFile>) -> Option<String> {
     state.0.lock().unwrap().take()
 }
 
+// --- Secure store (REQ-SEC-1) ---------------------------------------------
+// OAuth tokens live in the OS credential store (Windows Credential Manager /
+// macOS Keychain) via the `keyring` crate — never in user.json. `service`
+// namespaces szmde's entries; `account` is the per-account key. The mobile
+// keystore backend arrives with the Android target (M6).
+
+/// Read a secret: Some(value) if present, None if absent, Err on a store error.
+#[tauri::command]
+fn secure_get(service: String, account: String) -> Result<Option<String>, String> {
+    let entry = keyring::Entry::new(&service, &account).map_err(|e| e.to_string())?;
+    match entry.get_password() {
+        Ok(p) => Ok(Some(p)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// Store (or replace) a secret.
+#[tauri::command]
+fn secure_set(service: String, account: String, value: String) -> Result<(), String> {
+    let entry = keyring::Entry::new(&service, &account).map_err(|e| e.to_string())?;
+    entry.set_password(&value).map_err(|e| e.to_string())
+}
+
+/// Delete a secret. Idempotent: deleting an absent entry is not an error.
+#[tauri::command]
+fn secure_delete(service: String, account: String) -> Result<(), String> {
+    let entry = keyring::Entry::new(&service, &account).map_err(|e| e.to_string())?;
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const HELP: &str = "\
 szmde — Stephen Zhao MarkDown Editor
@@ -341,7 +375,10 @@ pub fn run() {
             stat_file,
             get_launch_file,
             read_settings_file,
-            write_settings_file
+            write_settings_file,
+            secure_get,
+            secure_set,
+            secure_delete
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -354,6 +391,7 @@ mod tests {
     //   [REQ-FILE-1] read_file   ·  [REQ-FILE-2] write_file (atomic)
     //   [REQ-SET-3] settings file IO (settings_path / write_atomic / read_optional)
     //   [REQ-SAVE-1] revision tokens (compose_rev / file_rev / read_file_meta / stat_file)
+    //   [REQ-SEC-1] OS secure store (secure_get / secure_set / secure_delete)
     use super::*;
 
     fn args(v: &[&str]) -> std::vec::IntoIter<String> {
@@ -527,6 +565,25 @@ mod tests {
     fn stat_file_is_none_for_a_missing_path() {
         let missing = std::env::temp_dir().join("szmde-absent-rev-xyz.md");
         assert_eq!(stat_file(missing.to_string_lossy().into_owned()).unwrap(), None);
+    }
+
+    // --- [REQ-SEC-1] OS secure store --------------------------------------
+    // Integration test: round-trips through the real OS credential store
+    // (Windows Credential Manager on the dev box). Needs an available keyring;
+    // skip-equivalent on environments without one.
+    #[test]
+    fn secure_store_roundtrips_and_delete_is_idempotent() {
+        let svc = "com.zhaostephen.szmde.test".to_string();
+        let acct = format!("rt-{}", std::process::id());
+        assert_eq!(secure_get(svc.clone(), acct.clone()).unwrap(), None); // absent
+        secure_set(svc.clone(), acct.clone(), "secret-value".into()).unwrap();
+        assert_eq!(
+            secure_get(svc.clone(), acct.clone()).unwrap().as_deref(),
+            Some("secret-value"),
+        );
+        secure_delete(svc.clone(), acct.clone()).unwrap();
+        assert_eq!(secure_get(svc.clone(), acct.clone()).unwrap(), None); // gone
+        secure_delete(svc.clone(), acct.clone()).unwrap(); // idempotent: no error
     }
 
     #[test]

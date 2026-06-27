@@ -199,6 +199,35 @@ helpers factored out of S7 so the two backends differ only in endpoints/auth.
 **Tests** (`onedrive.test.ts`, mocked fetch): the S7 matrix against Graph response shapes.
 **Live tail:** real Azure app + network → LLM workflow.
 
+## Live-wiring slices (post-core — the integration tail)
+
+S1–S8 leave the storage logic fully built + unit-tested; these slices connect it to the OS
+and the live cloud. They are integration-level (Rust + OS APIs + UI), so most are verified by
+the WF-15…18 workflows + the user's OAuth registration ([m3-cloud-setup.md](m3-cloud-setup.md))
+rather than the unit gate.
+
+### L1 — Secure store (OS keyring) ✅  (`REQ-SEC-1` live)
+`TauriSecureStore implements SecureStore` over Rust `secure_get/set/delete` (the `keyring`
+crate → Windows Credential Manager / macOS Keychain), namespaced under `com.zhaostephen.szmde`.
+Verifiable in isolation (no OAuth): TS wrapper `vi.mock`-tested; a cargo test round-trips
+through the real OS store. Mobile keystore is M6.
+
+### L2 — OAuth loopback + real transport ⬜
+Rust: open the system browser to the auth URL and capture the loopback redirect
+(`127.0.0.1:<port>`) → the `code`; a real `TokenPoster` (token endpoint) and `AuthedFetch`
+(bearer from `OAuthClient.getAccessToken`). Wires S6 end-to-end. Needs the user's client IDs to
+verify (→ WF-17/18).
+
+### L3 — Provider config + registry wiring ⬜
+Where the (non-secret) client IDs live (settings `storage` config), construct
+`GoogleDriveProvider`/`OneDriveProvider` with the authed fetch, and register them in the
+`ProviderRegistry` alongside `local`.
+
+### L4 — Account + cloud-file UI ⬜
+Hamburger "Storage accounts" (connect / disconnect via `OAuthClient`), and a cloud file
+open/save flow — which needs the deferred `list`/browse capability (Drive `files.list` / Graph
+children), so this slice also lights up `capabilities.list`.
+
 ## New / changed files (anticipated)
 
 - **New:** `src/lib/storage/{provider,local,registry,conflict,autosave,offline,secure-store,

@@ -22,6 +22,11 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# OS secure store for OAuth tokens (REQ-SEC-1): Windows Credential Manager +
+# macOS Keychain (the two current desktop targets). Linux secret-service /
+# Android keystore are added with those targets (M6+). Backends are target-gated
+# inside the crate, so enabling both native features is safe per platform.
+keyring = { version = "3", features = ["apple-native", "windows-native"] }
 
 # single-instance is desktop-only; on mobile there is no second process to forward.
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
