@@ -30,6 +30,7 @@ class HrWidget extends WidgetType {
     // at the END of the line (CM would otherwise pick start/end by click x-position).
     s.addEventListener("mousedown", (e) => {
       e.preventDefault();
+      e.stopPropagation(); // beat CM's own mousedown, which would re-pick start/end by x
       view.dispatch({ selection: EditorSelection.cursor(this.to), scrollIntoView: true });
       view.focus();
     });

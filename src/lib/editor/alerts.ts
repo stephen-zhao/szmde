@@ -62,11 +62,14 @@ class AlertLabelWidget extends WidgetType {
     name.className = "cm-alert-name";
     name.textContent = TITLE[this.type];
     wrap.append(icon, name);
-    // Clicking the label reveals the literal `[!TYPE]` for editing (otherwise you
-    // could only edit by gliding the caret in from the side).
+    // Clicking the label reveals the literal `[!TYPE]` for editing, with the caret
+    // at the clicked position (posAtCoords maps the click to a doc offset; falls
+    // back to the label start). stopPropagation beats CM's own mousedown handling.
     wrap.addEventListener("mousedown", (e) => {
       e.preventDefault();
-      view.dispatch({ selection: EditorSelection.cursor(this.pos), scrollIntoView: true });
+      e.stopPropagation();
+      const at = view.posAtCoords({ x: e.clientX, y: e.clientY }) ?? this.pos;
+      view.dispatch({ selection: EditorSelection.cursor(at), scrollIntoView: true });
       view.focus();
     });
     return wrap;

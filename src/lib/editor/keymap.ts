@@ -116,11 +116,13 @@ function listContinuationMarker(
   if (!mark) return null;
   const indent = markerLine.text.slice(0, item.from - markerLine.from);
   const markText = state.doc.sliceString(mark.from, mark.to);
+  // A task item continues as a new unchecked task (`- [ ] `), not a raw bullet.
+  const task = item.getChild("Task") ? "[ ] " : "";
   if (item.parent?.name === "OrderedList") {
     const m = /^(\d+)([.)])$/.exec(markText);
-    if (m) return indent + (parseInt(m[1], 10) + 1) + m[2] + " ";
+    if (m) return indent + (parseInt(m[1], 10) + 1) + m[2] + " " + task;
   }
-  return indent + markText + " ";
+  return indent + markText + " " + task;
 }
 
 /** Leading `indent + marker + trailing space(s)` of a list item line, including
@@ -182,23 +184,49 @@ const insertSoftBreak: StateCommand = (target) => {
   return insertNewlineAndIndent(target);
 };
 
+/** Just the `marker + space` part of a list line (no leading indent, no task
+ *  checkbox) — its length is one nesting level for that item. */
+const MARKER_WIDTH = /^\s*((?:[-*+]|\d+[.)])\s+)/;
+
+/**
+ * If the caret on `pos`'s line is at/before a list item's CONTENT start (i.e.
+ * within the leading indent + marker + optional checkbox), return how many spaces
+ * one nesting level is — the marker width. Otherwise null (caret is in the
+ * content, so Tab should insert a soft tab instead of nesting).
+ *
+ * Nesting by the MARKER width (not a fixed indentUnit) is essential for ordered
+ * lists: `1. ` is 3 wide, so a 2-space indent wouldn't reach the parent's content
+ * column and the item would fail to nest (it'd stay a flat sibling, numbering
+ * 1,2,3…). Bullets are unaffected (`- ` is 2, same as the indent unit).
+ */
+function listNestWidth(state: Parameters<StateCommand>[0]["state"], pos: number): number | null {
+  const line = state.doc.lineAt(pos);
+  const full = LIST_PREFIX.exec(line.text); // indent + marker + space + optional [ ]
+  if (!full || pos > line.from + full[1].length) return null;
+  const mw = MARKER_WIDTH.exec(line.text);
+  return mw ? mw[1].length : getIndentUnit(state);
+}
+
 /**
  * Tab inserts soft tabs (spaces per the active indentUnit) at the cursor, or
  * indents the selected lines. `insertTab` from @codemirror/commands inserts a
  * literal \t, so we roll our own to honor "Tab inserts spaces" (SPEC §4.4).
  *
- * Special case: on an EMPTY list item (only a marker + space), Tab increases the
- * item's nesting level (indentMore) rather than inserting spaces at the cursor.
+ * Special case: with the caret at/before a list item's content start, Tab nests
+ * the item by its marker width (so ordered lists actually nest), rather than
+ * inserting spaces.
  */
 const insertSoftTab: StateCommand = ({ state, dispatch }) => {
   const ranges = state.selection.ranges;
   if (ranges.some((r) => !r.empty)) return indentMore({ state, dispatch });
-  if (
-    ranges.every(
-      (r) => !inCode(state, r.from) && EMPTY_LIST_ITEM.test(state.doc.lineAt(r.from).text),
-    )
-  ) {
-    return indentMore({ state, dispatch });
+  const widths = ranges.map((r) => (inCode(state, r.from) ? null : listNestWidth(state, r.from)));
+  if (widths.every((w) => w !== null)) {
+    const changes = ranges.map((r, i) => ({
+      from: state.doc.lineAt(r.from).from,
+      insert: " ".repeat(widths[i] as number),
+    }));
+    dispatch(state.update({ changes, scrollIntoView: true, userEvent: "input" }));
+    return true;
   }
   dispatch(
     state.update(state.replaceSelection(indentString(state, getIndentUnit(state))), {

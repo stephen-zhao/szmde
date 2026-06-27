@@ -186,6 +186,24 @@ describe("[REQ-LIST-4][REQ-INDENT-1] Tab — soft tab vs list nesting", () => {
     expect(doc(v)).toBe("  - [ ] ");
   });
 
+  it("Tab nests an ordered item by its marker width (3), so it actually nests", () => {
+    const v = make("1. a\n2. ", 8); // caret at the empty "2. " item
+    press(v, "Tab");
+    expect(doc(v)).toBe("1. a\n   2. "); // 3 spaces → child of "1. a", not a flat sibling
+  });
+
+  it("Tab at the start of a non-empty list item nests it", () => {
+    const v = make("- item", 0); // caret at column 0
+    press(v, "Tab");
+    expect(doc(v)).toBe("  - item");
+  });
+
+  it("Tab in the middle of list content inserts spaces, not nesting", () => {
+    const v = make("- item", 4); // caret inside the content
+    press(v, "Tab");
+    expect(doc(v)).toBe("- it  em");
+  });
+
   it("Tab on a plain line inserts 2 spaces", () => {
     const v = make("hi", 2);
     press(v, "Tab");
@@ -211,6 +229,14 @@ describe("[REQ-LIST-4][REQ-INDENT-1] Tab — soft tab vs list nesting", () => {
     forceParsing(view, 1, 5000);
     press(view, "Tab");
     expect(doc(view)).toBe("x\t");
+  });
+});
+
+describe("[REQ-LIST-3] Enter — task-list continuation", () => {
+  it("creates a new task item (not a raw bullet) after a multi-line task", () => {
+    const v = make("- [ ] one\n      two", 19); // caret at end of the continuation line
+    press(v, "Enter");
+    expect(doc(v)).toBe("- [ ] one\n      two\n- [ ] ");
   });
 });
 

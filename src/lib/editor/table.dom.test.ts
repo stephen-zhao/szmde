@@ -117,6 +117,17 @@ describe("[REQ-TABLE-2] Tables — reveal-to-source and other modes", () => {
     expect(count(v, "table.cm-md-table")).toBe(0);
   });
 
+  it("clicking a cell reveals the source with the caret in THAT cell", () => {
+    const v = build(DOC, "clean", 0);
+    const td = v.contentDOM.querySelector<HTMLTableCellElement>("table.cm-md-table tbody td")!;
+    const from = Number(td.dataset.cellFrom);
+    expect(from).toBeGreaterThan(0);
+    td.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    expect(v.state.selection.main.head).toBe(from); // caret in the clicked cell's source
+    // and it points at the right cell content:
+    expect(v.state.doc.sliceString(from, from + 1)).toBe("1");
+  });
+
   it("renders inline markdown inside cells (bold/italic/code)", () => {
     const v = build("intro\n\n| a | b |\n| - | - |\n| **x** | `y` |", "clean", 0);
     expect(v.contentDOM.querySelector("table.cm-md-table td strong")?.textContent).toBe("x");

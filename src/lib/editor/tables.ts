@@ -58,12 +58,47 @@ function tag(name: string, text: string): HTMLElement {
  */
 type Align = "left" | "center" | "right" | null;
 
+/** A rendered cell + its source span start, so a click can map back to source. */
+interface Cell {
+  text: string;
+  from: number;
+}
+
+/* v8 ignore start -- caretPositionFromPoint/caretRangeFromPoint need real layout,
+   which happy-dom doesn't provide; the plain-cell char mapping runs in the WebView. */
+function caretOffsetIn(cell: HTMLElement, x: number, y: number): number | null {
+  const doc = cell.ownerDocument as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+  };
+  const pos = doc.caretPositionFromPoint?.(x, y);
+  if (pos && cell.contains(pos.offsetNode)) return pos.offset;
+  const range = doc.caretRangeFromPoint?.(x, y);
+  if (range && cell.contains(range.startContainer)) return range.startOffset;
+  return null;
+}
+/* v8 ignore stop */
+
+/** Source position for a click on the table: the clicked cell's source start,
+ *  plus the in-cell character offset for plain cells (rendered === source). Falls
+ *  back to the table start when the click isn't on a cell. */
+function cellPosAt(e: MouseEvent, fallback: number): number {
+  const cell = (e.target as HTMLElement | null)?.closest?.("[data-cell-from]") as HTMLElement | null;
+  if (!cell) return fallback;
+  const from = Number(cell.dataset.cellFrom);
+  /* v8 ignore start -- char-offset mapping is the real-DOM path (see caretOffsetIn). */
+  const len = Number(cell.dataset.cellLen);
+  const off = caretOffsetIn(cell, e.clientX, e.clientY);
+  if (off != null && (cell.textContent?.length ?? -1) === len) return from + Math.min(off, len);
+  /* v8 ignore stop */
+  return from;
+}
+
 class TableWidget extends WidgetType {
   constructor(
-    readonly headers: string[],
-    readonly rows: string[][],
+    readonly headers: Cell[],
+    readonly rows: Cell[][],
     readonly aligns: Align[],
-    readonly from: number, // table start — where to drop the caret on click
+    readonly from: number, // table start — fallback caret target on click
     readonly key: string,
   ) {
     super();
@@ -77,29 +112,32 @@ class TableWidget extends WidgetType {
     table.setAttribute("contenteditable", "false");
     const align = (i: number): Align => this.aligns[i] ?? null;
 
-    const thead = table.createTHead();
-    const hr = thead.insertRow();
-    this.headers.forEach((h, i) => {
+    const fill = (el: HTMLTableCellElement, c: Cell, i: number) => {
+      renderInlineMarkdown(el, c.text);
+      el.dataset.cellFrom = String(c.from);
+      el.dataset.cellLen = String(c.text.length);
+      if (align(i)) el.style.textAlign = align(i)!;
+    };
+
+    const hr = table.createTHead().insertRow();
+    this.headers.forEach((c, i) => {
       const th = document.createElement("th");
-      renderInlineMarkdown(th, h);
-      if (align(i)) th.style.textAlign = align(i)!;
+      fill(th, c, i);
       hr.appendChild(th);
     });
 
     const tbody = table.createTBody();
     for (const row of this.rows) {
       const tr = tbody.insertRow();
-      row.forEach((cell, i) => {
-        const td = tr.insertCell();
-        renderInlineMarkdown(td, cell);
-        if (align(i)) td.style.textAlign = align(i)!;
-      });
+      row.forEach((c, i) => fill(tr.insertCell(), c, i));
     }
-    // Clicking the rendered table reveals the raw pipe source for editing (until
-    // the rich structured table-editing experience lands — SPEC §7.4).
+    // Clicking a cell reveals the raw pipe source with the caret in that cell at
+    // the clicked position. stopPropagation beats CM's own block-edge placement.
+    // (The rich structured table-editing experience is SPEC §7.4.)
     table.addEventListener("mousedown", (e) => {
       e.preventDefault();
-      view.dispatch({ selection: EditorSelection.cursor(this.from), scrollIntoView: true });
+      e.stopPropagation();
+      view.dispatch({ selection: EditorSelection.cursor(cellPosAt(e, this.from)), scrollIntoView: true });
       view.focus();
     });
     return table;
@@ -147,15 +185,17 @@ function computeTableDecos(state: EditorState): TableDecos {
       if (sel.some((r) => r.to >= from && r.from <= to)) return false;
 
       const tn = node.node;
+      const toCell = (c: { from: number; to: number }): Cell => ({
+        text: cellText(state, c.from, c.to),
+        from: c.from,
+      });
       const header = tn.getChild("TableHeader");
-      const headers = header
-        ? header.getChildren("TableCell").map((c) => cellText(state, c.from, c.to))
-        : [];
+      const headers = header ? header.getChildren("TableCell").map(toCell) : [];
       const sepNode = tn.getChildren("TableDelimiter")[0];
       const aligns = sepNode ? parseAligns(state.doc.sliceString(sepNode.from, sepNode.to)) : [];
       const rows = tn
         .getChildren("TableRow")
-        .map((r) => r.getChildren("TableCell").map((c) => cellText(state, c.from, c.to)));
+        .map((r) => r.getChildren("TableCell").map(toCell));
 
       const key = JSON.stringify([headers, rows, aligns]);
       decos.push(
