@@ -379,7 +379,7 @@ the only way to surface/toggle these per-file settings), but a settings flag
 available from the hamburger menu. Other future status items (word count, cursor position)
 would live here too, off by default.
 
-### 7.2 Workspace: tabs & splittable panes (deferred — post-M1, likely a dedicated milestone)
+### 7.2 Workspace: tabs & splittable panes (deferred — **M7**, `REQ-WS-*`; see [docs/roadmap.md](docs/roadmap.md))
 
 szmde should let you work with **multiple files at once** in a flexible, splittable workspace
 — the VS Code / JetBrains model:
@@ -414,7 +414,7 @@ layered above the editor core:
 This is the natural home for an eventual multi-window story too. Deferred well beyond M1;
 slot into the roadmap (§10) as its own milestone when prioritized.
 
-### 7.3 Zoom & page width (scroll gestures)
+### 7.3 Zoom & page width (scroll gestures) — deferred (`REQ-ZOOM-1/2`, M5/standalone)
 
 Two modifier-scroll gestures over the editor adjust presentation live:
 
@@ -433,7 +433,7 @@ zoom/width persists once the settings system lands (M2). Implementation is small
 handler on the editor scroller updating the two values — but it's **not yet built**; schedule
 when convenient (it doesn't depend on other milestones).
 
-### 7.4 Table editing experience (later)
+### 7.4 Table editing experience (deferred — **M6**, `REQ-TBLED-*`)
 
 Traditional markdown editors make tables miserable — hand-aligning pipes, counting columns,
 rebuilding a row to move a cell. szmde should make table editing genuinely pleasant: a
@@ -458,7 +458,7 @@ Scope note: GFM table _rendering_ is M2 (§5.1). This rich _editing_ experience 
 later effort — block-widget interaction work in the §9 decoration/widget layer — and is **not
 required for v1**.
 
-### 7.5 Keyboard-shortcut hints (Alt overlay) (later)
+### 7.5 Keyboard-shortcut hints (Alt overlay) (deferred — `REQ-ALT-1`, M5/standalone)
 
 Holding **Alt** reveals keyboard-shortcut hint badges over the chrome elements that have
 accelerators — the hamburger menu and its items, the §7.1 status-bar chips, and any future
@@ -558,28 +558,40 @@ the bridge interface only.
 
 ## 10. Suggested milestones
 
-> Per-milestone **implementation plans** (architecture + staged `S<n>` build slices) live
-> under [`docs/`](docs/) — e.g. [docs/m1-plan.md](docs/m1-plan.md) for M1. This section is
-> the high-level roadmap; the docs are the build breakdown.
+> The authoritative, requirement-tagged schedule — including the deferred §7.2–§7.5 features and
+> the §5.4 backlog — lives in **[docs/roadmap.md](docs/roadmap.md)** (the milestone tracker). Every
+> piece of work has a SPEC section, a milestone, and a `REQ-*` ID before it starts — no ad-hoc work.
+> Per-milestone **implementation plans** (architecture + staged `S<n>` slices) live under
+> [`docs/`](docs/) — e.g. [docs/m1-plan.md](docs/m1-plan.md). This section is the high-level sketch;
+> the tracker is the source of truth.
 
+**Shipped (completes the §5.1 v1 feature set):**
 1. **M0 – Skeleton:** Tauri + Svelte + CodeMirror 6 booting on Windows/macOS/web; blank
    canvas; hamburger menu; local file open/save (incl. WSL UNC paths on Windows, §6.1);
-   `szmde` CLI launcher with single-instance forwarding (§2.1); dark theme.
+   `szmde` CLI launcher with single-instance forwarding (§2.1); dark theme. ✅
 2. **M1 – Core WYSIWYG (v1 inline + basic blocks):** render modes 1–3; markdown shortcuts;
    bold/italic/strikethrough, headings, blockquote, lists, code blocks, inline code, links;
-   EOL + indentation behavior and the bottom-right status widgets (§4.4, §7.1);
-   performance target met.
-3. **Testing gate (after M1, before M2):** establish the quality bar per
-   [docs/testing-strategy.md](docs/testing-strategy.md) — 100% unit coverage (ratcheted),
-   integration tests for critical building-block combinations, and an auditable
-   requirement→test traceability matrix. TDD ongoing throughout.
+   EOL + indentation behavior and the bottom-right status widgets (§4.4, §7.1); perf target met. ✅
+3. **Testing gate:** 100% unit coverage (ratcheted), integration tests, auditable
+   requirement→test traceability ([docs/testing-strategy.md](docs/testing-strategy.md)). ✅
 4. **M2 – Remaining v1 blocks + settings:** tables, task lists, images, horizontal rule,
-   nested lists, GFM alerts/callouts; settings system (system+user JSON). _(Completes the
-   full §5.1 v1 feature set.)_
-4. **M3 – Cloud storage:** Google Drive + OneDrive; conflict/autosave/offline cache.
-5. **M4 – Android:** Tauri mobile build; responsive UI; storage access framework.
-6. **M5 – Network storage + polish:** SMB/CIFS + WebDAV on desktop (WebDAV also for
-   web/Android); light mode; a11y pass; prioritized orthogonal features from §5.4.
+   nested lists, GFM alerts/callouts; settings system (system+user JSON). ✅
+
+**Scheduled (post-v1 — see [docs/roadmap.md](docs/roadmap.md) for the per-requirement breakdown;
+ordering is tentative per §11):**
+5. **M3 – Cloud storage:** Google Drive + OneDrive; conflict/autosave/offline cache.
+6. **M4 – Android:** Tauri mobile build; responsive UI; storage access framework.
+7. **M5 – Network storage + polish:** SMB/CIFS + WebDAV; light/system mode; a11y pass; selected
+   polish (zoom/page-width §7.3, Alt-hints §7.5, HTML render §5.2 + underline §5.3, desktop image
+   assets §6.1).
+8. **M6 – Rich table editing (§7.4):** structured editing over portable GFM tables (insert/reorder
+   rows & cols, drag handles, cursor-context shortcuts, edit-in-place).
+9. **M7 – Workspace: tabs & splittable panes (§7.2):** document registry + serializable layout tree.
+
+**Backlog (§5.4 orthogonal features — specced, unscheduled, ranked later):** footnotes, definition
+lists, math/LaTeX, mermaid, front-matter editing, wiki-links, per-language code highlighting, emoji,
+TOC, find & replace, word count, spell check, export, foldable sections, comments, outline sidebar.
+All catalogued with `REQ-*` IDs in [docs/roadmap.md](docs/roadmap.md).
 
 ---
 
@@ -591,7 +603,9 @@ underline deferred from v1 (§5.3) · network storage ships **both SMB/CIFS and 
 v1 (§6) · mode-1 = **reveal-on-cursor** (§4.1) · render-mode toggle is in the menu **and**
 bound to `Ctrl/Cmd+Shift+M` (§7).
 
-**Deferred (non-blocking):** prioritization of the §5.4 post-v1 orthogonal features — to
-be ranked later; not needed for v1.
+**Deferred (non-blocking):** prioritization of the §5.4 post-v1 orthogonal features and the
+post-v1 milestone ordering — to be ranked later; not needed for v1. All deferred items are now
+catalogued with milestones + `REQ-*` IDs in [docs/roadmap.md](docs/roadmap.md), so they're
+schedulable without re-deriving scope (no ad-hoc work).
 
 No open questions block starting v1.
