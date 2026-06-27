@@ -161,6 +161,17 @@ export const baseTheme = EditorView.theme(
       borderLeft: "3px solid var(--border)",
       paddingLeft: "14px",
     },
+    // Horizontal rule (Clean mode): the `---` run is replaced by this divider.
+    // Box-model height (not margin) so CM's height map stays in sync and the
+    // line is comfortably clickable (clicking it reveals the literal chars).
+    ".cm-md-hr": {
+      display: "inline-block",
+      boxSizing: "border-box",
+      width: "100%",
+      height: "0.75em",
+      borderBottom: "2px solid var(--border)",
+      verticalAlign: "middle",
+    },
   },
   { dark: true },
 );

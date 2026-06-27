@@ -34,6 +34,7 @@ tags in the test files and flags either side that's missing._
 | REQ-LIST-4 | Tab nests an empty list item; otherwise inserts a soft tab honoring indent style | §4.4/§5.1 | integration | `editing.test.ts` |
 | REQ-LIST-5 | Shift+Enter soft break hangs under the item's content | §5.1 | integration | `editing.test.ts` |
 | REQ-LIST-6 | Clean-mode hang-indent renders as an invisible marker-prefix clone (font-robust) | §4.1/§5.1 | integration (DOM) | `markers.dom.test.ts` |
+| REQ-HR-1 | Horizontal rule renders as a divider in Clean (atomic + reveal-on-cursor); literal chars kept/greyed in Source/Syntax; frontmatter `---` is not a rule | §5.1 | integration (DOM) | `hr.dom.test.ts` |
 | REQ-BLOCK-1 | ATX headings get `cm-h1`..`cm-h6` by level | §5.1 | integration (DOM) | `blocks.test.ts` |
 | REQ-BLOCK-2 | Blockquote lines get `cm-blockquote` (every line; no bleed) | §5.1 | integration (DOM) | `blocks.test.ts` |
 | REQ-BLOCK-3 | Fenced code blocks render as cards (open/close/content classes, content box, per-block + editor-wide wrap) | §5.1 | integration (DOM) | `setup.test.ts` |
