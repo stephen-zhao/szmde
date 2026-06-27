@@ -162,7 +162,7 @@ try provider.write → on `offline`, stash draft + enqueue → on reconnect, flu
 flushes in order; repeated same-path writes coalesce; a non-offline error is NOT queued
 (re-thrown); draft survives until a successful write clears it.
 
-### S5 — Secure token store ⬜  (`REQ-SEC-1`)
+### S5 — Secure token store ✅  (`REQ-SEC-1`)
 `SecureStore` interface (`get/set/delete(key)`) + `InMemorySecureStore` double + a `TokenSet`
 model (`access`, `refresh`, `expiresAt`) with pure (de)serialization and an `isExpired(now)`
 helper. Tauri impl behind a Rust command over the OS store (Windows Credential Manager via
@@ -171,7 +171,7 @@ helper. Tauri impl behind a Rust command over the OS store (Windows Credential M
 **Tests** (`secure-store.test.ts`): in-memory get/set/delete roundtrip + absent → null;
 `TokenSet` serialize/parse roundtrip; `isExpired` boundary (with skew).
 
-### S6 — OAuth 2.0 + PKCE + refresh ⬜  _(seam; provider-agnostic)_
+### S6 — OAuth 2.0 + PKCE + refresh ✅  _(seam; provider-agnostic)_
 `OAuthClient` logic over an **injected** `httpPost` (mocked in tests): build the authorization
 URL with **PKCE** (`code_verifier` → S256 `code_challenge`); exchange `code`→`TokenSet`;
 `refresh()` when `isExpired`; persist via `SecureStore`. Pure PKCE (verifier gen, S256+
