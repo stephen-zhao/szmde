@@ -64,6 +64,7 @@ tags in the test files and flags either side that's missing._
 | REQ-SAVE-1 | Save conflict detection: a local file's revision (`mtime-len`) is the baseline; a save over a file changed on disk is detected (rev mismatch → `StorageError("conflict")`) and offers overwrite / save-copy / reload | §6 | unit + unit (Rust) | `storage/local.test.ts`, `storage/conflict.test.ts`, `src-tauri/src/lib.rs` (the modal interaction → WF-15) |
 | REQ-SAVE-2 | Autosave: a debounced scheduler saves after a quiet interval, coalescing bursts; honors `editor.autosave` / `autosaveIntervalMs`; disabling cancels pending; `flush()` forces a save; a failed save doesn't wedge later ones | §8 | unit | `storage/autosave.test.ts` (live wiring → WF-16) |
 | REQ-SAVE-3 | Offline draft cache + write queue: a write that fails `offline` is stashed (coalesced per file) and replayed in order on reconnect; a non-offline failure drops from the queue; drafts persist across restarts via a `DraftStore` seam | §6 | unit | `storage/offline.test.ts` (shell activation + a live-offline workflow land with a cloud backend, S7) |
+| REQ-SEC-1 | OAuth tokens in a `SecureStore` seam (never in user.json): token model serialize/parse (corrupt→re-auth, never throws), early-refresh `isExpired` with skew, account-keyed save/load/clear | §6 | unit | `storage/secure-store.test.ts` (the OS keyring impl — Credential Manager / Keychain / Keystore — is the integration tail, lands with S7) |
 
 ## Requirements with no automated test (honest gaps — tracked, not silent)
 
