@@ -15,6 +15,14 @@
   import { detectEol, fromLf, toLf, type Eol } from "$lib/editor/eol";
   import HamburgerMenu from "$lib/HamburgerMenu.svelte";
   import { settings, initSettings, setSetting, updateSettings } from "$lib/settings/store.svelte";
+  import { LocalProvider } from "$lib/storage/local";
+  import { ProviderRegistry } from "$lib/storage/registry";
+
+  // File I/O goes through the StorageProvider seam (SPEC §6) rather than raw
+  // `invoke`. All v1 files are local; cloud providers + account-driven selection
+  // register here in a later M3 slice — `get("local")` is always safe.
+  const providers = new ProviderRegistry([new LocalProvider()]);
+  const storage = providers.get("local");
 
   let editor: EditorApi | undefined;
   let filePath = $state<string | null>(null);
@@ -111,7 +119,7 @@
   // --- File operations --------------------------------------------------------
   async function openPath(path: string) {
     try {
-      const raw = await invoke<string>("read_file", { path });
+      const { content: raw } = await storage.read(path);
       const detected = detectEol(raw);
       eol = detected === "mixed" ? "lf" : detected; // mixed normalizes to LF on save
       editor?.setContent(toLf(raw)); // the editor buffer is always LF
@@ -144,10 +152,7 @@
   async function doSave(): Promise<boolean> {
     if (!filePath) return doSaveAs();
     try {
-      await invoke("write_file", {
-        path: filePath,
-        content: fromLf(editor?.getContent() ?? "", eol),
-      });
+      await storage.write(filePath, fromLf(editor?.getContent() ?? "", eol));
       dirty = false;
       return true;
     } catch (e) {
@@ -166,7 +171,7 @@
     });
     if (!path) return false;
     try {
-      await invoke("write_file", { path, content: fromLf(editor?.getContent() ?? "", eol) });
+      await storage.write(path, fromLf(editor?.getContent() ?? "", eol));
       filePath = path;
       dirty = false;
       return true;
