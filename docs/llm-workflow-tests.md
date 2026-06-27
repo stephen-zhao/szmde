@@ -225,6 +225,24 @@ no visual clutter/chrome beyond the hamburger + corner chips. Record a pass/fail
 view update; expect keystroke-to-update well under one frame (~16 ms). Coarse, but
 flags gross regressions.
 
+### WF-15 · Save-conflict modal → overwrite / save-copy / reload · `REQ-SAVE-1`
+**Why:** the detection + rev logic is unit/cargo-tested, but the modal flow is
+`.svelte` glue + a real on-disk file changing under the editor — only observable
+live. **Needs the Tauri dev app** (real fs), not the Vite-only preview.
+**Setup:** open a saved file; in another program, edit + save that same file so its
+on-disk revision changes; make an edit in szmde so it's dirty; press Ctrl+S.
+**Steps:**
+- Expected: the "File changed on disk" modal appears (the write was NOT silently
+  applied over their change).
+- **Overwrite** → the file now holds szmde's version; a subsequent Ctrl+S is clean
+  (no modal — the baseline rev was refreshed).
+- Re-trigger; **Save a copy** → a sibling `…(copy).md` is written with szmde's
+  version, the original is untouched, and the editor is now editing the copy.
+- Re-trigger; **Reload theirs** → the editor content becomes the on-disk version,
+  the dirty marker clears, and a following Ctrl+S is clean.
+- **Cancel** / **Esc** → nothing is written, the document stays dirty.
+**Notes:** Save As to a brand-new path never conflicts (unconditional write).
+
 ---
 
 ## Requirement coverage
@@ -244,6 +262,7 @@ flags gross regressions.
 | REQ-UI-2 | — (gap) | WF-12 (chips) |
 | REQ-LOOK-1 | — (gap) | WF-13 (look) |
 | REQ-PERF-1 | — (gap) | WF-14 (lag) |
+| REQ-SAVE-1 | logic (`storage/local.test.ts`, `storage/conflict.test.ts`, cargo) | WF-15 (conflict modal) |
 
 The three former [traceability.md](traceability.md) gaps with no automated test
 (REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest

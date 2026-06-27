@@ -46,6 +46,53 @@ fn write_file(path: String, content: String) -> Result<(), String> {
     write_atomic(std::path::Path::new(&path), &content)
 }
 
+/// A file's contents plus an opaque revision token (REQ-SAVE-1 conflict
+/// detection). `rev` is `{mtime_nanos}-{len}` — it changes whenever the file is
+/// edited (mtime or size) and is cheap to compare without re-reading the body.
+#[derive(serde::Serialize)]
+struct FileMeta {
+    content: String,
+    rev: String,
+}
+
+/// Compose a revision token from a file's modified-time + length. Pure (no I/O)
+/// so the format is cargo-testable. A missing/pre-epoch mtime degrades to 0 — the
+/// length still varies the token, and equal (mtime,len) is treated as "unchanged".
+fn compose_rev(modified: Option<std::time::SystemTime>, len: u64) -> String {
+    let nanos = modified
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    format!("{nanos}-{len}")
+}
+
+/// The current revision of a path: Some(rev) if it exists, None if absent
+/// (NotFound), Err on a real I/O error. Used for the pre-write conflict check.
+fn file_rev(path: &std::path::Path) -> Result<Option<String>, String> {
+    match std::fs::metadata(path) {
+        Ok(m) => Ok(Some(compose_rev(m.modified().ok(), m.len()))),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// Read a file's contents together with its revision (REQ-SAVE-1) in one IPC
+/// call, so the caller's baseline rev matches the bytes it just loaded.
+#[tauri::command]
+fn read_file_meta(path: String) -> Result<FileMeta, String> {
+    let p = std::path::Path::new(&path);
+    let content = std::fs::read_to_string(p).map_err(|e| e.to_string())?;
+    let rev = file_rev(p)?.unwrap_or_default();
+    Ok(FileMeta { content, rev })
+}
+
+/// The current revision of a path without reading its body — the pre-save
+/// conflict check. None = the file no longer exists (e.g. a fresh Save As target).
+#[tauri::command]
+fn stat_file(path: String) -> Result<Option<String>, String> {
+    file_rev(std::path::Path::new(&path))
+}
+
 /// Read a file as an Option: Ok(None) when it's absent (a normal first run for a
 /// settings file), Ok(Some) when present, Err on a real I/O error. Pure helper so
 /// the None-vs-Err contract is unit-testable without an AppHandle.
@@ -290,6 +337,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             read_file,
             write_file,
+            read_file_meta,
+            stat_file,
             get_launch_file,
             read_settings_file,
             write_settings_file
@@ -304,6 +353,7 @@ mod tests {
     //   [REQ-CLI-1] parse_cli   ·  [REQ-CLI-2] resolve_path
     //   [REQ-FILE-1] read_file   ·  [REQ-FILE-2] write_file (atomic)
     //   [REQ-SET-3] settings file IO (settings_path / write_atomic / read_optional)
+    //   [REQ-SAVE-1] revision tokens (compose_rev / file_rev / read_file_meta / stat_file)
     use super::*;
 
     fn args(v: &[&str]) -> std::vec::IntoIter<String> {
@@ -435,6 +485,48 @@ mod tests {
         write_atomic(&user, "{\"version\":1}").unwrap();
         assert_eq!(read_optional(&user).unwrap(), Some("{\"version\":1}".to_string()));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // --- [REQ-SAVE-1] revision / conflict detection -----------------------
+    #[test]
+    fn compose_rev_is_stable_and_varies_with_mtime_and_len() {
+        // Use a whole second — SystemTime on Windows is FILETIME-backed (100 ns
+        // ticks), so a sub-100 ns offset would quantize and make this brittle.
+        let t = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1);
+        assert_eq!(compose_rev(Some(t), 7), "1000000000-7");
+        assert_eq!(compose_rev(Some(t), 8), "1000000000-8"); // length changes the token
+        assert_eq!(compose_rev(None, 5), "0-5"); // missing mtime degrades to 0
+    }
+
+    #[test]
+    fn file_rev_is_some_for_a_file_and_none_when_absent() {
+        let dir = std::env::temp_dir().join(format!("szmde-rev-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let f = dir.join("a.md");
+        assert_eq!(file_rev(&f).unwrap(), None); // absent → None (not Err)
+        std::fs::write(&f, "hello").unwrap();
+        let rev = file_rev(&f).unwrap().expect("present → Some");
+        assert!(rev.ends_with("-5"), "len 5 encoded in rev: {rev}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn read_file_meta_returns_content_and_rev_matching_stat() {
+        let f = std::env::temp_dir().join(format!("szmde-meta-{}.md", std::process::id()));
+        let p = f.to_string_lossy().into_owned();
+        write_file(p.clone(), "abc".into()).unwrap();
+        let meta = read_file_meta(p.clone()).unwrap();
+        assert_eq!(meta.content, "abc");
+        assert!(meta.rev.ends_with("-3"), "len 3 in rev: {}", meta.rev);
+        // stat_file on the same unchanged file yields the identical rev.
+        assert_eq!(stat_file(p.clone()).unwrap().as_deref(), Some(meta.rev.as_str()));
+        let _ = std::fs::remove_file(&f);
+    }
+
+    #[test]
+    fn stat_file_is_none_for_a_missing_path() {
+        let missing = std::env::temp_dir().join("szmde-absent-rev-xyz.md");
+        assert_eq!(stat_file(missing.to_string_lossy().into_owned()).unwrap(), None);
     }
 
     #[test]

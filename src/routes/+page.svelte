@@ -17,6 +17,8 @@
   import { settings, initSettings, setSetting, updateSettings } from "$lib/settings/store.svelte";
   import { LocalProvider } from "$lib/storage/local";
   import { ProviderRegistry } from "$lib/storage/registry";
+  import { StorageError, type Revision } from "$lib/storage/provider";
+  import { copyPathFor, type ConflictChoice } from "$lib/storage/conflict";
 
   // File I/O goes through the StorageProvider seam (SPEC §6) rather than raw
   // `invoke`. All v1 files are local; cloud providers + account-driven selection
@@ -26,6 +28,9 @@
 
   let editor: EditorApi | undefined;
   let filePath = $state<string | null>(null);
+  // The on-disk revision at open / last successful save — the conflict baseline
+  // (REQ-SAVE-1). Not rendered, so a plain (non-reactive) variable is enough.
+  let baseRev: Revision = null;
   let dirty = $state(false);
   let wrapState = $state<WrapState>("on");
   let renderMode = $state<RenderMode>("clean");
@@ -107,6 +112,24 @@
     confirmResolve = null;
   }
 
+  // --- Save-conflict modal (promise-based) — REQ-SAVE-1 -----------------------
+  type ConflictModalChoice = ConflictChoice | "cancel";
+  let conflictOpen = $state(false);
+  let conflictResolve: ((c: ConflictModalChoice) => void) | null = null;
+
+  function askConflict(): Promise<ConflictModalChoice> {
+    if (conflictResolve) return Promise.resolve("cancel"); // one prompt at a time
+    conflictOpen = true;
+    return new Promise<ConflictModalChoice>((resolve) => {
+      conflictResolve = resolve;
+    });
+  }
+  function resolveConflictModal(choice: ConflictModalChoice) {
+    conflictOpen = false;
+    conflictResolve?.(choice);
+    conflictResolve = null;
+  }
+
   /** Returns true if the caller may proceed to replace/close the buffer. */
   async function guardUnsaved(): Promise<boolean> {
     if (!dirty) return true;
@@ -119,11 +142,12 @@
   // --- File operations --------------------------------------------------------
   async function openPath(path: string) {
     try {
-      const { content: raw } = await storage.read(path);
+      const { content: raw, rev } = await storage.read(path);
       const detected = detectEol(raw);
       eol = detected === "mixed" ? "lf" : detected; // mixed normalizes to LF on save
       editor?.setContent(toLf(raw)); // the editor buffer is always LF
       filePath = path;
+      baseRev = rev; // conflict baseline (REQ-SAVE-1)
       dirty = false;
       editor?.focus();
     } catch (e) {
@@ -138,6 +162,7 @@
     if (!(await guardUnsaved())) return;
     editor?.setContent("");
     filePath = null;
+    baseRev = null;
     dirty = false;
     eol = settings.value.editor.defaultEol; // new docs use the persisted default (SPEC §4.4)
     editor?.focus();
@@ -151,17 +176,7 @@
 
   async function doSave(): Promise<boolean> {
     if (!filePath) return doSaveAs();
-    try {
-      await storage.write(filePath, fromLf(editor?.getContent() ?? "", eol));
-      dirty = false;
-      return true;
-    } catch (e) {
-      await message(`Couldn't save the file:\n${filePath}\n\n${e}`, {
-        title: "Save failed",
-        kind: "error",
-      });
-      return false;
-    }
+    return writeTo(filePath, baseRev); // pass the baseline rev → conflict-checked
   }
 
   async function doSaveAs(): Promise<boolean> {
@@ -170,18 +185,52 @@
       defaultPath: filePath ?? "Untitled.md",
     });
     if (!path) return false;
+    return writeTo(path, null); // a user-chosen new path → unconditional write
+  }
+
+  /**
+   * Persist the buffer to `path`, passing `expectedRev` for conflict detection
+   * (REQ-SAVE-1). On a detected conflict, prompt overwrite / save-copy / reload.
+   * Returns true once the content is durably persisted; false if cancelled,
+   * errored, or the user chose to reload the on-disk version over their edits.
+   */
+  async function writeTo(path: string, expectedRev: Revision): Promise<boolean> {
     try {
-      await storage.write(path, fromLf(editor?.getContent() ?? "", eol));
+      const { rev } = await storage.write(path, fromLf(editor?.getContent() ?? "", eol), expectedRev);
       filePath = path;
+      baseRev = rev;
       dirty = false;
       return true;
     } catch (e) {
+      if (e instanceof StorageError && e.kind === "conflict") return resolveSaveConflict(path);
       await message(`Couldn't save the file:\n${path}\n\n${e}`, {
         title: "Save failed",
         kind: "error",
       });
       return false;
     }
+  }
+
+  async function resolveSaveConflict(path: string): Promise<boolean> {
+    const choice = await askConflict();
+    if (choice === "cancel") return false;
+    if (choice === "overwrite") return writeTo(path, null); // force over their change
+    if (choice === "save-copy") return writeTo(copyPathFor(path), null); // keep both
+    // reload: discard our edits, take the on-disk version.
+    try {
+      const { content, rev } = await storage.read(path);
+      const detected = detectEol(content);
+      eol = detected === "mixed" ? "lf" : detected;
+      editor?.setContent(toLf(content));
+      baseRev = rev;
+      dirty = false;
+    } catch (e) {
+      await message(`Couldn't reload the file:\n${path}\n\n${e}`, {
+        title: "Reload failed",
+        kind: "error",
+      });
+    }
+    return false; // our edits were discarded — not a "save"
   }
 
   async function doExit() {
@@ -191,6 +240,13 @@
 
   // --- Shortcuts --------------------------------------------------------------
   function onKeydown(e: KeyboardEvent) {
+    if (conflictOpen) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        resolveConflictModal("cancel");
+      }
+      return;
+    }
     if (confirmOpen) {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -327,6 +383,24 @@
           <button class="btn-primary" onclick={() => resolveConfirm("save")}>Save</button>
           <button class="btn-danger" onclick={() => resolveConfirm("discard")}>Don't save</button>
           <button onclick={() => resolveConfirm("cancel")}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if conflictOpen}
+    <div class="modal-backdrop" role="presentation">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="conflict-title">
+        <h2 id="conflict-title">File changed on disk</h2>
+        <p>
+          "{fileName}" was modified by another program since you opened it. Saving now would
+          overwrite that change.
+        </p>
+        <div class="modal-actions">
+          <button class="btn-primary" onclick={() => resolveConflictModal("overwrite")}>Overwrite</button>
+          <button onclick={() => resolveConflictModal("save-copy")}>Save a copy</button>
+          <button class="btn-danger" onclick={() => resolveConflictModal("reload")}>Reload theirs</button>
+          <button onclick={() => resolveConflictModal("cancel")}>Cancel</button>
         </div>
       </div>
     </div>
