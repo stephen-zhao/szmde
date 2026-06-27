@@ -43,6 +43,7 @@ tags in the test files and flags either side that's missing._
 | REQ-ALERT-2 | Alert box shows in every mode; the `[!TYPE]` label reveals literally on cursor / in Source; a normal or bogus blockquote is unaffected | §5.1 | integration (DOM) | `alerts.dom.test.ts` |
 | REQ-TABLE-1 | GFM pipe table renders as a real `<table>` in Clean (header/body cells, per-column alignment); header-only tables don't crash | §5.1 | integration (DOM) | `table.dom.test.ts` |
 | REQ-TABLE-2 | Table reveals raw pipe source on cursor (atomic); literal pipe text kept in Source/Syntax | §5.1 | integration (DOM) | `table.dom.test.ts` |
+| REQ-NEST-1 | Nested lists render (mixed ordered/unordered); unordered bullets vary by depth (•/◦/▪) and continuation hang-indents track the depth glyph | §5.1 | integration (DOM) | `nested.dom.test.ts` |
 | REQ-BLOCK-1 | ATX headings get `cm-h1`..`cm-h6` by level | §5.1 | integration (DOM) | `blocks.test.ts` |
 | REQ-BLOCK-2 | Blockquote lines get `cm-blockquote` (every line; no bleed) | §5.1 | integration (DOM) | `blocks.test.ts` |
 | REQ-BLOCK-3 | Fenced code blocks render as cards (open/close/content classes, content box, per-block + editor-wide wrap) | §5.1 | integration (DOM) | `setup.test.ts` |

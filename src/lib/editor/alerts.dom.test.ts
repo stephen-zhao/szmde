@@ -3,6 +3,7 @@ import { EditorView } from "@codemirror/view";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { forceParsing } from "@codemirror/language";
 import { editorExtensions } from "./setup";
+import { alertAtomicRanges } from "./alerts";
 import type { RenderMode } from "./render-mode";
 
 // Rendered-DOM tests for GFM alerts/callouts (M2 S4). Alerts are NOT a grammar
@@ -86,5 +87,24 @@ describe("[REQ-ALERT-2] GFM alerts — reveal, modes, and non-alerts", () => {
     const v = build("> [!BOGUS]\n> body", "clean", 13);
     expect(count(v, "[class*='cm-alert']")).toBe(0);
     expect(count(v, ".cm-blockquote")).toBeGreaterThanOrEqual(2);
+  });
+
+  it("reuses the alert-label DOM across an edit elsewhere (AlertLabelWidget.eq)", () => {
+    const v = build("> [!NOTE]\n> body", "clean", 16); // caret on the body line (end)
+    const before = v.contentDOM.querySelector(".cm-alert-label");
+    expect(before).not.toBeNull();
+    const end = v.state.doc.length;
+    v.dispatch({ changes: { from: end, insert: "!" }, selection: EditorSelection.cursor(end + 1) });
+    forceParsing(v, v.state.doc.length, 5000);
+    expect(v.contentDOM.querySelector(".cm-alert-label")).toBe(before);
+  });
+
+  it("falls back to an empty atomic set when the alert plugin is absent", () => {
+    view = new EditorView({
+      state: EditorState.create({ doc: "> [!NOTE]\n> x", extensions: [alertAtomicRanges] }),
+      parent: document.body,
+    });
+    const fns = view.state.facet(EditorView.atomicRanges);
+    expect(fns[fns.length - 1](view).size).toBe(0);
   });
 });

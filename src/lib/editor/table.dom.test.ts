@@ -62,6 +62,23 @@ describe("[REQ-TABLE-1] Tables — Clean (Formatted) mode renders a real table",
     expect(count(v, "table.cm-md-table")).toBe(1);
     expect(count(v, "tbody tr")).toBe(0);
   });
+
+  it("applies right alignment from a `--:` separator column", () => {
+    const v = build("intro\n\n| a |\n| --: |\n| 1 |", "clean", 0);
+    expect(v.contentDOM.querySelector<HTMLTableCellElement>("thead th")?.style.textAlign).toBe(
+      "right",
+    );
+  });
+
+  it("reuses the <table> DOM across an edit after it (TableWidget.eq)", () => {
+    const v = build(DOC + "\n\noutro", "clean", DOC.length + 4); // caret in the trailer
+    const before = v.contentDOM.querySelector("table.cm-md-table");
+    expect(before).not.toBeNull();
+    const end = v.state.doc.length;
+    v.dispatch({ changes: { from: end, insert: "!" }, selection: EditorSelection.cursor(end + 1) });
+    forceParsing(v, v.state.doc.length, 5000);
+    expect(v.contentDOM.querySelector("table.cm-md-table")).toBe(before);
+  });
 });
 
 describe("[REQ-TABLE-2] Tables — reveal-to-source and other modes", () => {

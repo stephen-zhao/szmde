@@ -3,7 +3,7 @@ import { EditorView } from "@codemirror/view";
 import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
 import { forceParsing } from "@codemirror/language";
 import { editorExtensions } from "./setup";
-import { imageResolver } from "./images";
+import { imageResolver, imageAtomicRanges } from "./images";
 import type { RenderMode } from "./render-mode";
 
 // Rendered-DOM tests for inline images (M2 S3). Clean mode replaces the
@@ -82,6 +82,17 @@ describe("[REQ-IMG-2] Images — src resolution", () => {
     expect(img(v)?.getAttribute("alt")).toBe("alt");
   });
 
+  it("resolves a shortcut reference image ![label]", () => {
+    const v = build("x\n\n![logo]\n\n[logo]: l.png", "clean", 0);
+    expect(img(v)?.getAttribute("src")).toBe("l.png");
+    expect(img(v)?.getAttribute("alt")).toBe("logo");
+  });
+
+  it("passes a data: URL through unchanged", () => {
+    const v = build("x\n\n![d](data:image/png;base64,AAAA)", "clean", 0);
+    expect(img(v)?.getAttribute("src")).toBe("data:image/png;base64,AAAA");
+  });
+
   it("leaves an unresolved reference image as literal text (no <img>)", () => {
     const v = build("![alt][missing]", "clean", 0);
     expect(count(v, "img.cm-md-image")).toBe(0);
@@ -100,5 +111,26 @@ describe("[REQ-IMG-1] Images — Source / Syntax modes", () => {
     const v = build("![cat](cat.png)", "markers-syntax");
     expect(count(v, "img.cm-md-image")).toBe(0);
     expect(lineText(v, 0)).toContain("![cat](cat.png)");
+  });
+});
+
+describe("[REQ-IMG-1] Images — DOM reuse + atomic fallback", () => {
+  it("reuses the <img> DOM across an edit elsewhere (ImageWidget.eq)", () => {
+    const v = build("![cat](cat.png)\n\nx", "clean", 18); // image on line 0, caret on line 2
+    const before = img(v);
+    expect(before).not.toBeNull();
+    const end = v.state.doc.length;
+    v.dispatch({ changes: { from: end, insert: "y" }, selection: EditorSelection.cursor(end + 1) });
+    forceParsing(v, v.state.doc.length, 5000);
+    expect(img(v)).toBe(before); // same instance → eq returned true, DOM reused
+  });
+
+  it("falls back to an empty atomic set when the image plugin is absent", () => {
+    view = new EditorView({
+      state: EditorState.create({ doc: "![a](b.png)", extensions: [imageAtomicRanges] }),
+      parent: document.body,
+    });
+    const fns = view.state.facet(EditorView.atomicRanges);
+    expect(fns[fns.length - 1](view).size).toBe(0);
   });
 });

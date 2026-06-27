@@ -3,6 +3,7 @@ import { EditorView } from "@codemirror/view";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { forceParsing } from "@codemirror/language";
 import { editorExtensions } from "./setup";
+import { hrAtomicRanges } from "./hr";
 import type { RenderMode } from "./render-mode";
 
 // Rendered-DOM tests for the horizontal-rule divider (M2 S1). happy-dom has no
@@ -82,5 +83,14 @@ describe("[REQ-HR-1] Horizontal rule — Syntax / Source modes", () => {
     expect(count(v, ".cm-md-hr")).toBe(0);
     expect(lineText(v, 2)).toContain("---");
     expect(atomicTotal(v)).toBe(0);
+  });
+
+  it("falls back to an empty atomic set when the hr plugin is absent", () => {
+    view = new EditorView({
+      state: EditorState.create({ doc: "---", extensions: [hrAtomicRanges] }),
+      parent: document.body,
+    });
+    const fns = view.state.facet(EditorView.atomicRanges);
+    expect(fns[fns.length - 1](view).size).toBe(0);
   });
 });

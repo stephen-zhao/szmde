@@ -1,27 +1,50 @@
 import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import { RangeSet, type Range } from "@codemirror/state";
+import type { SyntaxNode } from "@lezer/common";
 import { syntaxTree } from "@codemirror/language";
 import { renderMode } from "./render-mode";
+
+// Nested unordered bullets cycle through these by depth (like typical editors).
+const BULLETS = ["•", "◦", "▪"];
+
+/** Bullet glyph for a node by its unordered-list nesting depth — the number of
+ *  `BulletList` ancestors. Works for a ListMark (ancestors: ListItem→BulletList…)
+ *  or a ListItem (ancestors: BulletList…) alike. */
+function bulletGlyph(node: SyntaxNode): string {
+  let depth = 0;
+  for (let p: SyntaxNode | null = node.parent; p; p = p.parent)
+    if (p.name === "BulletList") depth++;
+  return BULLETS[(depth - 1 + BULLETS.length) % BULLETS.length];
+}
 
 /** A decorative bullet shown in Clean (Formatted) mode in place of a literal
  *  unordered-list marker (a dash, asterisk, or plus). List markers are semantic
  *  content, not pure syntax, so they stay visible (just rendered) not hidden. */
 class BulletWidget extends WidgetType {
-  /* v8 ignore start -- `bullet` is a single shared decoration instance, so CM
-     reuses its widget DOM by reference and never calls eq; defensive only. */
-  eq() {
-    return true;
+  constructor(readonly glyph: string) {
+    super();
+  }
+  /* v8 ignore start -- bullet decorations are cached per glyph (below), so the
+     old/new widget is the SAME instance across rebuilds → CM short-circuits on
+     reference equality and never calls eq; defensive only. */
+  eq(o: BulletWidget) {
+    return o.glyph === this.glyph;
   }
   /* v8 ignore stop */
   toDOM() {
     const s = document.createElement("span");
     s.className = "cm-md-bullet";
-    s.textContent = "•";
+    s.textContent = this.glyph;
     return s;
   }
 }
-const bullet = Decoration.replace({ widget: new BulletWidget() });
+const bulletCache = new Map<string, Decoration>();
+function bulletDeco(glyph: string): Decoration {
+  let d = bulletCache.get(glyph);
+  if (!d) bulletCache.set(glyph, (d = Decoration.replace({ widget: new BulletWidget(glyph) })));
+  return d;
+}
 
 const hide = Decoration.replace({});
 const syntaxMark = Decoration.mark({ class: "cm-md-mark-syntax" });
@@ -102,7 +125,7 @@ function pushHangIndents(
   const ordered = item.parent?.name === "OrderedList";
   const widget = new HangIndentWidget(
     pfx[1],
-    ordered ? pfx[2] : "•",
+    ordered ? pfx[2] : bulletGlyph(item),
     ordered ? "cm-md-list-number" : "cm-md-bullet",
     pfx[3],
   );
@@ -200,7 +223,8 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
           if (isBullet) {
             // Task items render a checkbox (tasks.ts), not a •; suppress the bullet.
             if (node.node.parent?.getChild("Task")) return;
-            decos.push(bullet.range(node.from, node.to)); // always-visible decorative bullet
+            // Depth-varied glyph (•/◦/▪) so nesting reads clearly.
+            decos.push(bulletDeco(bulletGlyph(node.node)).range(node.from, node.to));
             return;
           }
           const revealed = isBlockMark

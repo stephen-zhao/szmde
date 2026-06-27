@@ -86,10 +86,12 @@ describe("[REQ-LIST-6] Clean mode — list continuation hang-indent", () => {
     expect(hang(v)).toBe("1. ");
   });
 
-  it("includes the nesting indent in a nested item's clone ('  • ')", () => {
+  it("includes the nesting indent in a nested item's clone ('  ◦ ')", () => {
+    // The depth-2 item's bullet is ◦ (depth-varied glyph), so the continuation
+    // clone matches it — proving the clone tracks the real marker, not a fixed •.
     const v = build("- a\n  - b\n    cont");
     expect(count(v, ".cm-md-hang-indent")).toBe(1);
-    expect(hang(v)).toBe("  • ");
+    expect(hang(v)).toBe("  ◦ ");
   });
 
   it("decorates every continuation line of a multi-line item", () => {

@@ -3,6 +3,7 @@ import { EditorView } from "@codemirror/view";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { forceParsing } from "@codemirror/language";
 import { editorExtensions } from "./setup";
+import { taskAtomicRanges } from "./tasks";
 import type { RenderMode } from "./render-mode";
 
 // Rendered-DOM tests for GFM task lists (M2 S2). Clean mode replaces `- [ ]` /
@@ -88,6 +89,13 @@ describe("[REQ-TASK-2] Task lists — click toggles the on-disk char", () => {
     forceParsing(v, v.state.doc.length, 5000);
     expect(v.state.doc.toString()).toBe("- [ ] a\n- [x] b\n- [ ] c");
   });
+
+  it("prevents default on mousedown so the click doesn't move the caret first", () => {
+    const v = build("- [ ] todo");
+    const ev = new Event("mousedown", { bubbles: true, cancelable: true });
+    boxes(v)[0].dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true);
+  });
 });
 
 describe("[REQ-TASK-1] Task lists — Source / Syntax modes", () => {
@@ -102,5 +110,14 @@ describe("[REQ-TASK-1] Task lists — Source / Syntax modes", () => {
     expect(count(v, "input.cm-md-task")).toBe(0);
     expect(lineText(v, 0)).toContain("[ ]");
     expect(count(v, ".cm-md-mark-syntax")).toBeGreaterThan(0);
+  });
+
+  it("falls back to an empty atomic set when the task plugin is absent", () => {
+    view = new EditorView({
+      state: EditorState.create({ doc: "- [ ] x", extensions: [taskAtomicRanges] }),
+      parent: document.body,
+    });
+    const fns = view.state.facet(EditorView.atomicRanges);
+    expect(fns[fns.length - 1](view).size).toBe(0);
   });
 });

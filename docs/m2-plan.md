@@ -105,20 +105,20 @@ TDD, one commit each.
 > + `npm run check` green, update [traceability.md](traceability.md) with the new `REQ-*`
 > IDs and tag the tests, then commit. Visual-verify checkpoint with the user between slices.
 
-### S1 — Horizontal rule ⬜  (`REQ-HR-1`)
+### S1 — Horizontal rule ✅  (`REQ-HR-1`)
 `HorizontalRule` node. Clean: replace the `---`/`***`/`___` run with a divider widget
 (atomic + reveal-on-cursor). Syntax: grey the chars. Source: style as a rule + keep chars.
 **Tests** (`hr.dom.test.ts`): divider widget present in Clean; literal chars in Source/Syntax;
 caret on the line reveals the chars; arrow skips / single-delete removes it (atomic).
 
-### S2 — Task lists ⬜  (`REQ-TASK-1`, `REQ-TASK-2`)
+### S2 — Task lists ✅  (`REQ-TASK-1`, `REQ-TASK-2`)
 `Task > TaskMarker`. Clean: replace `TaskMarker` (`[ ]`/`[x]`) with a checkbox widget;
 click toggles the on-disk char (`[ ]`⇄`[x]`) via dispatch; checked state reflects `x`.
 Keep the `- ` list bullet behavior. Source/Syntax: literal `[ ]`/`[x]` (styled).
 **Tests** (`tasklist.dom.test.ts`): checkbox rendered + checked state in Clean; click
 dispatches the exact text change; literal in Source; nested task items.
 
-### S3 — Images ⬜  (`REQ-IMG-1`, `REQ-IMG-2`)
+### S3 — Images ✅  (`REQ-IMG-1`, `REQ-IMG-2`)
 `Image` node. Clean: replace the node with an `<img>` widget (atomic + reveal-on-cursor);
 `alt` → `alt`/`title`; **src resolution** behind a `resolveImageSrc(src)` hook — remote
 `http(s)`/`data:` pass through; local/relative resolved via an injected resolver (Tauri
@@ -131,14 +131,14 @@ wiring Tauri `convertFileSrc` + the `tauri.conf.json` asset-protocol scope + res
 relative paths against the open file's dir, so local desktop images load (remote/`data:`
 render today). Lands with the S7 app-integration / settings pass._
 
-### S4 — GFM alerts / callouts ⬜  (`REQ-ALERT-1`, `REQ-ALERT-2`)
+### S4 — GFM alerts / callouts ✅  (`REQ-ALERT-1`, `REQ-ALERT-2`)
 Detect a `Blockquote` whose first content line is `[!TYPE]` (5 types). Add
 `cm-alert cm-alert-<type>` line classes + an icon/label widget; hide/style the `[!TYPE]`
 token in Clean. Non-alert blockquotes keep the M1 single bar. 5 accent colors + icons.
 **Tests** (`alerts.dom.test.ts`): each type gets its class + icon; `[!TYPE]` hidden in Clean,
 literal in Source; a normal blockquote is unaffected; case-insensitive type match.
 
-### S5 — Tables ⬜  (`REQ-TABLE-1`, `REQ-TABLE-2`)
+### S5 — Tables ✅  (`REQ-TABLE-1`, `REQ-TABLE-2`)
 `Table`/`TableHeader`/`TableRow`/`TableCell`/`TableDelimiter`. Clean: a block widget renders
 a real `<table>` (`<thead>` from `TableHeader`, `<tbody>` from rows, per-column alignment
 parsed from the separator `TableDelimiter`), with **reveal-to-source on cursor** for editing.
@@ -147,13 +147,13 @@ Source/Syntax: keep pipe text (optionally monospace-aligned). Rich structured ed
 **Tests** (`table.dom.test.ts`): `<table>` with header + body cells + alignment classes in
 Clean; reveal-to-source on cursor; literal in Source; ragged/incomplete tables don't crash.
 
-### S6 — Nested lists polish ⬜  (`REQ-NEST-1`)
+### S6 — Nested lists polish ✅  (`REQ-NEST-1`)
 Grammar already nests; M1 hang-indent/continuation handle it. Verify mixed ordered/unordered
 nesting renders correctly and (optional) vary the bullet glyph by depth (•/◦/▪), Clean only.
 **Tests** (`nested.dom.test.ts`): mixed nesting depth renders the right bullets/numbers; deep
 nesting hang-indents align; Enter/Tab nesting from M1 still holds at depth.
 
-### S7 — Settings system ⬜  (`REQ-SET-1`, `REQ-SET-2`, `REQ-SET-3`)
+### S7 — Settings system 🔜  (`REQ-SET-1`, `REQ-SET-2`, `REQ-SET-3`)
 Preceded by a design judge-panel workflow (file layout / validation / migration). Then:
 schema + defaults + version; `deepMerge`; `migrate`; `SettingsService` over a
 `SettingsBackend`; Tauri Rust `read_settings`/`write_settings` (atomic user.json, read-only
