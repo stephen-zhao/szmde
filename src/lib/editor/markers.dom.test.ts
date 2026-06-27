@@ -64,6 +64,21 @@ describe("[REQ-RENDER-2][REQ-RENDER-3] Clean (Formatted) mode — rendered DOM",
     const v = build("a **bold** c", "clean", 0);
     expect(lineText(v, 0)).toBe("a bold c");
   });
+
+  it("[REQ-RENDER-8] hides the heading marker's trailing space too (heading text is flush)", () => {
+    const v = build("para\n# Heading", "clean", 0); // caret on line 0 → heading rendered
+    expect(lineText(v, 1)).toBe("Heading"); // no leading space from the `# `
+  });
+
+  it("[REQ-RENDER-8] hides the trailing space for deeper headings (## etc.)", () => {
+    const v = build("para\n### Deep", "clean", 0);
+    expect(lineText(v, 1)).toBe("Deep");
+  });
+
+  it("[REQ-RENDER-8] handles a heading marker with no trailing space (in-progress `#`)", () => {
+    const v = build("para\n#", "clean", 0);
+    expect(lineText(v, 1)).toBe(""); // `#` hidden; nothing to trim after it
+  });
 });
 
 describe("[REQ-LIST-6] Clean mode — list continuation hang-indent", () => {

@@ -56,14 +56,16 @@ Absorbs the M2 table deferrals. On-disk stays portable GFM pipe tables.
 | REQ-TBLED-6 | Auto-tidy source + per-column alignment UI (`:--`/`:-:`/`--:`) | §7.4 |
 | REQ-TBLED-7 | Edit-in-place: caret lands at the clicked char inside any cell; up/down arrows enter the table _(deferred from M2 — render-only click lands at cell start today)_ | §7.4, §5.1 |
 
-### M5 — Authoring essentials ⬜  (SPEC §5.4)
-Daily-authoring power-features for the target user (Stephen), promoted from the §5.4 backlog.
+### M5 — Authoring essentials ⬜  (SPEC §5.4, §7.3)
+Daily-authoring + reading-experience power-features for the target user (Stephen).
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
 | REQ-EMOJI-1 | Emoji shortcodes `:smile:` → rendered emoji | §5.4 |
 | REQ-FR-1 | Find & replace (incl. regex) | §5.4 |
 | REQ-COUNT-1 | Word / character count (bottom-right status area) | §5.4, §7.1 |
 | REQ-FOLD-1 | Collapsible / foldable sections & headings | §5.4 |
+| REQ-ZOOM-1 | Ctrl/Cmd+scroll → zoom base text size (persists to `appearance.fontSize`) | §7.3 |
+| REQ-ZOOM-2 | Shift+scroll → page width (persists to `appearance.lineWidth`; the `--reading-width` var already exists) | §7.3 |
 
 ### M6 — Android ⬜  (SPEC §2)
 | REQ | Requirement | SPEC |
@@ -90,14 +92,14 @@ Daily-authoring power-features for the target user (Stephen), promoted from the 
 | REQ-WS-5 | Serializable layout tree + session persistence | §7.2, §8 |
 
 ### Polish pool 🅑 (specced, small — unslotted; fold into a milestone slot when ranked)
+_(REQ-ZOOM-1/2 were moved into M5 on 2026-06-27.)_
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
-| REQ-ZOOM-1 | Ctrl/Cmd+scroll → zoom base text size (persists to `appearance.fontSize`) | §7.3 |
-| REQ-ZOOM-2 | Shift+scroll → page width (persists to `appearance.lineWidth`; the `--reading-width` var already exists) | §7.3 |
 | REQ-ALT-1 | Alt-key shortcut-hint badges over chrome | §7.5 |
 | REQ-HTML-1 | HTML render mode (the `markdown.renderHtml` extension hook) | §5.2, §8 |
 | REQ-UL-1 | Underline via the `<u>` HTML allowlist (depends on REQ-HTML-1) | §5.3 |
 | REQ-IMG-3 | Desktop local image assets: Tauri `convertFileSrc` + asset-protocol scope + resolve relative to the open file's dir _(M2 follow-up — remote/`data:` work today)_ | §5.1, §6.1 |
+| REQ-RENDER-9 | **Syntax mode:** block markers (heading `#`/`##`…, and the blockquote `>`) hang in the LEFT margin as an overhanging indent, right-aligned to the content margin line, so the text stays flush at the margin (the §4.1 deferred refinement; never built) | §4.1 |
 
 ### Engineering & test infrastructure ⬜
 Not product features, but tracked the same way (no ad-hoc infra work either).

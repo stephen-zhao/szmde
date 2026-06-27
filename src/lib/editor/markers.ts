@@ -260,6 +260,7 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
         let rendered: string | null | undefined; // undefined = unmanaged
         let isBullet = false;
         let isBlockMark = false; // heading/quote marker — reveals per line
+        let isHeading = false; // ATX heading marker — its trailing space is syntax too
         switch (node.name) {
           case "EmphasisMark":
             rendered =
@@ -276,6 +277,10 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
             rendered = parentName === "InlineCode" ? "cm-mk-code" : undefined; // skip fenced
             break;
           case "HeaderMark":
+            rendered = null;
+            isBlockMark = true;
+            isHeading = true;
+            break;
           case "QuoteMark":
             rendered = null;
             isBlockMark = true;
@@ -311,8 +316,15 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
                 (p) => p >= (parent ? parent.from : node.from) && p <= (parent ? parent.to : node.to),
               );
           if (!revealed) {
-            decos.push(hide.range(node.from, node.to));
-            hiddenRanges.push(hide.range(node.from, node.to));
+            let to = node.to;
+            if (isHeading) {
+              // The marker's trailing space(s) are syntax too — hide them so the
+              // heading text sits flush (no leading space) in Clean mode.
+              const line = state.doc.lineAt(node.from);
+              to += /^[ \t]+/.exec(line.text.slice(node.to - line.from))?.[0].length ?? 0;
+            }
+            decos.push(hide.range(node.from, to));
+            hiddenRanges.push(hide.range(node.from, to));
           }
           // revealed → emit nothing: the literal marker shows as editable text.
         } else if (mode === "markers-syntax") {

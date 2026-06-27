@@ -136,18 +136,17 @@ constructs the cursor isn't in.)
 
 In Clean mode, unordered-list bullets and ordered-list numbers are **content, not syntax**,
 so they render in normal text color (not greyed) — only the truly-syntactic markers are
-hidden/greyed.
+hidden/greyed. The marker's **trailing space is syntax too**, so in Clean mode it is hidden
+along with the marker (heading text renders flush, no leading space) — `REQ-RENDER-8`, shipped.
 
-**Deferred refinement (markers-syntax layout — later):** in markers-syntax mode, block-level
-leading markers should hang in the **left margin** (negative indent, to the left of the text
-column) so the content stays flush at the left margin rather than being pushed inward. This
-applies to:
+**Deferred refinement — `REQ-RENDER-9`** (markers-syntax layout; not built; slot in
+[docs/roadmap.md](docs/roadmap.md)): in markers-syntax mode, block-level leading markers should
+hang in the **left margin** (overhanging indent, right-aligned to the content margin line) so the
+content stays flush at the margin rather than being pushed inward. This applies to:
 - **heading markers** (`#`, `##`, …) — and the space following them likewise sits in the
   gutter, so heading text starts at the left margin;
 - **blockquote markers** (`>`) — they too appear to the left of the left-margin line, keeping
   quoted text aligned at the margin.
-
-Tracked as a deferred item in [docs/m1-plan.md](docs/m1-plan.md).
 
 ### 4.2 Markdown shortcuts drive formatting (requirement 8)
 
