@@ -71,6 +71,8 @@ tags in the test files and flags either side that's missing._
 | REQ-FR-1 | Find & replace (incl. regex / case / whole-word) via `@codemirror/search`: themed top panel, literal-by-default, `Mod-f`; matches run on the raw doc and a match selected on a hidden Clean-mode marker line reveals it | §5.4 | integration (DOM) | `editor/search.dom.test.ts` (live panel UX/theme → WF-20) |
 | REQ-EMOJI-1 | Emoji shortcodes `:code:` render as a glyph in Clean mode (literal kept on disk, reveal-on-cursor, atomic); unknown / inline-code / fenced / URL stay literal; Source/Syntax keep literal; gated by `markdown.emoji` | §5.4 | unit + integration (DOM) | `editor/emoji.test.ts`, `editor/emoji.dom.test.ts` (live glyph render → WF-21) |
 | REQ-FOLD-1 | Collapsible heading sections: lang-markdown's heading foldService + `codeFolding` (`⋯` placeholder); an inline chevron on heading lines only (no gutter → centered column preserved) + `Mod-.` toggle; the body folds, the heading stays visible; identical across render modes; `#` in fenced code isn't a heading | §5.4 | integration (DOM) | `editor/fold.dom.test.ts` (live affordance/visual → WF-22) |
+| REQ-ZOOM-1 | Ctrl/Cmd+scroll zooms the base text size (one step/event, `stepFontSize` clamp 10–32) and persists to `appearance.fontSize`; reading width stays constant so text wraps sooner | §7.3 | unit | `editor/zoom.test.ts` (live wheel gesture → WF-23) |
+| REQ-ZOOM-2 | Shift+scroll steps the page-width enum (`stepLineWidth` narrow/medium/wide, clamped) and persists to `appearance.lineWidth` | §7.3 | unit | `editor/zoom.test.ts` (live wheel gesture → WF-23) |
 
 ## Requirements with no automated test (honest gaps — tracked, not silent)
 

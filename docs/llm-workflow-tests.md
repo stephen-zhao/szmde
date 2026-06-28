@@ -309,6 +309,15 @@ the chevron (now ▸) or the `⋯` unfolds; `Mod-.` toggles at the cursor;
 `Ctrl+Shift+[` / `]` fold/unfold; the centered column doesn't shift; folding works
 in all three render modes; a plain click on heading text still places the caret.
 
+### WF-23 · Scroll-zoom text size + page width · `REQ-ZOOM-1` / `REQ-ZOOM-2`
+**Why:** the step math + wheel routing are unit-tested; the real wheel gesture,
+live re-layout, and persistence are live-only.
+**Steps:** Ctrl/Cmd+scroll over the canvas grows/shrinks all text (headings, code,
+markers scale together) while the column width stays constant (text wraps sooner);
+Shift+scroll widens/narrows the reading column through narrow→medium→wide; a plain
+scroll still scrolls normally; both values persist across an app reload; Ctrl+wheel
+doesn't trigger the WebView's native page-zoom.
+
 ### WF-16 · Autosave fires after the interval · `REQ-SAVE-2`
 **Why:** the debounce/coalesce logic is unit-tested, but the editor→scheduler→
 save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.**
@@ -350,6 +359,7 @@ save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.
 | REQ-FR-1 | structure (`editor/search.dom.test.ts`) | WF-20 (find panel) |
 | REQ-EMOJI-1 | map+structure (`editor/emoji.test.ts`, `emoji.dom.test.ts`) | WF-21 (glyph render) |
 | REQ-FOLD-1 | structure (`editor/fold.dom.test.ts`) | WF-22 (fold affordance) |
+| REQ-ZOOM-1/2 | logic (`editor/zoom.test.ts`) | WF-23 (scroll zoom/width) |
 
 The three former [traceability.md](traceability.md) gaps with no automated test
 (REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest

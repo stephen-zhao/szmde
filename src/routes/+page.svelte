@@ -27,6 +27,7 @@
     makeGoogleDriveProvider,
   } from "$lib/storage/gdrive-connect";
   import { parseDriveId } from "$lib/storage/drive-id";
+  import { stepFontSize, stepLineWidth } from "$lib/editor/zoom";
 
   // File I/O goes through the StorageProvider seam (SPEC §6). The active provider
   // is the open document's: local, or Google Drive once connected (M3 L2).
@@ -497,6 +498,10 @@
       updateSettings({ editor: { indentStyle: c.style, indentWidth: c.width } });
     }}
     oncount={(c) => (wordCount = c)}
+    onzoomfont={(s) =>
+      setSetting("appearance.fontSize", stepFontSize(settings.value.appearance.fontSize, s))}
+    onzoomwidth={(s) =>
+      setSetting("appearance.lineWidth", stepLineWidth(settings.value.appearance.lineWidth, s))}
   />
 
   <!-- Bottom-right status bar (§7.1): filename + click-to-edit chips. Tiny and

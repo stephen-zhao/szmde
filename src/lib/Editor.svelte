@@ -47,6 +47,8 @@
     onrendermode,
     onindentstate,
     oncount,
+    onzoomfont,
+    onzoomwidth,
   }: {
     onchange?: (value: string) => void;
     onready?: (api: EditorApi) => void;
@@ -54,6 +56,8 @@
     onrendermode?: (mode: RenderMode) => void;
     onindentstate?: (config: IndentConfig) => void;
     oncount?: (count: TextCount) => void;
+    onzoomfont?: (steps: number) => void;
+    onzoomwidth?: (steps: number) => void;
   } = $props();
 
   let container: HTMLDivElement;
@@ -73,7 +77,10 @@
     return EditorState.create({
       doc,
       extensions: [
-        ...editorExtensions(codeWrap, renderMode, indent, emoji),
+        ...editorExtensions(codeWrap, renderMode, indent, emoji, {
+          onZoomFont: (s) => onzoomfont?.(s),
+          onZoomWidth: (s) => onzoomwidth?.(s),
+        }),
         EditorView.updateListener.of((u) => {
           // Only real user transactions mark the document dirty; a setState
           // document load produces no transactions.

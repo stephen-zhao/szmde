@@ -40,6 +40,7 @@ import { alertDecorations, alertAtomicRanges } from "./alerts";
 import { tableExtension } from "./tables";
 import { searchExtension } from "./search";
 import { foldExtension } from "./fold";
+import { zoomGestures, type ZoomConfig } from "./zoom";
 import { editingKeymap } from "./keymap";
 import { indentExtension, type IndentConfig } from "./indent";
 
@@ -358,8 +359,10 @@ export function editorExtensions(
   initialRenderMode: RenderMode = "clean",
   initialIndent: IndentConfig = { style: "spaces", width: 2 },
   initialEmoji = true,
+  zoom?: ZoomConfig,
 ): Extension[] {
   return [
+    ...(zoom ? [zoomGestures(zoom)] : []),
     history(),
     EditorView.lineWrapping,
     // addKeymap: false — the markdown keymap is re-added at high precedence in
