@@ -61,7 +61,7 @@ The editor stays framework-agnostic: new state flows out via callbacks (like
 > the tests, then commit. Per the standing preference, run an adversarial review over a
 > substantial slice before moving on; live-only behavior gets an `llm-workflow-tests.md` entry.
 
-### S1 — Word / character count ⬜  (`REQ-COUNT-1`)
+### S1 — Word / character count ✅  (`REQ-COUNT-1`)
 `count.ts`: pure `countText(text): {words, chars}` — chars as Unicode **code points** excluding
 line breaks; words via a Unicode-aware regex (apostrophes/hyphens = one word; CJK-as-one-word a
 noted limitation). `Editor.svelte`: `getCount()` + `oncount` fired from the `updateListener`
@@ -71,7 +71,7 @@ gated on a new `appearance.showWordCount` (default **false**) + the existing `sh
 **Tests** (`count.test.ts`): empty/whitespace, prose, apostrophes/hyphens, emoji=1 char, line
 breaks excluded, marker text counted (render-mode independence).
 
-### S2 — Find & replace ⬜  (`REQ-FR-1`)
+### S2 — Find & replace ✅  (`REQ-FR-1`)
 Add `@codemirror/search`. `search.ts`: `search({top:true, literal:true})` + `Prec.high` `Mod-f`
 → `openSearchPanel`, Escape → close, find/replace bindings; register in `setup.ts`. Theme the
 default panel in `theme.ts` with the existing CSS vars. Matches run on `state.doc` (raw GFM);
@@ -81,7 +81,7 @@ endpoints) so a match inside a hidden Clean-mode marker reveals automatically.
 move/mutate `state.doc`; regex + case + whole-word; match inside a hidden marker reveals.
 Live panel UX → workflow.
 
-### S3 — Emoji shortcodes ⬜  (`REQ-EMOJI-1`)
+### S3 — Emoji shortcodes ✅  (`REQ-EMOJI-1`)
 `emoji-data.ts` (curated frozen `EMOJI` map) + `emoji.ts` modeled on `images.ts`: `EmojiWidget`,
 `buildEmojiDecos` (regex `/:([a-z0-9_+-]+):/gi` over visible ranges; skip unknown codes + matches
 inside `InlineCode`/`FencedCode`/`URL`/`Autolink` + caret/selection ranges; **Clean mode only**),
@@ -91,7 +91,7 @@ true) via a Facet+compartment (`setEmoji` on the EditorApi, seeded from settings
 unknown stays literal; `:foo:` in code/fenced stays literal; Source/Syntax literal; disabled →
 none; atomic non-empty; widget DOM reuse.
 
-### S4 — Foldable sections & headings ⬜  (`REQ-FOLD-1`)
+### S4 — Foldable sections & headings ✅  (`REQ-FOLD-1`)
 `fold.ts`: a heading-aware `foldService` (fold from a heading's line-end through the line before
 the next same-or-higher heading; `null` if empty → no affordance), `codeFolding({placeholderDOM})`,
 and an **inline chevron** fold-toggle widget on foldable heading lines (WrapToggleWidget pattern:
@@ -101,7 +101,7 @@ and an **inline chevron** fold-toggle widget on foldable heading lines (WrapTogg
 folded; EOF; empty-body → not foldable; off-by-one excludes the next heading line); placeholder
 present + body removed; identical across render modes; toggle flips. Live affordance → workflow.
 
-### S5 — Zoom + page width ⬜  (`REQ-ZOOM-1`, `REQ-ZOOM-2`)
+### S5 — Zoom + page width ✅  (`REQ-ZOOM-1`, `REQ-ZOOM-2`)
 `zoom.ts`: `zoomGestures(cfg)` = `EditorView.domEventHandlers({wheel})` — `Ctrl/Cmd+wheel` →
 `onZoomFont(±1)`, `Shift+wheel` → `onZoomWidth(±1)`, plain wheel → passthrough; `preventDefault`
 only when handled; one step per event (`-Math.sign(deltaY)`). Pure `stepFontSize(cur,steps,10,32)`
@@ -112,7 +112,7 @@ CSS vars apply automatically.
 preventDefault-only-when-handled) via synthetic events; `stepFontSize` clamp; `stepLineWidth`
 enum clamp. Live scroll feel + persistence → workflow.
 
-### S6 — Syntax-mode margin overhang ⬜  (`REQ-RENDER-9`)
+### S6 — Syntax-mode margin overhang ✅  (`REQ-RENDER-9`)
 In `markers.ts`'s `markers-syntax` branch, split block marks (HeaderMark/QuoteMark) from inline:
 emit a `Decoration.line` (`cm-md-hang-line`, `position:relative`) + a `Decoration.mark`
 (`cm-md-mark-syntax cm-md-mark-hang`) over `[from, to+trailingSpace]` (reuse the existing

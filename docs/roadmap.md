@@ -52,9 +52,10 @@ user's OAuth client registrations + the OS-keyring / redirect-capture Tauri comm
 | REQ-CLOUD-1 | Google Drive backend (OAuth + Drive REST) behind the StorageProvider interface | §6 | ⬜ S7 |
 | REQ-CLOUD-2 | OneDrive backend (OAuth + Microsoft Graph) | §6 | ⬜ S8 |
 
-### M4 — Authoring essentials ⬜  (SPEC §5.4, §7.3, §4.1)
+### M4 — Authoring essentials ✅  (SPEC §5.4, §7.3, §4.1)
 Daily-authoring + reading-experience power-features for the target user (Stephen).
-Pulled ahead of table editing on 2026-06-27.
+Pulled ahead of table editing on 2026-06-27. **Shipped 2026-06-28 (S1–S6,
+[m4-plan.md](m4-plan.md)); all six REQs catalogued in [traceability.md](traceability.md).**
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
 | REQ-EMOJI-1 | Emoji shortcodes `:smile:` → rendered emoji | §5.4 |
