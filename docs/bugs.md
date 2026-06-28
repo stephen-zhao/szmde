@@ -24,11 +24,17 @@ _None._
 
 ## Fixed
 
+### M4 feedback — round 3 (2026-06-28)
+
+| ID | Title | REQ | Notes |
+|----|-------|-----|-------|
+| BUG-CURSOR-GLIDE | (Syntax / Formatted-reveal) cursor gliding across the hung markers was broken: the marker offset was set by a POST-LAYOUT plugin (`margin-left` from `offsetWidth` after CM laid out). CM recreates marker spans on every line re-render (caret move / scroll), losing the JS style until the plugin happened to re-run — so the marker flicked between gutter and margin and the native caret (which follows the DOM) landed in the wrong place (left margin / mid-marker / past the hashes, inconsistently). | REQ-RENDER-9 | Bake the offset into the DECORATION (inline `margin-left:-<canvas-measured width>`) so CM re-applies it on every render → marker always placed, caret glides consistently. Removed the measure plugin; the trailing space is a separate in-flow token. Verified live: `#` stable in the gutter across 10 cursor moves + typing; caret steps through every position; Formatted reveal stable too. Added cursor-glide contract tests (markers.dom.test.ts) across all 3 modes. |
+
 ### M4 feedback — round 2 (2026-06-28)
 
 | ID | Title | REQ | Notes |
 |----|-------|-----|-------|
-| BUG-RENDER-OVERHANG | (Syntax) heading `#…` / quote `>` rendered to the RIGHT of the margin, overlapping the text, instead of hanging in the left gutter — a regression from the B2/B4 in-flow refactor (the `width:0; text-align:right` overflowed the wrong way) | REQ-RENDER-9, REQ-RENDER-10 | Re-fixed with an in-flow inline-block whose own measured width is applied as a negative `margin-left` (`hangMarkerMargins` plugin): hangs in the gutter, baseline-aligned, flush, editable, no `>` mirroring. Verified live (Claude_Preview). |
+| BUG-RENDER-OVERHANG | (Syntax) heading `#…` / quote `>` rendered to the RIGHT of the margin, overlapping the text, instead of hanging in the left gutter — a regression from the B2/B4 in-flow refactor (the `width:0; text-align:right` overflowed the wrong way) | REQ-RENDER-9, REQ-RENDER-10 | Re-fixed with an in-flow inline-block pulled left by minus its own measured width: hangs in the gutter, baseline-aligned, flush, editable, no `>` mirroring. _(The width was first applied by a post-layout plugin; that broke cursor gliding and was replaced by a decoration-baked offset — see BUG-CURSOR-GLIDE, round 3.)_ |
 | BUG-FIND-SIZES | Find/replace panel had THREE different text sizes (buttons largest, checkbox labels medium, entry boxes smallest) — the C1/REQ-FR-3 fix used `input[type=text]`, but CM's inputs have NO `type` attr so it never matched (they kept CM's `.cm-textfield{font-size:70%}`), and CM's `& label{font-size:80%}` shrank the checkbox labels | REQ-FR-3 | Target `.cm-textfield` (not `input[type=text]`) and out-rank CM's label rule with `.cm-search.cm-panel label`. Verified live: all panel text now a uniform 13.6px. |
 
 ### M4 feedback — round 1 (2026-06-28)

@@ -147,27 +147,19 @@ export const baseTheme = EditorView.theme(
       fontSize: "calc(var(--editor-font-size) * 0.75)",
       verticalAlign: "baseline",
     },
-    // markers-syntax / Formatted-reveal RENDER-9: a block marker (#…/>) + its
-    // trailing space hangs in the LEFT margin so the heading/quote text stays
-    // flush. This is an IN-FLOW inline-block (the glyphs are real, editable,
-    // selectable text — not a replace widget), kept to zero inline width so it
-    // contributes no advance; `text-align:right` right-aligns the glyphs to the
-    // box's start edge, so they overflow LEFT (auto-measured overhang — no px or
-    // measured-width constant). `vertical-align:baseline` sits the small-grey
-    // marker on the SAME baseline as the heading/quote text (not floated to the
-    // top, as an absolutely-positioned box would be). The 0.3em padding is the
-    // gap between the hung marker and the content.
-    // padding-right is the marker→text gap. CM may split the marked `#…` + space
-    // into two adjacent spans at the highlight boundary; each is its own width:0
-    // box, so the padding applies twice — 0.15em keeps the heading/quote text
-    // effectively flush (~0.3em) while leaving a clean gap after the marker.
+    // markers-syntax / Formatted-reveal RENDER-9/10: a block marker (#…/>) + its
+    // trailing space hangs in the LEFT gutter so the heading/quote text stays flush
+    // — while remaining real, editable, selectable text (not a replace widget) so
+    // the caret glides through it. It's an in-flow inline-block pulled left by
+    // `margin-left:-<own width>` (baked into the decoration in markers.ts, computed
+    // from a canvas measurement), giving zero net inline advance + a left overhang.
+    // `vertical-align:baseline` sits the small-grey marker on the heading/quote
+    // text baseline; `white-space:pre` keeps the trailing space, which is the gap
+    // between the marker and the content.
     ".cm-md-mark-hang": {
       display: "inline-block",
-      verticalAlign: "baseline", // sit on the heading/quote text baseline (RENDER-10)
+      verticalAlign: "baseline",
       whiteSpace: "pre",
-      paddingRight: "0.3em", // gap between the hung marker and the flush content
-      // margin-left is set to minus the box width by the hangMarkerMargins plugin,
-      // so the marker takes zero inline space and overflows left into the gutter.
     },
     // markers-syntax: a list marker (bullet dash / ordered number) is content, not
     // pure syntax, so it shows its literal in normal text style — not small-grey.

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { EditorView } from "@codemirror/view";
 import { EditorSelection, EditorState } from "@codemirror/state";
+import { cursorCharRight } from "@codemirror/commands";
 import { forceParsing } from "@codemirror/language";
 import { editorExtensions } from "./setup";
 import { markerAtomicRanges } from "./markers";
@@ -176,9 +177,10 @@ describe("[REQ-RENDER-4] Syntax mode — rendered DOM", () => {
 });
 
 describe("[REQ-RENDER-9] Syntax mode — block markers hang in the left margin (in-flow)", () => {
-  // The hung marker is an in-flow Decoration.mark, not a replace widget; CM splits
-  // the marked range into adjacent spans at a highlight boundary (between '#' and
-  // the space), so concatenate all hang spans' text.
+  // Only the glyph run (`#…`/`>`) is the hung mark — a single uniform-highlight
+  // span pulled left by a per-decoration margin. The trailing space is a separate
+  // in-flow small-grey token (so the cursor stays navigable through it without the
+  // margin being applied twice). So `.cm-md-mark-hang` text is the glyphs only.
   const hang = (v: EditorView) =>
     Array.from(v.contentDOM.querySelectorAll(".cm-md-mark-hang"))
       .map((e) => e.textContent)
@@ -194,32 +196,37 @@ describe("[REQ-RENDER-9] Syntax mode — block markers hang in the left margin (
     return total;
   };
 
-  it("hangs a heading marker + its trailing space ('# ') as in-flow editable text", () => {
+  it("hangs a heading marker glyph as in-flow editable text, space kept as a token", () => {
     const v = build("# Heading", "markers-syntax", 0);
-    expect(hang(v)).toBe("# "); // marker + trailing space, kept as real text
-    expect(count(v, ".cm-md-mark-hang")).toBeGreaterThan(0);
-    expect(lineText(v, 0)).toContain("Heading");
+    expect(hang(v)).toBe("#"); // the glyph run is the hung mark (space is separate)
+    expect(count(v, ".cm-md-mark-hang")).toBe(1);
+    expect(lineText(v, 0)).toBe("# Heading"); // full marker + space + text all present
     // In-flow (bugs B2/B6): the marker is a mark, so no widget buffers wrap it and
     // nothing is atomic — the caret glides into '#'/space, and they're selectable.
     expect(widgetBuffers(v)).toBe(0);
     expect(atomicSize(v)).toBe(0);
   });
 
-  it("hangs a deeper heading marker ('### ')", () => {
+  it("hangs a deeper heading marker ('###') as a single span", () => {
     const v = build("### Deep", "markers-syntax", 0);
-    expect(hang(v)).toBe("### ");
+    expect(hang(v)).toBe("###"); // all hashes in ONE hang span (uniform highlight)
+    expect(count(v, ".cm-md-mark-hang")).toBe(1);
+    expect(lineText(v, 0)).toBe("### Deep");
   });
 
-  it("hangs a blockquote marker ('> ') and keeps it in-flow (bug B6)", () => {
+  it("hangs a blockquote marker ('>') and keeps it in-flow (bug B6)", () => {
     const v = build("> quote", "markers-syntax", 0);
-    expect(hang(v)).toBe("> ");
+    expect(hang(v)).toBe(">");
+    expect(lineText(v, 0)).toBe("> quote");
     expect(widgetBuffers(v)).toBe(0);
     expect(atomicSize(v)).toBe(0);
   });
 
-  it("hangs each '>' of a nested blockquote, all in-flow", () => {
+  it("hangs each '>' of a nested blockquote as its own span, all in-flow", () => {
     const v = build("> > deep", "markers-syntax", 0);
-    expect(hang(v)).toBe("> > ");
+    expect(hang(v)).toBe(">>"); // two glyph spans (one per QuoteMark)
+    expect(count(v, ".cm-md-mark-hang")).toBe(2);
+    expect(lineText(v, 0)).toBe("> > deep");
     expect(widgetBuffers(v)).toBe(0);
   });
 
@@ -243,7 +250,8 @@ describe("[REQ-RENDER-9] Syntax mode — block markers hang in the left margin (
 
   it("hangs only the OPENING marker of an ATX heading with a closing #", () => {
     const v = build("# H #", "markers-syntax", 0);
-    expect(hang(v)).toBe("# "); // only the leading '# ', not the trailing closing #
+    expect(hang(v)).toBe("#"); // only the leading '#', not the trailing closing #
+    expect(count(v, ".cm-md-mark-hang")).toBe(1);
     // The closing '#' is a non-block HeaderMark → small-grey token, not hung.
     expect(count(v, ".cm-md-mark-syntax")).toBeGreaterThan(count(v, ".cm-md-mark-hang"));
   });
@@ -266,14 +274,14 @@ describe("[REQ-RENDER-11] Formatted mode — reveal-on-cursor renders Syntax-sty
 
   it("reveals a heading marker as a hung Syntax-style mark, not a raw literal", () => {
     const v = build("# Heading", "clean", 2); // caret on the heading line
-    expect(hang(v)).toBe("# "); // hung, exactly like Syntax mode
-    expect(count(v, ".cm-md-mark-hang")).toBeGreaterThan(0);
-    expect(lineText(v, 0)).toContain("Heading");
+    expect(hang(v)).toBe("#"); // hung glyph, exactly like Syntax mode
+    expect(count(v, ".cm-md-mark-hang")).toBe(1);
+    expect(lineText(v, 0)).toBe("# Heading");
   });
 
   it("reveals a blockquote marker as a hung Syntax-style mark", () => {
     const v = build("> quote", "clean", 3);
-    expect(hang(v)).toBe("> ");
+    expect(hang(v)).toBe(">");
   });
 
   it("reveals an inline emphasis marker as a small-grey Syntax token", () => {
@@ -281,6 +289,80 @@ describe("[REQ-RENDER-11] Formatted mode — reveal-on-cursor renders Syntax-sty
     expect(count(v, ".cm-md-mark-syntax")).toBeGreaterThan(0);
     expect(count(v, ".cm-mk-strong")).toBe(0); // NOT the Source-mode rendered marker
     expect(lineText(v, 0)).toContain("**");
+  });
+});
+
+describe("cursor gliding across markers — document-flow contract", () => {
+  // The "smooth gliding" requirement: in Syntax/Source the marker chars are real,
+  // non-atomic text the caret steps through one position at a time; in Clean mode a
+  // HIDDEN marker is atomic so the caret skips it as a single unit. (The VISUAL
+  // caret position — e.g. the gutter overhang — needs real layout and is verified
+  // live in WF-24; here we lock the document-flow contract that makes it smooth.)
+  const atomicSize = (v: EditorView) => {
+    let total = 0;
+    for (const fn of v.state.facet(EditorView.atomicRanges)) total += fn(v).size;
+    return total;
+  };
+  // Whether an atomic range covers the INTERIOR of `pos` (so the live view's
+  // movement layer skips it). happy-dom's cursorCharRight does logical stepping but
+  // not the layout-layer atomic skip, so we assert that contract on the range set.
+  const atomicCovers = (v: EditorView, pos: number) => {
+    let covered = false;
+    for (const fn of v.state.facet(EditorView.atomicRanges)) {
+      fn(v).between(0, v.state.doc.length, (from, to) => {
+        if (from < pos && pos < to) covered = true;
+      });
+    }
+    return covered;
+  };
+  // Arrow-glide right from `start`, collecting each landed position until `steps`.
+  const glideRight = (v: EditorView, start: number, steps: number) => {
+    v.dispatch({ selection: EditorSelection.cursor(start) });
+    const seen = [v.state.selection.main.head];
+    for (let i = 0; i < steps; i++) {
+      cursorCharRight(v);
+      seen.push(v.state.selection.main.head);
+    }
+    return seen;
+  };
+
+  it("[REQ-RENDER-9] Syntax mode: caret steps through every char of a heading marker (no skips)", () => {
+    const v = build("ab\n# Heading", "markers-syntax", 0);
+    // From end of line 1 (pos 2), right-arrow must visit: 3 (line2 start, before #),
+    // 4 (after #), 5 (after space), 6 (after 'H') — one position each, nothing skipped.
+    expect(glideRight(v, 2, 4)).toEqual([2, 3, 4, 5, 6]);
+    expect(atomicSize(v)).toBe(0); // nothing atomic → caret can rest on every char
+  });
+
+  it("[REQ-RENDER-9] Syntax mode: caret steps through a blockquote '>' marker", () => {
+    const v = build("ab\n> quote", "markers-syntax", 0);
+    expect(glideRight(v, 2, 3)).toEqual([2, 3, 4, 5]); // \n, >, space, q
+    expect(atomicSize(v)).toBe(0);
+  });
+
+  it("Source mode: marker chars are non-atomic, caret steps one-by-one", () => {
+    const v = build("# Heading", "markers-rendered", 9);
+    expect(glideRight(v, 0, 3)).toEqual([0, 1, 2, 3]); // #, space, H, e
+    expect(atomicSize(v)).toBe(0);
+  });
+
+  it("Clean mode: a hidden marker is atomic — caret can't rest inside it", () => {
+    // caret on line 1 → the '# ' on line 2 (positions 3..5) is hidden + atomic, so
+    // the caret skips it as a unit. pos 4 (between '#' and the space) is INSIDE the
+    // atomic range → unreachable; in Syntax mode the same position is reachable.
+    const v = build("ab\n# Heading", "clean", 0);
+    expect(atomicSize(v)).toBeGreaterThan(0);
+    expect(atomicCovers(v, 4)).toBe(true);
+    expect(atomicCovers(build("ab\n# Heading", "markers-syntax", 0), 4)).toBe(false);
+  });
+
+  it("the hung marker's offset is carried by the DECORATION (re-applied on every render)", () => {
+    // Regression guard for the cursor-jump bug: the left-shift must be an attribute
+    // on the decoration (so CM re-applies it on each line re-render), NOT a style
+    // mutated by a post-layout plugin (which CM blows away on re-render).
+    const v = build("# Heading", "markers-syntax", 0);
+    const hangEl = v.contentDOM.querySelector(".cm-md-mark-hang");
+    expect(hangEl?.getAttribute("style") || "").toContain("margin-left");
   });
 });
 

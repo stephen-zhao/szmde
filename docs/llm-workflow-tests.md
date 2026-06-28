@@ -342,11 +342,16 @@ paragraphs.
 **Steps:** each marker hangs in the left gutter with its right edge near the content
 margin, heading/quote text starts ~flush with paragraph text, nothing clips at the
 left; **the small-grey marker sits on the SAME baseline as the heading/quote text
-(its bottom aligns), not floated to the top** (REQ-RENDER-10); **arrow-keying left
-from the heading text glides the caret THROUGH the `#`/`>` characters (they're real
-editable text), and you can click-drag to select them** (REQ-RENDER-9 in-flow); it
-holds when `--editor-font-size` changes (Ctrl+scroll). _Known cosmetic limit: nested
-quotes (`> >`) / quoted headings (`> #`) overlap their hung markers in the gutter._
+(its bottom aligns), not floated to the top** (REQ-RENDER-10). **Cursor-glide (the
+core check):** put the caret at the END of the line BEFORE a heading and press →;
+the caret lands in the GUTTER, just left of the first `#` (not at the margin, not
+past the hashes). Keep pressing → : it steps through each `#`, the space, then the
+heading text — one position at a time, no jumps. Crucially, **move the caret on/off
+the heading repeatedly and scroll: the `#` must stay put in the gutter every time**
+(the bug was it flicking between gutter and margin as lines re-rendered, dragging
+the caret with it). Same for a `>` quote. It holds when `--editor-font-size`
+changes (Ctrl+scroll). _Known cosmetic limit: nested quotes (`> >`) / quoted
+headings (`> #`) overlap their hung markers in the gutter._
 
 ### WF-25 · Formatted-mode reveal renders Syntax-style markers · `REQ-RENDER-11`
 **Why:** the decoration choice is dom-tested; the live look/feel of a revealed
