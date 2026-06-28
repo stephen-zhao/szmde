@@ -293,6 +293,31 @@ export const baseTheme = EditorView.theme(
     ".cm-searchMatch-selected": {
       backgroundColor: "color-mix(in srgb, var(--accent) 55%, transparent)",
     },
+
+    // --- Folding (REQ-FOLD-1) -----------------------------------------------
+    // Inline chevron on a foldable heading line (no gutter → centered column
+    // preserved). em-based so it scales with the font.
+    ".cm-fold-chevron": {
+      display: "inline-block",
+      width: "1em",
+      marginLeft: "-1em", // hang in the heading's left padding, content stays flush
+      color: "var(--faint)",
+      cursor: "pointer",
+      userSelect: "none",
+      fontSize: "0.7em",
+      verticalAlign: "middle",
+    },
+    ".cm-fold-chevron:hover": { color: "var(--text)" },
+    // The "⋯" shown in place of a folded section.
+    ".cm-foldPlaceholder": {
+      margin: "0 0.4em",
+      padding: "0 0.4em",
+      border: "1px solid var(--border)",
+      borderRadius: "5px",
+      color: "var(--muted)",
+      backgroundColor: "var(--bg-raised)",
+      cursor: "pointer",
+    },
   },
   { dark: true },
 );

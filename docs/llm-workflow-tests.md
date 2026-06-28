@@ -299,6 +299,16 @@ into a shortcode reveals `:rocket:` for editing; `:notarealemoji:` stays literal
 a shortcode in `` `:code:` `` / a fenced block stays literal; in Source/Syntax the
 literal `:rocket:` is shown; setting `markdown.emoji=false` disables rendering.
 
+### WF-22 · Foldable heading sections · `REQ-FOLD-1`
+**Why:** the fold mechanics are dom-tested; the chevron hit-area, click-vs-caret
+disambiguation, and no-column-jump are live-only.
+**Setup:** a doc with `#`/`##` headings and bodies.
+**Steps:** a ▾ chevron shows on each heading line (not body lines); clicking it
+folds the section to a `⋯` placeholder with the heading still visible; clicking
+the chevron (now ▸) or the `⋯` unfolds; `Mod-.` toggles at the cursor;
+`Ctrl+Shift+[` / `]` fold/unfold; the centered column doesn't shift; folding works
+in all three render modes; a plain click on heading text still places the caret.
+
 ### WF-16 · Autosave fires after the interval · `REQ-SAVE-2`
 **Why:** the debounce/coalesce logic is unit-tested, but the editor→scheduler→
 save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.**
@@ -339,6 +349,7 @@ save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.
 | REQ-COUNT-1 | logic (`editor/count.test.ts`) | WF-19 (chip live/off-by-default) |
 | REQ-FR-1 | structure (`editor/search.dom.test.ts`) | WF-20 (find panel) |
 | REQ-EMOJI-1 | map+structure (`editor/emoji.test.ts`, `emoji.dom.test.ts`) | WF-21 (glyph render) |
+| REQ-FOLD-1 | structure (`editor/fold.dom.test.ts`) | WF-22 (fold affordance) |
 
 The three former [traceability.md](traceability.md) gaps with no automated test
 (REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest

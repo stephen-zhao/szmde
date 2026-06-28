@@ -39,6 +39,7 @@ import { emojiDecorations, emojiAtomicRanges, emojiEnabled, emojiCompartment } f
 import { alertDecorations, alertAtomicRanges } from "./alerts";
 import { tableExtension } from "./tables";
 import { searchExtension } from "./search";
+import { foldExtension } from "./fold";
 import { editingKeymap } from "./keymap";
 import { indentExtension, type IndentConfig } from "./indent";
 
@@ -389,6 +390,7 @@ export function editorExtensions(
     Prec.highest(markerDecorations),
     markerAtomicRanges,
     searchExtension,
+    foldExtension,
     revealCursorInCodeBox,
     EditorView.blockWrappers.of((view) => buildBlockWrappers(view)),
     baseTheme,
