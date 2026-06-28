@@ -69,6 +69,7 @@ tags in the test files and flags either side that's missing._
 | REQ-CLOUD-2 | OneDrive backend over the StorageProvider seam (OAuth + Microsoft Graph): Graph item content read/write (PUT) with `If-Match`, stat; same shared error mapping as Drive | §6 | unit | `storage/onedrive.test.ts`, `storage/cloud-http.test.ts`, `storage/oauth.test.ts` (live OAuth + network + Graph ETag semantics → WF-18) |
 | REQ-COUNT-1 | Live word/character count of the raw buffer (render-mode independent): code-point chars excluding line breaks; Unicode word runs (apostrophes/hyphens within a word). Shown as an off-by-default read-only status chip (`appearance.showWordCount`) | §7.1/§5.4 | unit | `editor/count.test.ts` (the status-chip wiring + no-lag is `.svelte`/live → WF-19) |
 | REQ-FR-1 | Find & replace (incl. regex / case / whole-word) via `@codemirror/search`: themed top panel, literal-by-default, `Mod-f`; matches run on the raw doc and a match selected on a hidden Clean-mode marker line reveals it | §5.4 | integration (DOM) | `editor/search.dom.test.ts` (live panel UX/theme → WF-20) |
+| REQ-EMOJI-1 | Emoji shortcodes `:code:` render as a glyph in Clean mode (literal kept on disk, reveal-on-cursor, atomic); unknown / inline-code / fenced / URL stay literal; Source/Syntax keep literal; gated by `markdown.emoji` | §5.4 | unit + integration (DOM) | `editor/emoji.test.ts`, `editor/emoji.dom.test.ts` (live glyph render → WF-21) |
 
 ## Requirements with no automated test (honest gaps — tracked, not silent)
 

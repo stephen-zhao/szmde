@@ -19,6 +19,8 @@
     /** Set the indentation style/width (Spaces ⇄ Tab, width). */
     setIndent(config: IndentConfig): void;
     getIndent(): IndentConfig;
+    /** Enable/disable emoji-shortcode rendering (settings markdown.emoji). */
+    setEmoji(on: boolean): void;
     /** Convert all existing leading whitespace to the current indent style. */
     convertIndentation(): void;
   }
@@ -30,6 +32,7 @@
   import { EditorView } from "@codemirror/view";
   import { editorExtensions, setGlobalWrap, wrapStateOf } from "./editor/setup";
   import { countText } from "./editor/count"; // TextCount type comes from the module script above
+  import { setEmoji as applyEmoji } from "./editor/emoji";
   import { renderModeOf, setRenderMode as applyRenderMode } from "./editor/render-mode";
   import {
     convertIndentation as applyConvertIndent,
@@ -58,6 +61,7 @@
   let codeWrap = true; // editor-wide default; preserved across document loads
   let renderMode: RenderMode = "clean"; // editor-wide; preserved across loads
   let indent: IndentConfig = { style: "spaces", width: 2 }; // editor-wide
+  let emoji = true; // editor-wide; preserved across document loads
   let lastWrapState: WrapState | "" = "";
   let lastRenderMode: RenderMode | "" = "";
   let lastIndentKey = "";
@@ -69,7 +73,7 @@
     return EditorState.create({
       doc,
       extensions: [
-        ...editorExtensions(codeWrap, renderMode, indent),
+        ...editorExtensions(codeWrap, renderMode, indent, emoji),
         EditorView.updateListener.of((u) => {
           // Only real user transactions mark the document dirty; a setState
           // document load produces no transactions.
@@ -162,6 +166,11 @@
     if (view) applyConvertIndent(view);
   }
 
+  function setEmoji(on: boolean) {
+    emoji = on;
+    if (view) applyEmoji(view, on);
+  }
+
   onMount(() => {
     view = new EditorView({ state: buildState(""), parent: container });
     view.focus();
@@ -178,6 +187,7 @@
       setIndent,
       getIndent,
       convertIndentation,
+      setEmoji,
     });
     onwrapstate?.(wrapStateOf(view.state));
     onrendermode?.(renderModeOf(view.state));

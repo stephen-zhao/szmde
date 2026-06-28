@@ -82,6 +82,7 @@
     const e = settings.value.editor;
     editor.setRenderMode(e.renderMode);
     editor.setIndent({ style: e.indentStyle, width: e.indentWidth });
+    editor.setEmoji(settings.value.markdown.emoji);
   }
 
   function cycleRenderMode() {

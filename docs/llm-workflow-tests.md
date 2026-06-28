@@ -290,6 +290,15 @@ matches highlight; Enter / next/prev cycles; toggle regex `.*` and search `c.t`;
 Replace / Replace-all mutate the text; a match inside a hidden Clean-mode marker
 reveals it; `Escape` closes and returns focus to the editor; no typing lag.
 
+### WF-21 · Emoji shortcodes render · `REQ-EMOJI-1`
+**Why:** decoration structure is dom-tested; the actual glyph rendering/baseline
+alignment + font fallback are live-only.
+**Setup:** `:rocket: ships :heart: today` in Clean mode.
+**Steps:** the shortcodes show as glyphs (🚀, ❤️) with the literal hidden; clicking
+into a shortcode reveals `:rocket:` for editing; `:notarealemoji:` stays literal;
+a shortcode in `` `:code:` `` / a fenced block stays literal; in Source/Syntax the
+literal `:rocket:` is shown; setting `markdown.emoji=false` disables rendering.
+
 ### WF-16 · Autosave fires after the interval · `REQ-SAVE-2`
 **Why:** the debounce/coalesce logic is unit-tested, but the editor→scheduler→
 save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.**
@@ -329,6 +338,7 @@ save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.
 | REQ-CLOUD-2 | logic (`storage/onedrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-18 (OneDrive round-trip) |
 | REQ-COUNT-1 | logic (`editor/count.test.ts`) | WF-19 (chip live/off-by-default) |
 | REQ-FR-1 | structure (`editor/search.dom.test.ts`) | WF-20 (find panel) |
+| REQ-EMOJI-1 | map+structure (`editor/emoji.test.ts`, `emoji.dom.test.ts`) | WF-21 (glyph render) |
 
 The three former [traceability.md](traceability.md) gaps with no automated test
 (REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest

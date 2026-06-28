@@ -39,6 +39,7 @@ export interface EditorSettings {
 export interface MarkdownSettings {
   flavor: "gfm" | "commonmark";
   renderHtml: boolean;
+  emoji: boolean;
 }
 export interface StorageAccount {
   id: string;
@@ -95,6 +96,7 @@ export const DEFAULTS: Settings = {
   markdown: {
     flavor: "gfm",
     renderHtml: false,
+    emoji: true,
   },
   storage: {
     defaultProvider: "local",
@@ -145,5 +147,6 @@ export const GUARDS: {
   markdown: {
     flavor: oneOf(["gfm", "commonmark"]),
     renderHtml: isBool,
+    emoji: isBool,
   },
 };

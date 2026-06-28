@@ -35,6 +35,7 @@ import { blockConstructDecorations } from "./blocks";
 import { hrExtension } from "./hr";
 import { taskDecorations, taskAtomicRanges } from "./tasks";
 import { imageDecorations, imageAtomicRanges } from "./images";
+import { emojiDecorations, emojiAtomicRanges, emojiEnabled, emojiCompartment } from "./emoji";
 import { alertDecorations, alertAtomicRanges } from "./alerts";
 import { tableExtension } from "./tables";
 import { searchExtension } from "./search";
@@ -355,6 +356,7 @@ export function editorExtensions(
   initialCodeWrap = true,
   initialRenderMode: RenderMode = "clean",
   initialIndent: IndentConfig = { style: "spaces", width: 2 },
+  initialEmoji = true,
 ): Extension[] {
   return [
     history(),
@@ -378,6 +380,9 @@ export function editorExtensions(
     taskAtomicRanges,
     imageDecorations,
     imageAtomicRanges,
+    emojiCompartment.of(emojiEnabled.of(initialEmoji)),
+    emojiDecorations,
+    emojiAtomicRanges,
     // Highest decoration precedence so the marker span is the INNERMOST DOM node
     // (CM nests higher-precedence decorations inside) — its absolute font-size
     // then wins over a heading's enclosing 1.9em span instead of compounding.

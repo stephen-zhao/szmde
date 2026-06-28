@@ -218,6 +218,13 @@ export const baseTheme = EditorView.theme(
       borderRadius: "6px",
       verticalAlign: "bottom",
     },
+    // Emoji shortcode glyph (Clean mode): replaces `:smile:`. Normal weight/style
+    // so it isn't italicized/bolded inside emphasis; sits on the text baseline.
+    ".cm-md-emoji": {
+      fontStyle: "normal",
+      fontWeight: "normal",
+      lineHeight: "1",
+    },
     // Task-list checkbox (Clean mode): replaces the `[ ]`/`[x]` marker. Accent
     // color matches the editor accent; sits on the text baseline.
     ".cm-md-task": {
