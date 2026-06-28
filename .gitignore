@@ -13,6 +13,9 @@ vite.config.ts.timestamp-*
 .tmp-*
 /coverage
 
+# Claude Code local tooling (preview launch config, etc.)
+.claude/
+
 # Cloud OAuth client config — user's real client_id/secret, never committed
 # (lives in the OS app-config dir at runtime; this guards stray repo copies).
 gdrive_client.json

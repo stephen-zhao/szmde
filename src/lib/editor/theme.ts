@@ -163,11 +163,11 @@ export const baseTheme = EditorView.theme(
     // effectively flush (~0.3em) while leaving a clean gap after the marker.
     ".cm-md-mark-hang": {
       display: "inline-block",
-      width: "0",
-      paddingRight: "0.15em",
+      verticalAlign: "baseline", // sit on the heading/quote text baseline (RENDER-10)
       whiteSpace: "pre",
-      textAlign: "right",
-      verticalAlign: "baseline",
+      paddingRight: "0.3em", // gap between the hung marker and the flush content
+      // margin-left is set to minus the box width by the hangMarkerMargins plugin,
+      // so the marker takes zero inline space and overflows left into the gutter.
     },
     // markers-syntax: a list marker (bullet dash / ordered number) is content, not
     // pure syntax, so it shows its literal in normal text style — not small-grey.
@@ -353,8 +353,12 @@ export const baseTheme = EditorView.theme(
       boxSizing: "border-box",
       width: "1.25em",
       height: "1.25em",
-      marginLeft: "-1.5em",
-      marginRight: "0.25em", // width(1.25) − marginLeft(1.5) + marginRight(0.25) = 0
+      // Sit at the far-left of the gutter so the hung Syntax-mode marker (which
+      // overhangs just left of the content edge) doesn't collide with it. Net
+      // inline advance stays 0 (width 1.25 − marginLeft 2.5 + marginRight 1.25)
+      // so the heading text is unaffected.
+      marginLeft: "-2.5em",
+      marginRight: "1.25em",
       border: "1px solid var(--border)",
       borderRadius: "5px",
       color: "var(--muted)",

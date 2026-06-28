@@ -442,3 +442,50 @@ export const markerDecorations = ViewPlugin.fromClass(
 export const markerAtomicRanges = EditorView.atomicRanges.of(
   (view) => view.plugin(markerDecorations)?.hidden ?? RangeSet.empty,
 );
+
+/**
+ * Hang each block marker (`#…`/`>`) into the LEFT gutter (RENDER-9 / RENDER-10).
+ * The marker is an in-flow inline-block (`.cm-md-mark-hang`); here we set its
+ * `margin-left` to MINUS its own rendered width so it contributes zero inline
+ * advance — the heading/quote text stays flush — while its glyphs overflow left
+ * into the gutter. Doing it via the real measured width (not CSS) is what makes
+ * it both flush AND baseline-aligned (inline-block sits on the text baseline) AND
+ * free of the `>`-mirroring a `direction:rtl` trick would cause. Width is only
+ * known after layout, so it runs in the measure phase.
+ */
+export const hangMarkerMargins = ViewPlugin.fromClass(
+  class {
+    constructor(view: EditorView) {
+      this.measure(view);
+    }
+    update(u: ViewUpdate) {
+      const cleanNow = u.state.facet(renderMode) === "clean";
+      if (
+        u.docChanged ||
+        u.viewportChanged ||
+        u.geometryChanged || // font-size zoom changes glyph widths
+        u.startState.facet(renderMode) !== u.state.facet(renderMode) ||
+        (cleanNow && u.selectionSet) || // reveal-on-cursor recreates the spans
+        syntaxTree(u.startState) !== syntaxTree(u.state)
+      ) {
+        this.measure(u.view);
+      }
+    }
+    /* v8 ignore start -- requestMeasure read/write need real layout (offsetWidth);
+       happy-dom reports 0 and never runs the measure cycle. Verified in the WebView
+       (WF-24) and the live preview. */
+    measure(view: EditorView) {
+      view.requestMeasure({
+        key: this,
+        read: () =>
+          Array.from(view.contentDOM.querySelectorAll<HTMLElement>(".cm-md-mark-hang")).map(
+            (el) => [el, el.offsetWidth] as const,
+          ),
+        write: (pairs) => {
+          for (const [el, w] of pairs) el.style.marginLeft = `-${w}px`;
+        },
+      });
+    }
+    /* v8 ignore stop */
+  },
+);
