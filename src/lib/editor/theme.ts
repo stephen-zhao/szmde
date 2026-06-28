@@ -292,10 +292,14 @@ export const baseTheme = EditorView.theme(
     // --- Find & replace panel (@codemirror/search, REQ-FR-1) ----------------
     ".cm-panels": { backgroundColor: "var(--bg-raised)", color: "var(--text)" },
     ".cm-panels.cm-panels-top": { borderBottom: "1px solid var(--border)" },
-    // REQ-FR-3: every element in the panel shares ONE size — pinned to ~0.85 of the
-    // editor font so it tracks zoom and never reads as tiny next to scaled-up body
-    // text. The text inputs get a comfortable min-width + padding so what you type
-    // is actually legible (the prior 12px / default-width boxes were too cramped).
+    // REQ-FR-3: every text element in the panel shares ONE size — pinned to ~0.85
+    // of the editor font so it tracks zoom and never reads as tiny next to
+    // scaled-up body text. CM creates its search inputs as `<input
+    // class="cm-textfield">` with NO `type` attribute, so an `input[type=text]`
+    // selector MISSES them and they keep CM's default `.cm-textfield`
+    // `font-size:70%` (the bug: inputs smaller than buttons smaller-than... ). We
+    // therefore target the real classes and force inputs + buttons + checkbox
+    // labels + the close button all to `inherit`, so all three read identically.
     ".cm-search": {
       display: "flex",
       flexWrap: "wrap",
@@ -304,16 +308,22 @@ export const baseTheme = EditorView.theme(
       padding: "9px 11px",
       fontSize: "calc(var(--editor-font-size, 16px) * 0.85)",
     },
-    ".cm-search input[type=text]": {
+    ".cm-search .cm-textfield, .cm-search .cm-button, .cm-search button": {
+      fontSize: "inherit",
+    },
+    // CM's search baseTheme sets `& label { font-size: 80% }`, which shrinks the
+    // checkbox labels below everything else. The panel div carries BOTH .cm-search
+    // and .cm-panel, so this two-class selector out-ranks it → labels match.
+    ".cm-search.cm-panel label": { fontSize: "inherit" },
+    ".cm-search .cm-textfield": {
       background: "var(--bg)",
       color: "var(--text)",
       border: "1px solid var(--border)",
       borderRadius: "6px",
       padding: "4px 9px",
-      fontSize: "inherit",
       minWidth: "18ch",
     },
-    ".cm-search input[type=text]:focus": { outline: "none", borderColor: "var(--accent)" },
+    ".cm-search .cm-textfield:focus": { outline: "none", borderColor: "var(--accent)" },
     ".cm-search .cm-button": {
       backgroundImage: "none",
       background: "var(--bg-raised)",
@@ -321,7 +331,6 @@ export const baseTheme = EditorView.theme(
       border: "1px solid var(--border)",
       borderRadius: "6px",
       padding: "4px 10px",
-      fontSize: "inherit",
       cursor: "pointer",
     },
     ".cm-search .cm-button:hover": { color: "var(--text)", borderColor: "var(--accent)" },
@@ -330,7 +339,6 @@ export const baseTheme = EditorView.theme(
       alignItems: "center",
       gap: "4px",
       color: "var(--muted)",
-      fontSize: "inherit",
     },
     ".cm-search [name=close]": { color: "var(--muted)", cursor: "pointer", padding: "0 4px" },
     ".cm-searchMatch": { backgroundColor: "color-mix(in srgb, var(--accent) 25%, transparent)" },
