@@ -37,6 +37,7 @@ import { taskDecorations, taskAtomicRanges } from "./tasks";
 import { imageDecorations, imageAtomicRanges } from "./images";
 import { alertDecorations, alertAtomicRanges } from "./alerts";
 import { tableExtension } from "./tables";
+import { searchExtension } from "./search";
 import { editingKeymap } from "./keymap";
 import { indentExtension, type IndentConfig } from "./indent";
 
@@ -382,6 +383,7 @@ export function editorExtensions(
     // then wins over a heading's enclosing 1.9em span instead of compounding.
     Prec.highest(markerDecorations),
     markerAtomicRanges,
+    searchExtension,
     revealCursorInCodeBox,
     EditorView.blockWrappers.of((view) => buildBlockWrappers(view)),
     baseTheme,

@@ -281,6 +281,15 @@ update, and no-lag are `.svelte`/layout — live-only.
 - Cycle render modes (Formatted/Source/Syntax) → the number is unchanged (counts
   the raw buffer, not the rendered view).
 
+### WF-20 · Find & replace panel · `REQ-FR-1`
+**Why:** the search/replace commands are dom-tested; the real keystroke routing,
+panel focus/theme, and match-highlight visibility are live-only.
+**Setup:** a doc with repeated words + a heading.
+**Steps:** `Ctrl+F` opens the themed top panel (matches the dark UI); type a query →
+matches highlight; Enter / next/prev cycles; toggle regex `.*` and search `c.t`;
+Replace / Replace-all mutate the text; a match inside a hidden Clean-mode marker
+reveals it; `Escape` closes and returns focus to the editor; no typing lag.
+
 ### WF-16 · Autosave fires after the interval · `REQ-SAVE-2`
 **Why:** the debounce/coalesce logic is unit-tested, but the editor→scheduler→
 save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.**
@@ -319,6 +328,7 @@ save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.
 | REQ-CLOUD-1 | logic (`storage/gdrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-17 (Drive round-trip) |
 | REQ-CLOUD-2 | logic (`storage/onedrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-18 (OneDrive round-trip) |
 | REQ-COUNT-1 | logic (`editor/count.test.ts`) | WF-19 (chip live/off-by-default) |
+| REQ-FR-1 | structure (`editor/search.dom.test.ts`) | WF-20 (find panel) |
 
 The three former [traceability.md](traceability.md) gaps with no automated test
 (REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest
