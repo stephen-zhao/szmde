@@ -161,11 +161,12 @@ describe("[REQ-RENDER-9] Syntax mode — block markers hang in the left margin",
       .map((e) => e.textContent)
       .join("");
 
-  it("hangs a heading marker + its trailing space ('# ')", () => {
+  it("hangs a heading marker + its trailing space ('# ') as a single box", () => {
     const v = build("# Heading", "markers-syntax", 0);
     expect(hang(v)).toBe("# "); // marker + trailing space, taken out of flow
+    expect(count(v, ".cm-md-mark-hang")).toBe(1); // ONE widget box, not fragmented spans
     expect(count(v, ".cm-md-hang-line")).toBe(1);
-    expect(lineText(v, 0)).toContain("#"); // chars stay real/selectable in the line
+    expect(lineText(v, 0)).toContain("Heading");
   });
 
   it("hangs a deeper heading marker ('### ')", () => {
@@ -187,6 +188,28 @@ describe("[REQ-RENDER-9] Syntax mode — block markers hang in the left margin",
   it("emits no hang decorations in Clean or Source mode", () => {
     expect(count(build("# H", "clean", 0), ".cm-md-mark-hang")).toBe(0);
     expect(count(build("# H", "markers-rendered", 0), ".cm-md-mark-hang")).toBe(0);
+  });
+
+  it("does NOT hang a setext underline (it's not a leading ATX marker)", () => {
+    const v = build("Title\n=====", "markers-syntax", 0);
+    expect(count(v, ".cm-md-mark-hang")).toBe(0); // the ===== underline isn't hung
+    expect(count(v, ".cm-md-mark-syntax")).toBeGreaterThan(0); // shown as a plain token
+  });
+
+  it("hangs only the OPENING marker of an ATX heading with a closing # ", () => {
+    const v = build("# H #", "markers-syntax", 0);
+    expect(count(v, ".cm-md-mark-hang")).toBe(1); // only the leading '#', not the closing
+    expect(hang(v)).toBe("# ");
+  });
+
+  it("reuses the hung-marker widget DOM across an unrelated edit (eq)", () => {
+    const v = build("# Heading", "markers-syntax", 0);
+    const before = v.contentDOM.querySelector(".cm-md-mark-hang");
+    expect(before?.textContent).toBe("# ");
+    v.dispatch({ changes: { from: v.state.doc.length, insert: "!" } }); // edit far from the marker
+    forceParsing(v, v.state.doc.length, 5000);
+    const after = v.contentDOM.querySelector(".cm-md-mark-hang");
+    expect(after).toBe(before); // same widget instance → eq returned true, DOM reused
   });
 });
 

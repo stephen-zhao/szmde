@@ -63,6 +63,12 @@ function inVerbatim(node: SyntaxNode): boolean {
       case "URL":
       case "Autolink":
       case "Frontmatter":
+      // Raw HTML is verbatim too (SPEC §5.2) — don't emojify `:code:` inside an
+      // HTML tag/attribute/block/comment (GitHub doesn't either).
+      case "HTMLBlock":
+      case "HTMLTag":
+      case "Comment":
+      case "CommentBlock":
         return true;
     }
   }

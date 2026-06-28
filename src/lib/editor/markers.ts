@@ -130,7 +130,24 @@ const syntaxMark = Decoration.mark({ class: "cm-md-mark-syntax" });
 // hangs — algorithmic, no px constant); the line decoration is the positioning
 // context. The marker+trailing-space stays real/selectable (modes-2&3 rule).
 const hangLine = Decoration.line({ class: "cm-md-hang-line" });
-const hangMark = Decoration.mark({ class: "cm-md-mark-syntax cm-md-mark-hang" });
+
+/** The hung block marker (#…/>) + its trailing space, as a single widget so it's
+ *  one absolutely-positioned box (a Decoration.mark would fragment at the
+ *  marker↔text highlight boundary and the pieces would overlap). RENDER-9. */
+class HangMarkerWidget extends WidgetType {
+  constructor(readonly text: string) {
+    super();
+  }
+  eq(o: HangMarkerWidget) {
+    return o.text === this.text;
+  }
+  toDOM() {
+    const s = document.createElement("span");
+    s.className = "cm-md-mark-syntax cm-md-mark-hang";
+    s.textContent = this.text;
+    return s;
+  }
+}
 
 /** Length of the whitespace right after a block marker (the syntactic space after
  *  `#`/`>`), so the hidden (Clean) / hung (Syntax) range reaches the content. */
@@ -290,6 +307,17 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
             rendered = parentName === "InlineCode" ? "cm-mk-code" : undefined; // skip fenced
             break;
           case "HeaderMark":
+            rendered = null;
+            // Only the LEADING ATX marker (`#…` at the line start) hangs/flushes.
+            // A setext underline (`====`/`----`) and an optional ATX closing `#`
+            // are ALSO HeaderMarks but must NOT be treated as the block marker —
+            // they fall through to ordinary hidden (Clean) / small-grey (Syntax).
+            isBlockMark =
+              parentName !== undefined &&
+              /^ATXHeading[1-6]$/.test(parentName) &&
+              parent !== null &&
+              node.from === parent.from;
+            break;
           case "QuoteMark":
             rendered = null;
             isBlockMark = true;
@@ -340,9 +368,18 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
         } else if (mode === "markers-syntax") {
           if (isBlockMark) {
             // RENDER-9: hang the block marker (#…/>) + its trailing space in the
-            // left margin so the heading/quote text stays flush at the margin.
+            // left margin so the heading/quote text stays flush at the margin. Use
+            // a single replace WIDGET (not a mark): a mark fragments at the
+            // marker↔text highlight boundary into separate spans, and two
+            // `position:absolute; right:100%` spans would stack/overlap. One widget
+            // = one box, so its own measured width sets the offset cleanly.
+            const to = node.to + trailingWsLen(state, node.from, node.to);
             decos.push(hangLine.range(state.doc.lineAt(node.from).from));
-            decos.push(hangMark.range(node.from, node.to + trailingWsLen(state, node.from, node.to)));
+            decos.push(
+              Decoration.replace({
+                widget: new HangMarkerWidget(state.doc.sliceString(node.from, to)),
+              }).range(node.from, to),
+            );
           } else {
             decos.push(syntaxMark.range(node.from, node.to));
           }

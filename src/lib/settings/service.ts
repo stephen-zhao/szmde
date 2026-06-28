@@ -117,7 +117,14 @@ export class SettingsService {
 
   private persist(): void {
     const text = JSON.stringify({ version: SCHEMA_VERSION, ...this.userOverrides });
-    this.pending = this.backend.writeUser(text).catch((e) => this.onError(e));
+    // Serialize writes: chain off the prior persist so a burst (e.g. fast
+    // scroll-zoom firing many setSetting calls) never has two writeUser calls in
+    // flight at once — they'd otherwise race on the shared temp file and could
+    // lose the last update. Writes apply in order; the final value wins.
+    this.pending = this.pending
+      .catch(() => {}) // a prior failure shouldn't block later writes
+      .then(() => this.backend.writeUser(text))
+      .catch((e) => this.onError(e));
   }
 
   /** Await any in-flight persist (clean shutdown / deterministic tests). */

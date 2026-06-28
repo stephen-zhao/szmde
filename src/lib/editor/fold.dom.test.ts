@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { EditorView } from "@codemirror/view";
-import { EditorState } from "@codemirror/state";
+import { EditorSelection, EditorState } from "@codemirror/state";
 import { foldCode, foldable, foldedRanges, forceParsing } from "@codemirror/language";
 import { editorExtensions } from "./setup";
 import type { RenderMode } from "./render-mode";
@@ -85,6 +85,18 @@ describe("[REQ-FOLD-1] heading folding", () => {
     const chev = v.contentDOM.querySelector(".cm-fold-chevron")!;
     chev.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
     expect(countFolded(v)).toBe(1);
+  });
+
+  it("updates the chevron when a selection move silently clears the fold", () => {
+    // CM's clearTouchedFolds unfolds (no fold effect) when a selection lands in a
+    // folded body — e.g. a Find match. The chevron must track that, not go stale.
+    const v = build("# A\naaaa\nbbbb\ncccc\n# B\ndddd");
+    foldLine(v, 1);
+    expect(countFolded(v)).toBe(1);
+    expect(v.contentDOM.querySelector(".cm-fold-chevron")?.textContent).toBe("▸"); // folded
+    v.dispatch({ selection: EditorSelection.single(v.state.doc.line(3).from) }); // into A's body
+    expect(countFolded(v)).toBe(0); // fold silently cleared
+    expect(v.contentDOM.querySelector(".cm-fold-chevron")?.textContent).toBe("▾"); // chevron synced
   });
 
   it("folds identically across all render modes", () => {

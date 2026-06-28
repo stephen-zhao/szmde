@@ -237,6 +237,12 @@ export const baseTheme = EditorView.theme(
       fontWeight: "normal",
       lineHeight: "1",
     },
+    // An emoji widget sits OUTSIDE the heading-size highlight mark, so scale it to
+    // the enclosing heading (mirrors the markdownHighlight heading sizes) — else
+    // it renders tiny next to big heading text.
+    ".cm-h1 .cm-md-emoji": { fontSize: "1.9em" },
+    ".cm-h2 .cm-md-emoji": { fontSize: "1.55em" },
+    ".cm-h3 .cm-md-emoji": { fontSize: "1.3em" },
     // Task-list checkbox (Clean mode): replaces the `[ ]`/`[x]` marker. Accent
     // color matches the editor accent; sits on the text baseline.
     ".cm-md-task": {

@@ -5,13 +5,11 @@ import type { EditorState, Extension } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
 import {
   codeFolding,
-  foldEffect,
   foldKeymap,
   foldable,
   foldedRanges,
   syntaxTree,
   toggleFold,
-  unfoldEffect,
 } from "@codemirror/language";
 
 /**
@@ -110,7 +108,11 @@ const foldChevrons = ViewPlugin.fromClass(
         u.docChanged ||
         u.viewportChanged ||
         syntaxTree(u.startState) !== syntaxTree(u.state) ||
-        u.transactions.some((tr) => tr.effects.some((e) => e.is(foldEffect) || e.is(unfoldEffect)))
+        // foldState is replaced by reference on ANY change — incl. CM's
+        // clearTouchedFolds, which silently unfolds when a selection (e.g. a Find
+        // match) lands in a folded body WITHOUT a fold effect. This keeps the
+        // chevron glyph in sync; it subsumes the foldEffect/unfoldEffect check.
+        foldedRanges(u.startState) !== foldedRanges(u.state)
       ) {
         this.decorations = buildChevrons(u.view);
       }

@@ -61,6 +61,15 @@ describe("[REQ-EMOJI-1] emoji shortcodes — rendered DOM", () => {
     expect(count(v, ".cm-md-emoji")).toBe(0);
   });
 
+  it("leaves a shortcode inside verbatim raw HTML literal (SPEC §5.2)", () => {
+    // Genuinely-verbatim HTML: a block, a comment, and an attribute value. (An
+    // inline `<b>:rocket:</b>` is NOT verbatim — its content is normal markdown,
+    // so the emoji SHOULD render there, matching CommonMark/GitHub.)
+    expect(count(build("<div>\n:rocket:\n</div>", { caret: 0 }), ".cm-md-emoji")).toBe(0); // HTML block
+    expect(count(build("<!-- :rocket: -->", { caret: 0 }), ".cm-md-emoji")).toBe(0); // comment
+    expect(count(build('<a href="x" title=":rocket:">k</a>', { caret: 0 }), ".cm-md-emoji")).toBe(0); // attribute
+  });
+
   it("does not render in Source mode (literal stays)", () => {
     const v = build(":rocket:", { mode: "markers-rendered", caret: 0 });
     expect(count(v, ".cm-md-emoji")).toBe(0);

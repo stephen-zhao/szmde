@@ -31,7 +31,11 @@ fn write_atomic(target: &std::path::Path, content: &str) -> Result<(), String> {
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("untitled");
-    let tmp = dir.join(format!(".{}.{}.szmde-tmp", name, std::process::id()));
+    // Per-call sequence so two concurrent writes to the same target never share a
+    // temp file (which one could truncate or delete out from under the other).
+    static TMP_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let seq = TMP_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let tmp = dir.join(format!(".{}.{}.{}.szmde-tmp", name, std::process::id(), seq));
 
     std::fs::write(&tmp, content.as_bytes()).map_err(|e| e.to_string())?;
     if let Err(e) = std::fs::rename(&tmp, target) {
