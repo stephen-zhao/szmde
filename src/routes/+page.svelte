@@ -12,6 +12,7 @@
   import type { WrapState } from "$lib/editor/setup";
   import { MODE_LABELS, MODE_ORDER, type RenderMode } from "$lib/editor/render-mode";
   import type { IndentConfig } from "$lib/editor/indent";
+  import type { TextCount } from "$lib/editor/count";
   import { detectEol, fromLf, toLf, type Eol } from "$lib/editor/eol";
   import HamburgerMenu from "$lib/HamburgerMenu.svelte";
   import { settings, initSettings, setSetting, updateSettings } from "$lib/settings/store.svelte";
@@ -60,6 +61,7 @@
   let eol = $state<Eol>("lf");
   let indent = $state<IndentConfig>({ style: "spaces", width: 2 });
   let indentMenuOpen = $state(false);
+  let wordCount = $state<TextCount>({ words: 0, chars: 0 });
 
   // Editor-wide toggle: forces all blocks (clearing per-block overrides).
   // 'off' or 'partial' → turn wrap on for all; 'on' → turn it off for all.
@@ -493,6 +495,7 @@
       indent = c;
       updateSettings({ editor: { indentStyle: c.style, indentWidth: c.width } });
     }}
+    oncount={(c) => (wordCount = c)}
   />
 
   <!-- Bottom-right status bar (§7.1): filename + click-to-edit chips. Tiny and
@@ -501,6 +504,11 @@
   {#if settings.value.appearance.showStatusWidgets}
   <div class="statusbar">
     <span class="status-name">{fileName}{dirty ? " •" : ""}</span>
+    {#if settings.value.appearance.showWordCount}
+      <span class="chip chip-readonly" title="{wordCount.chars.toLocaleString()} characters">
+        {wordCount.words.toLocaleString()} words
+      </span>
+    {/if}
     <button class="chip" title="Render mode (Ctrl+Shift+M)" onclick={cycleRenderMode}>
       {MODE_LABELS[renderMode]}
     </button>
@@ -625,6 +633,14 @@
   .chip:hover {
     color: var(--text);
     border-color: var(--accent);
+  }
+  /* read-only status (e.g. word count): same look, not clickable */
+  .chip-readonly {
+    cursor: default;
+  }
+  .chip-readonly:hover {
+    color: var(--muted);
+    border-color: var(--border);
   }
   .chip-wrap {
     position: relative;

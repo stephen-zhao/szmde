@@ -2,12 +2,15 @@
   import type { WrapState } from "./editor/setup";
   import type { RenderMode } from "./editor/render-mode";
   import type { IndentConfig } from "./editor/indent";
+  import type { TextCount } from "./editor/count";
 
   /** Imperative handle the page uses to drive the editor. */
   export interface EditorApi {
     setContent(text: string): void;
     getContent(): string;
     focus(): void;
+    /** Current word/character count of the document (REQ-COUNT-1). */
+    getCount(): TextCount;
     /** Set the editor-wide wrap default and clear per-block overrides. */
     setCodeWrap(wrap: boolean): void;
     /** Set the WYSIWYG render mode (clean / markers-rendered / markers-syntax). */
@@ -26,6 +29,7 @@
   import { EditorState } from "@codemirror/state";
   import { EditorView } from "@codemirror/view";
   import { editorExtensions, setGlobalWrap, wrapStateOf } from "./editor/setup";
+  import { countText } from "./editor/count"; // TextCount type comes from the module script above
   import { renderModeOf, setRenderMode as applyRenderMode } from "./editor/render-mode";
   import {
     convertIndentation as applyConvertIndent,
@@ -39,12 +43,14 @@
     onwrapstate,
     onrendermode,
     onindentstate,
+    oncount,
   }: {
     onchange?: (value: string) => void;
     onready?: (api: EditorApi) => void;
     onwrapstate?: (state: WrapState) => void;
     onrendermode?: (mode: RenderMode) => void;
     onindentstate?: (config: IndentConfig) => void;
+    oncount?: (count: TextCount) => void;
   } = $props();
 
   let container: HTMLDivElement;
@@ -55,6 +61,7 @@
   let lastWrapState: WrapState | "" = "";
   let lastRenderMode: RenderMode | "" = "";
   let lastIndentKey = "";
+  let lastCountKey = "";
 
   const indentKey = (c: IndentConfig) => `${c.style}:${c.width}`;
 
@@ -67,6 +74,16 @@
           // Only real user transactions mark the document dirty; a setState
           // document load produces no transactions.
           if (u.docChanged && u.transactions.length) onchange?.(u.state.doc.toString());
+          // Recompute the count only when the document changed (selection-only
+          // updates skip it — the cheapness lever), and only fire on a real change.
+          if (u.docChanged) {
+            const c = countText(u.state.doc.toString());
+            const key = `${c.words}:${c.chars}`;
+            if (key !== lastCountKey) {
+              lastCountKey = key;
+              oncount?.(c);
+            }
+          }
           const ws = wrapStateOf(u.state);
           if (ws !== lastWrapState) {
             lastWrapState = ws;
@@ -98,14 +115,20 @@
     lastWrapState = "";
     lastRenderMode = "";
     lastIndentKey = "";
+    lastCountKey = "";
     onwrapstate?.(wrapStateOf(view.state));
     onrendermode?.(renderModeOf(view.state));
     onindentstate?.(indentConfigOf(view.state));
+    oncount?.(countText(view.state.doc.toString()));
     view.focus();
   }
 
   function getContent(): string {
     return view ? view.state.doc.toString() : "";
+  }
+
+  function getCount(): TextCount {
+    return view ? countText(view.state.doc.toString()) : { words: 0, chars: 0 };
   }
 
   function focus() {
@@ -147,6 +170,7 @@
     onready?.({
       setContent,
       getContent,
+      getCount,
       focus,
       setCodeWrap,
       setRenderMode,
@@ -158,6 +182,7 @@
     onwrapstate?.(wrapStateOf(view.state));
     onrendermode?.(renderModeOf(view.state));
     onindentstate?.(indentConfigOf(view.state));
+    oncount?.(countText(view.state.doc.toString()));
   });
 
   onDestroy(() => view?.destroy());

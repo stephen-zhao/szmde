@@ -269,6 +269,18 @@ have a `.md` file in that OneDrive.
 OneDrive web); an out-of-band change → conflict modal on next save; offline →
 queued + flush on reconnect; token expiry → refresh / re-auth.
 
+### WF-19 · Word-count chip updates live, off by default · `REQ-COUNT-1`
+**Why:** the count math is unit-tested (`count.test.ts`); the chip visibility, live
+update, and no-lag are `.svelte`/layout — live-only.
+**Setup:** default settings (chip hidden); then set `appearance.showWordCount=true`.
+**Steps:**
+- Default: no word-count chip in the status bar. With the setting on, a read-only
+  `N words` chip appears (and the char count in its tooltip).
+- Type/delete → the count updates within a keystroke; holding a key in a large doc
+  shows no typing lag (the recompute is gated on docChanged).
+- Cycle render modes (Formatted/Source/Syntax) → the number is unchanged (counts
+  the raw buffer, not the rendered view).
+
 ### WF-16 · Autosave fires after the interval · `REQ-SAVE-2`
 **Why:** the debounce/coalesce logic is unit-tested, but the editor→scheduler→
 save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.**
@@ -306,6 +318,7 @@ save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.
 | REQ-SAVE-2 | logic (`storage/autosave.test.ts`) | WF-16 (autosave fires) |
 | REQ-CLOUD-1 | logic (`storage/gdrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-17 (Drive round-trip) |
 | REQ-CLOUD-2 | logic (`storage/onedrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-18 (OneDrive round-trip) |
+| REQ-COUNT-1 | logic (`editor/count.test.ts`) | WF-19 (chip live/off-by-default) |
 
 The three former [traceability.md](traceability.md) gaps with no automated test
 (REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest

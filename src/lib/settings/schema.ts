@@ -24,6 +24,7 @@ export interface AppearanceSettings {
   fontSize: number;
   lineWidth: LineWidth;
   showStatusWidgets: boolean;
+  showWordCount: boolean;
 }
 export interface EditorSettings {
   renderMode: RenderMode;
@@ -75,6 +76,8 @@ export const DEFAULTS: Settings = {
     fontSize: 16,
     lineWidth: "medium",
     showStatusWidgets: true,
+    // Word/char count chip — off by default (§7.1: status area stays minimal).
+    showWordCount: false,
   },
   editor: {
     renderMode: "clean",
@@ -127,6 +130,7 @@ export const GUARDS: {
     fontSize: intInRange(8, 72),
     lineWidth: oneOf(["narrow", "medium", "wide"]),
     showStatusWidgets: isBool,
+    showWordCount: isBool,
   },
   editor: {
     renderMode: oneOf(MODE_ORDER as readonly RenderMode[]),
