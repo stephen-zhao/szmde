@@ -281,14 +281,21 @@ update, and no-lag are `.svelte`/layout — live-only.
 - Cycle render modes (Formatted/Source/Syntax) → the number is unchanged (counts
   the raw buffer, not the rendered view).
 
-### WF-20 · Find & replace panel · `REQ-FR-1`
-**Why:** the search/replace commands are dom-tested; the real keystroke routing,
-panel focus/theme, and match-highlight visibility are live-only.
-**Setup:** a doc with repeated words + a heading.
-**Steps:** `Ctrl+F` opens the themed top panel (matches the dark UI); type a query →
-matches highlight; Enter / next/prev cycles; toggle regex `.*` and search `c.t`;
-Replace / Replace-all mutate the text; a match inside a hidden Clean-mode marker
-reveals it; `Escape` closes and returns focus to the editor; no typing lag.
+### WF-20 · Find & replace panel · `REQ-FR-1` / `REQ-FR-2` / `REQ-FR-3`
+**Why:** the search/replace commands + the capture-group transform are dom-tested;
+the real keystroke routing, panel focus/theme, input legibility, and match-highlight
+visibility are live-only.
+**Setup:** a doc with repeated words + a heading + a line like `2026-06-28`.
+**Steps:** `Ctrl+F` opens the themed top panel (matches the dark UI); **the find/
+replace input boxes are comfortably large and ALL panel text is the same, legible
+size** (REQ-FR-3), and they scale up when the editor is zoomed (Ctrl+scroll); type a
+query → matches highlight; Enter / next/prev cycles; toggle regex `.*` and search
+`c.t`; Replace / Replace-all mutate the text; **with regex on, replacing
+`(\d{4})-(\d{2})-(\d{2})` with `\3/\2/\1` reorders to `28/06/2026` — the backslash
+capture-group form works, as does `$1`** (REQ-FR-2); a match inside a hidden
+Clean-mode marker reveals it; pressing `Ctrl+Shift+M` while the find input is
+focused cycles the render mode WITHOUT stealing focus from the find box; `Escape`
+closes and returns focus to the editor; no typing lag.
 
 ### WF-21 · Emoji shortcodes render · `REQ-EMOJI-1`
 **Why:** decoration structure is dom-tested; the actual glyph rendering/baseline
@@ -299,33 +306,71 @@ into a shortcode reveals `:rocket:` for editing; `:notarealemoji:` stays literal
 a shortcode in `` `:code:` `` / a fenced block stays literal; in Source/Syntax the
 literal `:rocket:` is shown; setting `markdown.emoji=false` disables rendering.
 
-### WF-22 · Foldable heading sections · `REQ-FOLD-1`
-**Why:** the fold mechanics are dom-tested; the chevron hit-area, click-vs-caret
-disambiguation, and no-column-jump are live-only.
-**Setup:** a doc with `#`/`##` headings and bodies.
-**Steps:** a ▾ chevron shows on each heading line (not body lines); clicking it
-folds the section to a `⋯` placeholder with the heading still visible; clicking
-the chevron (now ▸) or the `⋯` unfolds; `Mod-.` toggles at the cursor;
-`Ctrl+Shift+[` / `]` fold/unfold; the centered column doesn't shift; folding works
-in all three render modes; a plain click on heading text still places the caret.
+### WF-22 · Foldable heading sections · `REQ-FOLD-1` / `REQ-FOLD-2`
+**Why:** the fold mechanics + button attrs are dom-tested; the chevron hit-area,
+prominence, click-vs-caret disambiguation, and no-column-jump are live-only.
+**Setup:** a doc with `#`/`##`/`######` headings and bodies.
+**Steps:** a ▾ chevron shows on each heading line (not body lines) **rendered as a
+prominent, clearly-clickable BUTTON chip (border + raised fill, hover highlight) —
+not a faint tiny glyph** (REQ-FOLD-2), the SAME comfortable size on an h1 as an h6
+(it doesn't balloon with heading size) and it doesn't clip the left gutter or shift
+the heading text; clicking it folds the section to a `⋯` placeholder with the
+heading still visible; clicking the chevron (now ▸) or the `⋯` unfolds; `Mod-.`
+toggles at the cursor; `Ctrl+Shift+[` / `]` fold/unfold; the centered column doesn't
+shift; the button looks/works the same in all three render modes; a plain click on
+heading text still places the caret.
 
-### WF-23 · Scroll-zoom text size + page width · `REQ-ZOOM-1` / `REQ-ZOOM-2`
-**Why:** the step math + wheel routing are unit-tested; the real wheel gesture,
-live re-layout, and persistence are live-only.
+### WF-23 · Scroll-zoom text size + page width · `REQ-ZOOM-1` / `REQ-ZOOM-2` / `REQ-ZOOM-3`
+**Why:** the step math + wheel routing + window-cap clamp are unit-tested; the real
+wheel gesture, live re-layout, window-resize tracking, and persistence are live-only.
 **Steps:** Ctrl/Cmd+scroll over the canvas grows/shrinks all text (headings, code,
 markers scale together) while the column width stays constant (text wraps sooner);
-Shift+scroll widens/narrows the reading column through narrow→medium→wide; a plain
-scroll still scrolls normally; both values persist across an app reload; Ctrl+wheel
-doesn't trigger the WebView's native page-zoom.
+Shift+scroll widens/narrows the reading column **continuously (±40px/step), and can
+grow it all the way out to the window width — no longer capped at a small "wide"
+preset** (REQ-ZOOM-3); **shrinking the OS window below the chosen width makes the
+column cling to the window width, and widening the window grows it back out to the
+chosen width**; on a wider window the gesture can reach a larger max; a plain scroll
+still scrolls normally; both values persist across an app reload; Ctrl+wheel doesn't
+trigger the WebView's native page-zoom.
 
-### WF-24 · Syntax-mode marker margin overhang · `REQ-RENDER-9`
-**Why:** decoration structure is dom-tested; the actual right-alignment to the
-margin + flush text + no-clipping need real layout.
+### WF-24 · Syntax-mode marker margin overhang · `REQ-RENDER-9` / `REQ-RENDER-10`
+**Why:** decoration structure + in-flow proof (no widget-buffer, zero atomic) are
+dom-tested; the actual right-alignment, baseline, flush text + no-clipping, and
+cursor navigation INTO the hung marker need real layout.
 **Setup:** Syntax mode, a doc with `#`..`######` headings + a `>` quote +
 paragraphs.
-**Steps:** each marker's right edge aligns to the content margin (markers hang in
-the left gutter), heading/quote text starts flush with paragraph text, nothing
-clips at the left, and it holds when `--editor-font-size` changes (Ctrl+scroll).
+**Steps:** each marker hangs in the left gutter with its right edge near the content
+margin, heading/quote text starts ~flush with paragraph text, nothing clips at the
+left; **the small-grey marker sits on the SAME baseline as the heading/quote text
+(its bottom aligns), not floated to the top** (REQ-RENDER-10); **arrow-keying left
+from the heading text glides the caret THROUGH the `#`/`>` characters (they're real
+editable text), and you can click-drag to select them** (REQ-RENDER-9 in-flow); it
+holds when `--editor-font-size` changes (Ctrl+scroll). _Known cosmetic limit: nested
+quotes (`> >`) / quoted headings (`> #`) overlap their hung markers in the gutter._
+
+### WF-25 · Formatted-mode reveal renders Syntax-style markers · `REQ-RENDER-11`
+**Why:** the decoration choice is dom-tested; the live look/feel of a revealed
+marker (and that the text doesn't jump) needs real layout.
+**Setup:** Formatted (Clean) mode; a doc with `## Heading`, `> quote`, and
+`a **bold** word`.
+**Steps:** with the caret OFF the heading line the `##` is hidden; moving the caret
+onto it reveals the `##` as a **small-grey marker hung in the left gutter (exactly
+like Syntax mode), NOT a full-size raw `## ` literal**, and the heading text does
+**not** shift right as it appears; same for `>` on a quote line; clicking inside
+`**bold**` reveals small-grey `**` tokens (not the bold-styled Source markers); the
+revealed markers are editable (arrow/click into them) and re-hide when the caret
+leaves.
+
+### WF-26 · Render-mode toggle survives focus drift · `REQ-RENDER-7`
+**Why:** the cycle command is unit-tested; the focus/keystroke routing that made it
+"stick" is live-only.
+**Setup:** any doc; a blockquote present.
+**Steps:** click the render-mode status chip a few times → it cycles
+Formatted→Source→Syntax and focus returns to the editor; now click the chip once
+(focus on the button) and press `Ctrl+Shift+M` → it **still cycles** (the app-level
+fallback handles it even though the editor lost focus); pressing `Ctrl+Shift+M` with
+the caret inside a blockquote in Formatted mode keeps toggling normally (no stuck
+state).
 
 ### WF-16 · Autosave fires after the interval · `REQ-SAVE-2`
 **Why:** the debounce/coalesce logic is unit-tested, but the editor→scheduler→
@@ -366,10 +411,17 @@ save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.
 | REQ-CLOUD-2 | logic (`storage/onedrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-18 (OneDrive round-trip) |
 | REQ-COUNT-1 | logic (`editor/count.test.ts`) | WF-19 (chip live/off-by-default) |
 | REQ-FR-1 | structure (`editor/search.dom.test.ts`) | WF-20 (find panel) |
+| REQ-FR-2 | unit+structure (`editor/replace-groups.test.ts`, `search-replace.dom.test.ts`) | WF-20 (`\1` capture group) |
+| REQ-FR-3 | — (visual gap) | WF-20 (input legibility/size) |
 | REQ-EMOJI-1 | map+structure (`editor/emoji.test.ts`, `emoji.dom.test.ts`) | WF-21 (glyph render) |
 | REQ-FOLD-1 | structure (`editor/fold.dom.test.ts`) | WF-22 (fold affordance) |
+| REQ-FOLD-2 | structure (`editor/fold.dom.test.ts`) | WF-22 (button prominence) |
 | REQ-ZOOM-1/2 | logic (`editor/zoom.test.ts`) | WF-23 (scroll zoom/width) |
-| REQ-RENDER-9 | structure (`editor/markers.dom.test.ts`) | WF-24 (margin overhang) |
+| REQ-ZOOM-3 | logic (`editor/zoom.test.ts`) | WF-23 (window-relative width) |
+| REQ-RENDER-9 | structure (`editor/markers.dom.test.ts`) | WF-24 (margin overhang, in-flow) |
+| REQ-RENDER-10 | — (visual gap) | WF-24 (baseline alignment) |
+| REQ-RENDER-11 | structure (`editor/markers.dom.test.ts`) | WF-25 (reveal = syntax style) |
+| REQ-RENDER-7 | unit (`render-mode.test.ts`, `render-mode-cycle.test.ts`) | WF-26 (toggle survives focus drift) |
 
 The three former [traceability.md](traceability.md) gaps with no automated test
 (REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest

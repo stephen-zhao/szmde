@@ -16,7 +16,7 @@ describe("[REQ-SET-2] schema DEFAULTS", () => {
     expect(DEFAULTS.appearance.accentColor).toBe("#7c9cff"); // app.css --accent
     expect(DEFAULTS.appearance.fontSize).toBe(16); // app.css --editor-font-size
     expect(DEFAULTS.appearance.fontFamily).toBe("Inter"); // app.css --font-body lead
-    expect(DEFAULTS.appearance.lineWidth).toBe("medium"); // == theme.ts 740px max-width
+    expect(DEFAULTS.appearance.lineWidth).toBe(740); // px == theme.ts 740px max-width
     expect(DEFAULTS.appearance.theme).toBe("dark");
     expect(DEFAULTS.editor.renderMode).toBe("clean");
     expect(DEFAULTS.editor.defaultEol).toBe("lf");

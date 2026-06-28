@@ -49,6 +49,16 @@ describe("[REQ-RENDER-2][REQ-RENDER-3] Clean (Formatted) mode — rendered DOM",
     expect(lineText(v, 0)).toContain("1.");
   });
 
+  it("an ordered TASK item shows only the checkbox, NOT a stray '1.' ordinal", () => {
+    // A task item defers its whole prefix to tasks.ts (the checkbox); markers.ts
+    // must not also draw the ordinal — true for ordered lists too, not just bullets.
+    const v = build("1. [ ] todo", "clean");
+    expect(count(v, ".cm-md-task")).toBe(1); // the checkbox renders
+    expect(count(v, ".cm-md-list-number")).toBe(0); // no stray ordinal
+    expect(count(v, ".cm-md-bullet")).toBe(0);
+    expect(lineText(v, 0)).not.toContain("1.");
+  });
+
   it("hides a heading marker when the caret is on another line", () => {
     const v = build("para\n# Heading", "clean", 0); // caret on line 1
     expect(lineText(v, 1)).not.toContain("#");
@@ -145,28 +155,54 @@ describe("[REQ-RENDER-4] Syntax mode — rendered DOM", () => {
     expect(lineText(v, 0)).toContain("#");
   });
 
-  it("does NOT replace bullets with • (the dash stays as a token)", () => {
+  it("does NOT replace bullets with •, and shows the dash in NORMAL style (not small-grey)", () => {
+    // [REQ-RENDER-9 bug B4] A list marker is content (it renders as a •), so in
+    // Syntax mode it keeps normal text styling — it must NOT get the small-grey
+    // .cm-md-mark-syntax token look, only the normal .cm-md-list-marker class.
     const v = build("- one", "markers-syntax", 0);
     expect(count(v, ".cm-md-bullet")).toBe(0);
-    expect(count(v, ".cm-md-mark-syntax")).toBeGreaterThan(0);
+    expect(count(v, ".cm-md-list-marker")).toBe(1);
+    expect(count(v, ".cm-md-mark-syntax")).toBe(0); // never small-grey
     expect(lineText(v, 0)).toContain("-");
+  });
+
+  it("[bug B4] shows an ordered number's literal in NORMAL style (not small-grey)", () => {
+    const v = build("1. one", "markers-syntax", 0);
+    expect(count(v, ".cm-md-list-number")).toBe(0); // not the computed-ordinal widget
+    expect(count(v, ".cm-md-list-marker")).toBe(1); // literal `1.` in normal style
+    expect(count(v, ".cm-md-mark-syntax")).toBe(0);
+    expect(lineText(v, 0)).toContain("1.");
   });
 });
 
-describe("[REQ-RENDER-9] Syntax mode — block markers hang in the left margin", () => {
-  // CM may split the marked range into adjacent spans at a highlight boundary
-  // (e.g. between '#' and the space), so concatenate all hang spans' text.
+describe("[REQ-RENDER-9] Syntax mode — block markers hang in the left margin (in-flow)", () => {
+  // The hung marker is an in-flow Decoration.mark, not a replace widget; CM splits
+  // the marked range into adjacent spans at a highlight boundary (between '#' and
+  // the space), so concatenate all hang spans' text.
   const hang = (v: EditorView) =>
     Array.from(v.contentDOM.querySelectorAll(".cm-md-mark-hang"))
       .map((e) => e.textContent)
       .join("");
+  // The cm-widgetBuffer zero-width spans are inserted by CM around REPLACE/WIDGET
+  // decorations, never around a plain mark. Their absence on the marker line is the
+  // structural proof the marker is in-flow editable text (bugs B2/B6), not a widget.
+  const widgetBuffers = (v: EditorView, line = 0) =>
+    v.contentDOM.querySelectorAll(".cm-line")[line]?.querySelectorAll(".cm-widgetBuffer").length ?? 0;
+  const atomicSize = (v: EditorView) => {
+    let total = 0;
+    for (const fn of v.state.facet(EditorView.atomicRanges)) total += fn(v).size;
+    return total;
+  };
 
-  it("hangs a heading marker + its trailing space ('# ') as a single box", () => {
+  it("hangs a heading marker + its trailing space ('# ') as in-flow editable text", () => {
     const v = build("# Heading", "markers-syntax", 0);
-    expect(hang(v)).toBe("# "); // marker + trailing space, taken out of flow
-    expect(count(v, ".cm-md-mark-hang")).toBe(1); // ONE widget box, not fragmented spans
-    expect(count(v, ".cm-md-hang-line")).toBe(1);
+    expect(hang(v)).toBe("# "); // marker + trailing space, kept as real text
+    expect(count(v, ".cm-md-mark-hang")).toBeGreaterThan(0);
     expect(lineText(v, 0)).toContain("Heading");
+    // In-flow (bugs B2/B6): the marker is a mark, so no widget buffers wrap it and
+    // nothing is atomic — the caret glides into '#'/space, and they're selectable.
+    expect(widgetBuffers(v)).toBe(0);
+    expect(atomicSize(v)).toBe(0);
   });
 
   it("hangs a deeper heading marker ('### ')", () => {
@@ -174,9 +210,17 @@ describe("[REQ-RENDER-9] Syntax mode — block markers hang in the left margin",
     expect(hang(v)).toBe("### ");
   });
 
-  it("hangs a blockquote marker ('> ')", () => {
+  it("hangs a blockquote marker ('> ') and keeps it in-flow (bug B6)", () => {
     const v = build("> quote", "markers-syntax", 0);
     expect(hang(v)).toBe("> ");
+    expect(widgetBuffers(v)).toBe(0);
+    expect(atomicSize(v)).toBe(0);
+  });
+
+  it("hangs each '>' of a nested blockquote, all in-flow", () => {
+    const v = build("> > deep", "markers-syntax", 0);
+    expect(hang(v)).toBe("> > ");
+    expect(widgetBuffers(v)).toBe(0);
   });
 
   it("does NOT hang inline markers (they stay plain syntax tokens)", () => {
@@ -185,9 +229,10 @@ describe("[REQ-RENDER-9] Syntax mode — block markers hang in the left margin",
     expect(count(v, ".cm-md-mark-syntax")).toBeGreaterThan(0);
   });
 
-  it("emits no hang decorations in Clean or Source mode", () => {
-    expect(count(build("# H", "clean", 0), ".cm-md-mark-hang")).toBe(0);
+  it("emits no hang decorations in Source mode, nor in Clean mode off the line", () => {
     expect(count(build("# H", "markers-rendered", 0), ".cm-md-mark-hang")).toBe(0);
+    // Clean mode with the caret on ANOTHER line → marker hidden, not hung.
+    expect(count(build("para\n# H", "clean", 0), ".cm-md-mark-hang")).toBe(0);
   });
 
   it("does NOT hang a setext underline (it's not a leading ATX marker)", () => {
@@ -196,20 +241,46 @@ describe("[REQ-RENDER-9] Syntax mode — block markers hang in the left margin",
     expect(count(v, ".cm-md-mark-syntax")).toBeGreaterThan(0); // shown as a plain token
   });
 
-  it("hangs only the OPENING marker of an ATX heading with a closing # ", () => {
+  it("hangs only the OPENING marker of an ATX heading with a closing #", () => {
     const v = build("# H #", "markers-syntax", 0);
-    expect(count(v, ".cm-md-mark-hang")).toBe(1); // only the leading '#', not the closing
-    expect(hang(v)).toBe("# ");
+    expect(hang(v)).toBe("# "); // only the leading '# ', not the trailing closing #
+    // The closing '#' is a non-block HeaderMark → small-grey token, not hung.
+    expect(count(v, ".cm-md-mark-syntax")).toBeGreaterThan(count(v, ".cm-md-mark-hang"));
   });
 
-  it("reuses the hung-marker widget DOM across an unrelated edit (eq)", () => {
+  it("keeps the hung marker's DOM stable across an unrelated edit", () => {
     const v = build("# Heading", "markers-syntax", 0);
     const before = v.contentDOM.querySelector(".cm-md-mark-hang");
-    expect(before?.textContent).toBe("# ");
+    expect(before?.textContent).toBe("#");
     v.dispatch({ changes: { from: v.state.doc.length, insert: "!" } }); // edit far from the marker
     forceParsing(v, v.state.doc.length, 5000);
-    const after = v.contentDOM.querySelector(".cm-md-mark-hang");
-    expect(after).toBe(before); // same widget instance → eq returned true, DOM reused
+    expect(v.contentDOM.querySelector(".cm-md-mark-hang")?.textContent).toBe("#");
+  });
+});
+
+describe("[REQ-RENDER-11] Formatted mode — reveal-on-cursor renders Syntax-style markers", () => {
+  const hang = (v: EditorView) =>
+    Array.from(v.contentDOM.querySelectorAll(".cm-md-mark-hang"))
+      .map((e) => e.textContent)
+      .join("");
+
+  it("reveals a heading marker as a hung Syntax-style mark, not a raw literal", () => {
+    const v = build("# Heading", "clean", 2); // caret on the heading line
+    expect(hang(v)).toBe("# "); // hung, exactly like Syntax mode
+    expect(count(v, ".cm-md-mark-hang")).toBeGreaterThan(0);
+    expect(lineText(v, 0)).toContain("Heading");
+  });
+
+  it("reveals a blockquote marker as a hung Syntax-style mark", () => {
+    const v = build("> quote", "clean", 3);
+    expect(hang(v)).toBe("> ");
+  });
+
+  it("reveals an inline emphasis marker as a small-grey Syntax token", () => {
+    const v = build("a **bold** c", "clean", 5); // caret inside **bold**
+    expect(count(v, ".cm-md-mark-syntax")).toBeGreaterThan(0);
+    expect(count(v, ".cm-mk-strong")).toBe(0); // NOT the Source-mode rendered marker
+    expect(lineText(v, 0)).toContain("**");
   });
 });
 

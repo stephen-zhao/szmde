@@ -89,6 +89,14 @@
   function cycleRenderMode() {
     editor?.setRenderMode(MODE_ORDER[(MODE_ORDER.indexOf(renderMode) + 1) % MODE_ORDER.length]);
   }
+  // The chip lives in the toolbar, so clicking it blurs the editor — restore focus
+  // so editor shortcuts keep working. The keyboard fallback does NOT do this: it
+  // must not yank focus out of a legitimately-focused control (e.g. the Find panel
+  // input), which would lose the user's place there.
+  function cycleRenderModeFromChip() {
+    cycleRenderMode();
+    editor?.focus();
+  }
 
   // EOL is write-time metadata (the buffer is always LF); toggling marks the
   // document dirty so the new line ending is written on Save (SPEC §4.4).
@@ -398,6 +406,9 @@
       return;
     }
     if (!(e.ctrlKey || e.metaKey)) return;
+    // When the editor is focused, CodeMirror's own keymap handles its shortcuts
+    // and marks the event handled — skip those here so we never double-fire.
+    if (e.defaultPrevented) return;
     const k = e.key.toLowerCase();
     if (k === "s") {
       e.preventDefault();
@@ -408,6 +419,13 @@
     } else if (k === "n") {
       e.preventDefault();
       doNew();
+    } else if (k === "m" && e.shiftKey) {
+      // Render-mode cycle (Ctrl+Shift+M). Also handled by CM when the editor has
+      // focus; this app-level fallback keeps the shortcut working after focus has
+      // drifted to a toolbar control (else clicking the mode chip, then pressing
+      // the shortcut, would silently do nothing — the "stuck toggle" bug).
+      e.preventDefault();
+      cycleRenderMode();
     }
   }
 
@@ -501,7 +519,12 @@
     onzoomfont={(s) =>
       setSetting("appearance.fontSize", stepFontSize(settings.value.appearance.fontSize, s))}
     onzoomwidth={(s) =>
-      setSetting("appearance.lineWidth", stepLineWidth(settings.value.appearance.lineWidth, s))}
+      setSetting(
+        "appearance.lineWidth",
+        // Cap the column at the current window width so it can grow "as wide as the
+        // window" but no wider (REQ-ZOOM-3); the CSS min() handles clinging on shrink.
+        stepLineWidth(settings.value.appearance.lineWidth, s, window.innerWidth),
+      )}
   />
 
   <!-- Bottom-right status bar (§7.1): filename + click-to-edit chips. Tiny and
@@ -515,7 +538,7 @@
         {wordCount.words.toLocaleString()} words
       </span>
     {/if}
-    <button class="chip" title="Render mode (Ctrl+Shift+M)" onclick={cycleRenderMode}>
+    <button class="chip" title="Render mode (Ctrl+Shift+M)" onclick={cycleRenderModeFromChip}>
       {MODE_LABELS[renderMode]}
     </button>
     <button class="chip" title="Line endings — click to toggle" onclick={toggleEol}>

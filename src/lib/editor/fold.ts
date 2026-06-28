@@ -42,6 +42,9 @@ class FoldChevron extends WidgetType {
     el.className = "cm-fold-chevron";
     el.textContent = this.folded ? "▸" : "▾";
     el.setAttribute("title", this.folded ? "Unfold section" : "Fold section");
+    el.setAttribute("role", "button");
+    el.setAttribute("aria-label", this.folded ? "Unfold section" : "Fold section");
+    el.setAttribute("aria-expanded", this.folded ? "false" : "true");
     el.setAttribute("contenteditable", "false");
     el.addEventListener("mousedown", (e) => {
       e.preventDefault();

@@ -12,13 +12,13 @@ describe("[REQ-SET-2] validate — coerce arbitrary JSON to valid Settings", () 
 
   it("keeps valid known values and stamps the current version", () => {
     const out = validate({
-      appearance: { theme: "light", fontSize: 20, lineWidth: "wide" },
+      appearance: { theme: "light", fontSize: 20, lineWidth: 900 },
       editor: { renderMode: "markers-syntax", indentWidth: 4, defaultEol: "crlf" },
     });
     expect(out.version).toBe(SCHEMA_VERSION);
     expect(out.appearance.theme).toBe("light");
     expect(out.appearance.fontSize).toBe(20);
-    expect(out.appearance.lineWidth).toBe("wide");
+    expect(out.appearance.lineWidth).toBe(900);
     expect(out.editor.renderMode).toBe("markers-syntax");
     expect(out.editor.indentWidth).toBe(4);
     expect(out.editor.defaultEol).toBe("crlf");
@@ -26,12 +26,13 @@ describe("[REQ-SET-2] validate — coerce arbitrary JSON to valid Settings", () 
 
   it("drops values that fail their guard, falling back to the default", () => {
     const out = validate({
-      appearance: { theme: "neon", fontSize: 9999, accentColor: "blue" },
+      appearance: { theme: "neon", fontSize: 9999, accentColor: "blue", lineWidth: 50 },
       editor: { renderMode: "bogus", indentWidth: 0, autosaveIntervalMs: 10 },
     });
     expect(out.appearance.theme).toBe(DEFAULTS.appearance.theme);
     expect(out.appearance.fontSize).toBe(DEFAULTS.appearance.fontSize);
     expect(out.appearance.accentColor).toBe(DEFAULTS.appearance.accentColor);
+    expect(out.appearance.lineWidth).toBe(DEFAULTS.appearance.lineWidth); // 50 < min → default
     expect(out.editor.renderMode).toBe(DEFAULTS.editor.renderMode);
     expect(out.editor.indentWidth).toBe(DEFAULTS.editor.indentWidth);
     expect(out.editor.autosaveIntervalMs).toBe(DEFAULTS.editor.autosaveIntervalMs);

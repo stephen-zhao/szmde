@@ -80,6 +80,18 @@ describe("[REQ-FOLD-1] heading folding", () => {
     expect(v.contentDOM.querySelector(".cm-fold-chevron")).not.toBeNull();
   });
 
+  it("[REQ-FOLD-2] renders the chevron as a button (role + aria-expanded) in every mode", () => {
+    for (const mode of ["clean", "markers-rendered", "markers-syntax"] as RenderMode[]) {
+      const v = build("# A\nbody", mode);
+      const chev = v.contentDOM.querySelector(".cm-fold-chevron")!;
+      expect(chev.getAttribute("role")).toBe("button");
+      expect(chev.getAttribute("aria-label")).toBe("Fold section");
+      expect(chev.getAttribute("aria-expanded")).toBe("true"); // unfolded
+      v.destroy();
+    }
+    view = undefined;
+  });
+
   it("clicking the chevron folds the section", () => {
     const v = build("# A\nbody line");
     const chev = v.contentDOM.querySelector(".cm-fold-chevron")!;

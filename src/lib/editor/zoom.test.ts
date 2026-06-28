@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { handleZoomWheel, stepFontSize, stepLineWidth, zoomGestures, type ZoomConfig } from "./zoom";
+import {
+  handleZoomWheel,
+  stepFontSize,
+  stepLineWidth,
+  LINE_WIDTH_STEP,
+  zoomGestures,
+  type ZoomConfig,
+} from "./zoom";
+import { LINE_WIDTH_MAX, LINE_WIDTH_MIN } from "../settings/schema";
 
 const ev = (over: Partial<WheelEvent>) =>
   ({ deltaY: -100, ctrlKey: false, metaKey: false, shiftKey: false, preventDefault: vi.fn(), ...over }) as unknown as WheelEvent;
@@ -14,13 +22,33 @@ describe("[REQ-ZOOM-1] stepFontSize", () => {
   });
 });
 
-describe("[REQ-ZOOM-2] stepLineWidth", () => {
-  it("steps the enum and clamps at the ends", () => {
-    expect(stepLineWidth("narrow", 1)).toBe("medium");
-    expect(stepLineWidth("medium", 1)).toBe("wide");
-    expect(stepLineWidth("wide", 1)).toBe("wide");
-    expect(stepLineWidth("medium", -1)).toBe("narrow");
-    expect(stepLineWidth("narrow", -1)).toBe("narrow");
+describe("[REQ-ZOOM-2][REQ-ZOOM-3] stepLineWidth", () => {
+  it(`steps by ${LINE_WIDTH_STEP}px per tick`, () => {
+    expect(stepLineWidth(740, 1)).toBe(740 + LINE_WIDTH_STEP);
+    expect(stepLineWidth(740, -1)).toBe(740 - LINE_WIDTH_STEP);
+    expect(stepLineWidth(740, 3)).toBe(740 + 3 * LINE_WIDTH_STEP);
+  });
+
+  it("clamps to the absolute min/max when no window cap is given", () => {
+    expect(stepLineWidth(LINE_WIDTH_MIN, -1)).toBe(LINE_WIDTH_MIN);
+    expect(stepLineWidth(LINE_WIDTH_MAX, 1)).toBe(LINE_WIDTH_MAX);
+  });
+
+  it("caps growth at the supplied window width (REQ-ZOOM-3)", () => {
+    // Already at the window width → a widen step can't exceed it.
+    expect(stepLineWidth(1000, 1, 1000)).toBe(1000);
+    // Near the window width → clamps exactly to it, not past.
+    expect(stepLineWidth(980, 5, 1000)).toBe(1000);
+    // Below it → grows normally.
+    expect(stepLineWidth(700, 1, 1000)).toBe(700 + LINE_WIDTH_STEP);
+  });
+
+  it("never drops below the min even on a tiny window", () => {
+    expect(stepLineWidth(320, -10, 200)).toBe(LINE_WIDTH_MIN);
+  });
+
+  it("rounds a non-step-aligned current width before stepping", () => {
+    expect(stepLineWidth(733, 1)).toBe(733 + LINE_WIDTH_STEP);
   });
 });
 

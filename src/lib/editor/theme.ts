@@ -36,7 +36,15 @@ export const baseTheme = EditorView.theme(
       caretColor: "var(--accent)",
       fontSize: "var(--editor-font-size)",
       // Reading-column width is driven by appearance.lineWidth (settings §8) via
-      // --reading-width; falls back to 740px before settings load / on the web.
+      // --reading-width (px); falls back to 740px before settings load / on the
+      // web. This is a max-width on an auto-width, margin-auto-centered block under
+      // the global `box-sizing: border-box` (app.css), so the column already does
+      // exactly REQ-ZOOM-3: it grows up to --reading-width and centers; when the
+      // window shrinks below that, auto width fills the container so the column
+      // CLINGS to the window width (padding included, no overflow), then grows back
+      // out as the window widens. The px value is what's now adjustable up to the
+      // window width (Shift-scroll), which is the real change — no min()/padding
+      // math needed (border-box already counts the 28px padding inside the width).
       maxWidth: "var(--reading-width, 740px)",
       margin: "0 auto",
       padding: "72px 28px 40vh",
@@ -139,18 +147,31 @@ export const baseTheme = EditorView.theme(
       fontSize: "calc(var(--editor-font-size) * 0.75)",
       verticalAlign: "baseline",
     },
-    // markers-syntax RENDER-9: a block marker (#…/>) hangs in the LEFT margin,
-    // right-aligned to the content margin. The mark is taken out of flow and
-    // pinned with right:100% of a relatively-positioned line, so its OWN measured
-    // width sets how far left it hangs (algorithmic — no px/width constant); the
-    // heading/quote text then starts flush at the margin.
-    ".cm-md-hang-line": { position: "relative" },
+    // markers-syntax / Formatted-reveal RENDER-9: a block marker (#…/>) + its
+    // trailing space hangs in the LEFT margin so the heading/quote text stays
+    // flush. This is an IN-FLOW inline-block (the glyphs are real, editable,
+    // selectable text — not a replace widget), kept to zero inline width so it
+    // contributes no advance; `text-align:right` right-aligns the glyphs to the
+    // box's start edge, so they overflow LEFT (auto-measured overhang — no px or
+    // measured-width constant). `vertical-align:baseline` sits the small-grey
+    // marker on the SAME baseline as the heading/quote text (not floated to the
+    // top, as an absolutely-positioned box would be). The 0.3em padding is the
+    // gap between the hung marker and the content.
+    // padding-right is the marker→text gap. CM may split the marked `#…` + space
+    // into two adjacent spans at the highlight boundary; each is its own width:0
+    // box, so the padding applies twice — 0.15em keeps the heading/quote text
+    // effectively flush (~0.3em) while leaving a clean gap after the marker.
     ".cm-md-mark-hang": {
-      position: "absolute",
-      right: "100%",
+      display: "inline-block",
+      width: "0",
+      paddingRight: "0.15em",
       whiteSpace: "pre",
-      paddingRight: "0.25em",
+      textAlign: "right",
+      verticalAlign: "baseline",
     },
+    // markers-syntax: a list marker (bullet dash / ordered number) is content, not
+    // pure syntax, so it shows its literal in normal text style — not small-grey.
+    ".cm-md-list-marker": { color: "var(--text)" },
     // markers-rendered: marker styled identically to the text it formats.
     ".cm-mk-strong": { fontWeight: "700" },
     ".cm-mk-em": { fontStyle: "italic" },
@@ -271,21 +292,26 @@ export const baseTheme = EditorView.theme(
     // --- Find & replace panel (@codemirror/search, REQ-FR-1) ----------------
     ".cm-panels": { backgroundColor: "var(--bg-raised)", color: "var(--text)" },
     ".cm-panels.cm-panels-top": { borderBottom: "1px solid var(--border)" },
+    // REQ-FR-3: every element in the panel shares ONE size — pinned to ~0.85 of the
+    // editor font so it tracks zoom and never reads as tiny next to scaled-up body
+    // text. The text inputs get a comfortable min-width + padding so what you type
+    // is actually legible (the prior 12px / default-width boxes were too cramped).
     ".cm-search": {
       display: "flex",
       flexWrap: "wrap",
       alignItems: "center",
-      gap: "6px",
-      padding: "8px 10px",
-      fontSize: "12px",
+      gap: "7px",
+      padding: "9px 11px",
+      fontSize: "calc(var(--editor-font-size, 16px) * 0.85)",
     },
     ".cm-search input[type=text]": {
       background: "var(--bg)",
       color: "var(--text)",
       border: "1px solid var(--border)",
       borderRadius: "6px",
-      padding: "3px 7px",
-      fontSize: "12px",
+      padding: "4px 9px",
+      fontSize: "inherit",
+      minWidth: "18ch",
     },
     ".cm-search input[type=text]:focus": { outline: "none", borderColor: "var(--accent)" },
     ".cm-search .cm-button": {
@@ -294,17 +320,17 @@ export const baseTheme = EditorView.theme(
       color: "var(--muted)",
       border: "1px solid var(--border)",
       borderRadius: "6px",
-      padding: "2px 8px",
-      fontSize: "12px",
+      padding: "4px 10px",
+      fontSize: "inherit",
       cursor: "pointer",
     },
     ".cm-search .cm-button:hover": { color: "var(--text)", borderColor: "var(--accent)" },
     ".cm-search label": {
       display: "inline-flex",
       alignItems: "center",
-      gap: "3px",
+      gap: "4px",
       color: "var(--muted)",
-      fontSize: "12px",
+      fontSize: "inherit",
     },
     ".cm-search [name=close]": { color: "var(--muted)", cursor: "pointer", padding: "0 4px" },
     ".cm-searchMatch": { backgroundColor: "color-mix(in srgb, var(--accent) 25%, transparent)" },
@@ -313,19 +339,37 @@ export const baseTheme = EditorView.theme(
     },
 
     // --- Folding (REQ-FOLD-1) -----------------------------------------------
-    // Inline chevron on a foldable heading line (no gutter → centered column
-    // preserved). em-based so it scales with the font.
+    // A foldable heading's fold control, rendered as a real button chip (border +
+    // raised fill) so it's clearly clickable and prominent in every render mode
+    // (no gutter → the centered reading column is preserved). It hangs in the
+    // heading's left padding via a negative margin, fully compensated by width +
+    // margin-right so the heading text still starts flush. Its font-size is pinned
+    // to the body size (NOT the heading's em), so the chip is the same, gutter-safe
+    // size on an h1 as on an h6.
     ".cm-fold-chevron": {
-      display: "inline-block",
-      width: "1em",
-      marginLeft: "-1em", // hang in the heading's left padding, content stays flush
-      color: "var(--faint)",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      boxSizing: "border-box",
+      width: "1.25em",
+      height: "1.25em",
+      marginLeft: "-1.5em",
+      marginRight: "0.25em", // width(1.25) − marginLeft(1.5) + marginRight(0.25) = 0
+      border: "1px solid var(--border)",
+      borderRadius: "5px",
+      color: "var(--muted)",
+      backgroundColor: "var(--bg-raised)",
       cursor: "pointer",
       userSelect: "none",
-      fontSize: "0.7em",
+      fontSize: "calc(var(--editor-font-size) * 0.82)",
+      lineHeight: "1",
       verticalAlign: "middle",
     },
-    ".cm-fold-chevron:hover": { color: "var(--text)" },
+    ".cm-fold-chevron:hover": {
+      color: "var(--text)",
+      borderColor: "var(--accent)",
+      backgroundColor: "var(--bg)",
+    },
     // The "⋯" shown in place of a folded section.
     ".cm-foldPlaceholder": {
       margin: "0 0.4em",

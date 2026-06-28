@@ -11,11 +11,20 @@ import type { Eol } from "../editor/eol";
  * effective settings equal today's visuals before any user customization
  * (asserted in schema.test.ts to catch drift).
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export type Theme = "dark" | "light" | "system";
-export type LineWidth = "narrow" | "medium" | "wide";
+// Reading-column width in CSS px (REQ-ZOOM-3). Was an enum {narrow,medium,wide}
+// through schema v1; v2 made it a continuous px value so Shift-scroll can size the
+// column anywhere up to the window width. The migration maps the old enum → px.
+export type LineWidth = number;
 export type IndentStyle = "spaces" | "tab";
+
+/** Reading-width gesture bounds (px). The effective max at runtime is the smaller
+ *  of LINE_WIDTH_MAX and the window width; LINE_WIDTH_MAX is just the stored-value
+ *  guard ceiling (a sane cap for any monitor). */
+export const LINE_WIDTH_MIN = 320;
+export const LINE_WIDTH_MAX = 10000;
 
 export interface AppearanceSettings {
   theme: Theme;
@@ -75,7 +84,7 @@ export const DEFAULTS: Settings = {
     accentColor: "#7c9cff",
     fontFamily: "Inter",
     fontSize: 16,
-    lineWidth: "medium",
+    lineWidth: 740, // reading-column px; == the historical "medium" / theme.ts max-width
     showStatusWidgets: true,
     // Word/char count chip — off by default (§7.1: status area stays minimal).
     showWordCount: false,
@@ -130,7 +139,7 @@ export const GUARDS: {
     accentColor: isHexColor,
     fontFamily: isNonEmptyString,
     fontSize: intInRange(8, 72),
-    lineWidth: oneOf(["narrow", "medium", "wide"]),
+    lineWidth: intInRange(LINE_WIDTH_MIN, LINE_WIDTH_MAX),
     showStatusWidgets: isBool,
     showWordCount: isBool,
   },

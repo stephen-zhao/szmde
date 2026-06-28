@@ -2,16 +2,28 @@ import { SCHEMA_VERSION } from "./schema";
 
 export type Migration = (o: Record<string, unknown>) => Record<string, unknown>;
 
-/**
- * Forward migrations indexed by from-version: `MIGRATIONS[n]` upgrades a v`n`
- * blob to v`n+1`. v1 is the baseline, so the list is empty today; the machinery
- * (and its tests) are in place for the first real `v1 → v2` bump.
- */
-export const MIGRATIONS: Migration[] = [];
-
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
+
+// v1 stored appearance.lineWidth as an enum; v2 stores px (REQ-ZOOM-3).
+const LEGACY_LINE_WIDTH_PX: Record<string, number> = { narrow: 640, medium: 740, wide: 880 };
+
+/**
+ * Forward migrations indexed by from-version: `MIGRATIONS[n]` upgrades a v`n` blob
+ * to v`n+1` (so index 0 = v0→v1, index 1 = v1→v2, …). Sparse is fine — the runner
+ * skips missing steps.
+ */
+export const MIGRATIONS: Migration[] = [];
+
+// v1 → v2: appearance.lineWidth enum → px number.
+MIGRATIONS[1] = (o) => {
+  const a = o.appearance;
+  if (isObj(a) && typeof a.lineWidth === "string") {
+    return { ...o, appearance: { ...a, lineWidth: LEGACY_LINE_WIDTH_PX[a.lineWidth] ?? 740 } };
+  }
+  return o;
+};
 
 /**
  * Bring an arbitrary parsed blob up to the target schema version by applying the

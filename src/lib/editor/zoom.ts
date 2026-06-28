@@ -1,6 +1,6 @@
 import { EditorView } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
-import type { LineWidth } from "../settings/schema";
+import { LINE_WIDTH_MAX, LINE_WIDTH_MIN } from "../settings/schema";
 
 /**
  * Scroll-gesture zoom (REQ-ZOOM-1/2, SPEC §7.3): Ctrl/Cmd+wheel changes the base
@@ -15,17 +15,27 @@ export interface ZoomConfig {
   onZoomWidth(steps: number): void;
 }
 
-const WIDTHS: LineWidth[] = ["narrow", "medium", "wide"];
+/** Reading-width change per Shift-scroll tick, in px (REQ-ZOOM-2/3). */
+export const LINE_WIDTH_STEP = 40;
 
 /** Clamp the base font size after a zoom step (REQ-ZOOM-1). */
 export function stepFontSize(cur: number, steps: number, min = 10, max = 32): number {
   return Math.max(min, Math.min(max, cur + steps));
 }
 
-/** Step the reading-width enum {narrow,medium,wide} by index, clamped (REQ-ZOOM-2). */
-export function stepLineWidth(cur: LineWidth, steps: number): LineWidth {
-  const i = WIDTHS.indexOf(cur);
-  return WIDTHS[Math.max(0, Math.min(WIDTHS.length - 1, i + steps))];
+/**
+ * Step the reading-column width by `steps` (px deltas of LINE_WIDTH_STEP each),
+ * clamped to [LINE_WIDTH_MIN, max] (REQ-ZOOM-2/3). `max` defaults to the absolute
+ * guard ceiling; the shell passes the current window width so the column can grow
+ * "as wide as the window" but no wider, and shrinks back as the window shrinks.
+ */
+export function stepLineWidth(
+  cur: number,
+  steps: number,
+  max = LINE_WIDTH_MAX,
+  min = LINE_WIDTH_MIN,
+): number {
+  return Math.max(min, Math.min(max, Math.round(cur) + steps * LINE_WIDTH_STEP));
 }
 
 /** The wheel logic, extracted so it's unit-testable without a live view. Returns

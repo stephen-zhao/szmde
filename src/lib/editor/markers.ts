@@ -124,36 +124,54 @@ function orderedNumberDeco(label: string): Decoration {
 
 const hide = Decoration.replace({});
 const syntaxMark = Decoration.mark({ class: "cm-md-mark-syntax" });
-// RENDER-9 (Syntax mode): a block marker (#…, >) hangs in the left margin so the
-// heading/quote text stays flush at the content margin. The mark is positioned
-// `absolute; right:100%` in theme.ts (its own measured width sets how far it
-// hangs — algorithmic, no px constant); the line decoration is the positioning
-// context. The marker+trailing-space stays real/selectable (modes-2&3 rule).
-const hangLine = Decoration.line({ class: "cm-md-hang-line" });
-
-/** The hung block marker (#…/>) + its trailing space, as a single widget so it's
- *  one absolutely-positioned box (a Decoration.mark would fragment at the
- *  marker↔text highlight boundary and the pieces would overlap). RENDER-9. */
-class HangMarkerWidget extends WidgetType {
-  constructor(readonly text: string) {
-    super();
-  }
-  eq(o: HangMarkerWidget) {
-    return o.text === this.text;
-  }
-  toDOM() {
-    const s = document.createElement("span");
-    s.className = "cm-md-mark-syntax cm-md-mark-hang";
-    s.textContent = this.text;
-    return s;
-  }
-}
+// RENDER-9 (Syntax mode + Formatted reveal): a block marker (#…, >) + its
+// trailing space hangs in the left margin so the heading/quote text stays flush.
+// This is an in-flow `Decoration.mark` (NOT a replace widget): the marker glyphs
+// remain real, editable text — the cursor glides into them with the arrow keys
+// and they're mouse-selectable (a "syntax markers only" element must always stay
+// in the document flow). theme.ts hangs it left with a width:0 inline-block that
+// right-aligns its own glyphs (auto-measured overhang, baseline-aligned — no px
+// constant, no absolute positioning that would float off the text baseline).
+//
+// KNOWN LIMIT: when a line has MULTIPLE leading block markers — a nested quote
+// (`> > x`) or a quoted heading (`> # x`) — each marker hangs from ~the same
+// width:0 origin, so the glyphs overlap in the gutter. This is the accepted
+// trade-off of the in-flow approach (the alternative, a single replace widget,
+// would break the "markers stay editable/selectable" requirement, B2/B6). Pure
+// CSS can't both keep zero inline advance AND lay multiple visible glyphs side by
+// side. Single markers (the overwhelmingly common case) render perfectly; the
+// old absolute-positioned widget overlapped these same cases more severely.
+const hangMark = Decoration.mark({ class: "cm-md-mark-syntax cm-md-mark-hang" });
+// A list marker (bullet dash / ordered number) shown in Syntax mode. List markers
+// are CONTENT (they render as •/1.), not pure syntax, so they keep normal text
+// styling — never the small-grey syntax-token look (matches the task checkbox).
+const listMarkerNormal = Decoration.mark({ class: "cm-md-list-marker" });
 
 /** Length of the whitespace right after a block marker (the syntactic space after
  *  `#`/`>`), so the hidden (Clean) / hung (Syntax) range reaches the content. */
 function trailingWsLen(state: EditorState, from: number, to: number): number {
   const line = state.doc.lineAt(from);
   return /^[ \t]+/.exec(line.text.slice(to - line.from))?.[0].length ?? 0;
+}
+
+/**
+ * Emit the "syntax-token" styling for a managed marker, shared by Syntax mode and
+ * Formatted-mode reveal-on-cursor (so a revealed marker looks/behaves exactly like
+ * Syntax mode, never like a raw Source literal — RENDER #7):
+ * - block marks (heading `#…` / quote `>`): an in-flow hung mark over the marker
+ *   PLUS its trailing space, so the heading/quote text stays flush while the
+ *   marker overhangs the left margin — yet remains editable/selectable text;
+ * - inline marks (`**`, `*`, `~~`, `` ` ``): a small-grey syntax token in place.
+ */
+function pushSyntaxStyle(
+  state: EditorState,
+  decos: Range<Decoration>[],
+  from: number,
+  to: number,
+  isBlockMark: boolean,
+): void {
+  if (isBlockMark) decos.push(hangMark.range(from, to + trailingWsLen(state, from, to)));
+  else decos.push(syntaxMark.range(from, to));
 }
 const renderedMarks: Record<string, Decoration> = {
   "cm-mk-strong": Decoration.mark({ class: "cm-mk-strong" }),
@@ -289,7 +307,6 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
         const parent = node.node.parent;
         const parentName = parent?.name;
         let rendered: string | null | undefined; // undefined = unmanaged
-        let isBullet = false;
         let isBlockMark = false; // heading/quote marker — reveals per line
         switch (node.name) {
           case "EmphasisMark":
@@ -322,31 +339,38 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
             rendered = null;
             isBlockMark = true;
             break;
-          case "ListMark":
-            if (parent?.parent?.name === "OrderedList") {
-              // Replace the literal `1.` with the computed ordinal (depth-styled,
-              // position-based so nested lists restart). Like bullets, it's
-              // always-shown content (edit the literal in Source/Syntax mode).
-              if (mode === "clean")
+          case "ListMark": {
+            // A list marker is CONTENT, not pure syntax: it renders as a • / ordinal
+            // in Formatted mode and, per the marker-vs-widget rule, shows its literal
+            // in NORMAL text style (never small-grey) in Syntax mode.
+            const ordered = parent?.parent?.name === "OrderedList";
+            // A task item (`- [ ] ` or `1. [ ] `) renders a checkbox (tasks.ts) over
+            // its whole prefix, so markers.ts must NOT also draw a bullet/number —
+            // that would double-decorate the marker. Applies to BOTH list kinds.
+            const isTask = node.node.parent?.getChild("Task") != null;
+            if (mode === "clean") {
+              if (isTask) {
+                // defer entirely to tasks.ts (the checkbox)
+              } else if (ordered) {
+                // Replace `1.` with the computed ordinal (depth-styled, position-
+                // based so nested lists restart). Edit the literal in Source/Syntax.
                 decos.push(orderedNumberDeco(orderedMarkLabel(state, node.node)).range(node.from, node.to));
-              return;
+              } else {
+                // Depth-varied glyph (•/◦/▪) so nesting reads clearly.
+                decos.push(bulletDeco(bulletGlyph(node.node)).range(node.from, node.to));
+              }
+            } else if (mode === "markers-syntax") {
+              decos.push(listMarkerNormal.range(node.from, node.to)); // #4 normal style
             }
-            rendered = null;
-            isBullet = true;
-            break;
+            // Source mode: literal marker, default styling, no decoration.
+            return;
+          }
           default:
             rendered = undefined;
         }
-        if (rendered === undefined && !isBullet) return;
+        if (rendered === undefined) return;
 
         if (mode === "clean") {
-          if (isBullet) {
-            // Task items render a checkbox (tasks.ts), not a •; suppress the bullet.
-            if (node.node.parent?.getChild("Task")) return;
-            // Depth-varied glyph (•/◦/▪) so nesting reads clearly.
-            decos.push(bulletDeco(bulletGlyph(node.node)).range(node.from, node.to));
-            return;
-          }
           const revealed = isBlockMark
             ? caretLines.has(state.doc.lineAt(node.from).number)
             : caretPos.some(
@@ -363,26 +387,16 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
             }
             decos.push(hide.range(node.from, to));
             hiddenRanges.push(hide.range(node.from, to));
-          }
-          // revealed → emit nothing: the literal marker shows as editable text.
-        } else if (mode === "markers-syntax") {
-          if (isBlockMark) {
-            // RENDER-9: hang the block marker (#…/>) + its trailing space in the
-            // left margin so the heading/quote text stays flush at the margin. Use
-            // a single replace WIDGET (not a mark): a mark fragments at the
-            // marker↔text highlight boundary into separate spans, and two
-            // `position:absolute; right:100%` spans would stack/overlap. One widget
-            // = one box, so its own measured width sets the offset cleanly.
-            const to = node.to + trailingWsLen(state, node.from, node.to);
-            decos.push(hangLine.range(state.doc.lineAt(node.from).from));
-            decos.push(
-              Decoration.replace({
-                widget: new HangMarkerWidget(state.doc.sliceString(node.from, to)),
-              }).range(node.from, to),
-            );
           } else {
-            decos.push(syntaxMark.range(node.from, node.to));
+            // RENDER (#7): a revealed marker renders as a Syntax-style token — small
+            // grey for inline marks, an in-flow hung marker for block marks — NOT a
+            // raw Source literal. It stays editable (a mark, never atomic) and the
+            // heading/quote text doesn't shift when the caret lands (the marker just
+            // appears, hung in the margin).
+            pushSyntaxStyle(state, decos, node.from, node.to, isBlockMark);
           }
+        } else if (mode === "markers-syntax") {
+          pushSyntaxStyle(state, decos, node.from, node.to, isBlockMark);
         } else if (rendered) {
           decos.push(renderedMarks[rendered].range(node.from, node.to));
         }

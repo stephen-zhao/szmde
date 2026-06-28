@@ -21,24 +21,24 @@ describe("[REQ-SET-3] applyAppearance — appearance settings → CSS variables"
     applyAppearance(t, DEFAULTS.appearance);
     expect(t.style.getPropertyValue("--editor-font-size")).toBe("16px");
     expect(t.style.getPropertyValue("--accent")).toBe("#7c9cff");
-    expect(t.style.getPropertyValue("--reading-width")).toBe("740px"); // medium
+    expect(t.style.getPropertyValue("--reading-width")).toBe("740px"); // default px
     expect(t.style.getPropertyValue("--font-body")).toContain('"Inter"');
     expect(t.style.getPropertyValue("--font-body")).toContain("sans-serif"); // fallback kept
     expect(t.style.getPropertyValue("color-scheme")).toBe("dark");
     expect(t.getAttribute("data-theme")).toBe("dark");
   });
 
-  it("maps lineWidth enum values to reading-column widths", () => {
-    const widths = (lw: "narrow" | "medium" | "wide") => {
+  it("emits the numeric lineWidth as a px --reading-width (REQ-ZOOM-3)", () => {
+    const widthFor = (lw: number) => {
       const t = target();
       applyAppearance(t, { ...DEFAULTS.appearance, lineWidth: lw });
       const w = t.style.getPropertyValue("--reading-width");
       t.remove();
       return w;
     };
-    expect(widths("narrow")).toBe("640px");
-    expect(widths("medium")).toBe("740px");
-    expect(widths("wide")).toBe("880px");
+    expect(widthFor(640)).toBe("640px");
+    expect(widthFor(900)).toBe("900px");
+    expect(widthFor(1600)).toBe("1600px");
   });
 
   it("uses 'light dark' color-scheme for the system theme", () => {
