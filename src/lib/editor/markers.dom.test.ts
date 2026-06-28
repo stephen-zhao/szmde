@@ -153,6 +153,43 @@ describe("[REQ-RENDER-4] Syntax mode — rendered DOM", () => {
   });
 });
 
+describe("[REQ-RENDER-9] Syntax mode — block markers hang in the left margin", () => {
+  // CM may split the marked range into adjacent spans at a highlight boundary
+  // (e.g. between '#' and the space), so concatenate all hang spans' text.
+  const hang = (v: EditorView) =>
+    Array.from(v.contentDOM.querySelectorAll(".cm-md-mark-hang"))
+      .map((e) => e.textContent)
+      .join("");
+
+  it("hangs a heading marker + its trailing space ('# ')", () => {
+    const v = build("# Heading", "markers-syntax", 0);
+    expect(hang(v)).toBe("# "); // marker + trailing space, taken out of flow
+    expect(count(v, ".cm-md-hang-line")).toBe(1);
+    expect(lineText(v, 0)).toContain("#"); // chars stay real/selectable in the line
+  });
+
+  it("hangs a deeper heading marker ('### ')", () => {
+    const v = build("### Deep", "markers-syntax", 0);
+    expect(hang(v)).toBe("### ");
+  });
+
+  it("hangs a blockquote marker ('> ')", () => {
+    const v = build("> quote", "markers-syntax", 0);
+    expect(hang(v)).toBe("> ");
+  });
+
+  it("does NOT hang inline markers (they stay plain syntax tokens)", () => {
+    const v = build("a **bold**", "markers-syntax", 0);
+    expect(count(v, ".cm-md-mark-hang")).toBe(0);
+    expect(count(v, ".cm-md-mark-syntax")).toBeGreaterThan(0);
+  });
+
+  it("emits no hang decorations in Clean or Source mode", () => {
+    expect(count(build("# H", "clean", 0), ".cm-md-mark-hang")).toBe(0);
+    expect(count(build("# H", "markers-rendered", 0), ".cm-md-mark-hang")).toBe(0);
+  });
+});
+
 describe("[REQ-RENDER-5] Source (markers-rendered) mode — rendered DOM", () => {
   it("keeps emphasis markers visible while styling the construct", () => {
     const v = build("**bold**", "markers-rendered", 0);

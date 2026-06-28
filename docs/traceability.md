@@ -73,6 +73,7 @@ tags in the test files and flags either side that's missing._
 | REQ-FOLD-1 | Collapsible heading sections: lang-markdown's heading foldService + `codeFolding` (`⋯` placeholder); an inline chevron on heading lines only (no gutter → centered column preserved) + `Mod-.` toggle; the body folds, the heading stays visible; identical across render modes; `#` in fenced code isn't a heading | §5.4 | integration (DOM) | `editor/fold.dom.test.ts` (live affordance/visual → WF-22) |
 | REQ-ZOOM-1 | Ctrl/Cmd+scroll zooms the base text size (one step/event, `stepFontSize` clamp 10–32) and persists to `appearance.fontSize`; reading width stays constant so text wraps sooner | §7.3 | unit | `editor/zoom.test.ts` (live wheel gesture → WF-23) |
 | REQ-ZOOM-2 | Shift+scroll steps the page-width enum (`stepLineWidth` narrow/medium/wide, clamped) and persists to `appearance.lineWidth` | §7.3 | unit | `editor/zoom.test.ts` (live wheel gesture → WF-23) |
+| REQ-RENDER-9 | Syntax mode: block markers (`#`…/`>`) + trailing space hang in the LEFT margin as an overhanging indent (algorithmic — `position:absolute; right:100%`, each marker's own width sets the offset), so heading/quote text stays flush; the chars stay real/selectable; inline markers stay plain; no hang in Clean/Source | §4.1 | integration (DOM) | `editor/markers.dom.test.ts` (live right-alignment → WF-24) |
 
 ## Requirements with no automated test (honest gaps — tracked, not silent)
 

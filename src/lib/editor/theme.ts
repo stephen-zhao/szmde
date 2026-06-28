@@ -139,6 +139,18 @@ export const baseTheme = EditorView.theme(
       fontSize: "calc(var(--editor-font-size) * 0.75)",
       verticalAlign: "baseline",
     },
+    // markers-syntax RENDER-9: a block marker (#…/>) hangs in the LEFT margin,
+    // right-aligned to the content margin. The mark is taken out of flow and
+    // pinned with right:100% of a relatively-positioned line, so its OWN measured
+    // width sets how far left it hangs (algorithmic — no px/width constant); the
+    // heading/quote text then starts flush at the margin.
+    ".cm-md-hang-line": { position: "relative" },
+    ".cm-md-mark-hang": {
+      position: "absolute",
+      right: "100%",
+      whiteSpace: "pre",
+      paddingRight: "0.25em",
+    },
     // markers-rendered: marker styled identically to the text it formats.
     ".cm-mk-strong": { fontWeight: "700" },
     ".cm-mk-em": { fontStyle: "italic" },

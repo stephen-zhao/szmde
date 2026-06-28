@@ -318,6 +318,15 @@ Shift+scroll widens/narrows the reading column through narrow→medium→wide; a
 scroll still scrolls normally; both values persist across an app reload; Ctrl+wheel
 doesn't trigger the WebView's native page-zoom.
 
+### WF-24 · Syntax-mode marker margin overhang · `REQ-RENDER-9`
+**Why:** decoration structure is dom-tested; the actual right-alignment to the
+margin + flush text + no-clipping need real layout.
+**Setup:** Syntax mode, a doc with `#`..`######` headings + a `>` quote +
+paragraphs.
+**Steps:** each marker's right edge aligns to the content margin (markers hang in
+the left gutter), heading/quote text starts flush with paragraph text, nothing
+clips at the left, and it holds when `--editor-font-size` changes (Ctrl+scroll).
+
 ### WF-16 · Autosave fires after the interval · `REQ-SAVE-2`
 **Why:** the debounce/coalesce logic is unit-tested, but the editor→scheduler→
 save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.**
@@ -360,6 +369,7 @@ save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.
 | REQ-EMOJI-1 | map+structure (`editor/emoji.test.ts`, `emoji.dom.test.ts`) | WF-21 (glyph render) |
 | REQ-FOLD-1 | structure (`editor/fold.dom.test.ts`) | WF-22 (fold affordance) |
 | REQ-ZOOM-1/2 | logic (`editor/zoom.test.ts`) | WF-23 (scroll zoom/width) |
+| REQ-RENDER-9 | structure (`editor/markers.dom.test.ts`) | WF-24 (margin overhang) |
 
 The three former [traceability.md](traceability.md) gaps with no automated test
 (REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest

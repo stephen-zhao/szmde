@@ -1,6 +1,6 @@
 import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
-import { RangeSet, type Range } from "@codemirror/state";
+import { RangeSet, type EditorState, type Range } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
 import { syntaxTree } from "@codemirror/language";
 import { renderMode } from "./render-mode";
@@ -124,6 +124,20 @@ function orderedNumberDeco(label: string): Decoration {
 
 const hide = Decoration.replace({});
 const syntaxMark = Decoration.mark({ class: "cm-md-mark-syntax" });
+// RENDER-9 (Syntax mode): a block marker (#…, >) hangs in the left margin so the
+// heading/quote text stays flush at the content margin. The mark is positioned
+// `absolute; right:100%` in theme.ts (its own measured width sets how far it
+// hangs — algorithmic, no px constant); the line decoration is the positioning
+// context. The marker+trailing-space stays real/selectable (modes-2&3 rule).
+const hangLine = Decoration.line({ class: "cm-md-hang-line" });
+const hangMark = Decoration.mark({ class: "cm-md-mark-syntax cm-md-mark-hang" });
+
+/** Length of the whitespace right after a block marker (the syntactic space after
+ *  `#`/`>`), so the hidden (Clean) / hung (Syntax) range reaches the content. */
+function trailingWsLen(state: EditorState, from: number, to: number): number {
+  const line = state.doc.lineAt(from);
+  return /^[ \t]+/.exec(line.text.slice(to - line.from))?.[0].length ?? 0;
+}
 const renderedMarks: Record<string, Decoration> = {
   "cm-mk-strong": Decoration.mark({ class: "cm-mk-strong" }),
   "cm-mk-em": Decoration.mark({ class: "cm-mk-em" }),
@@ -317,15 +331,21 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
               // hide them so the content sits flush (no leading space) in Clean
               // mode. Applies to headings (`# `) and blockquotes (`> `). (Bullets
               // and ordered numbers keep their space — they show a glyph there.)
-              const line = state.doc.lineAt(node.from);
-              to += /^[ \t]+/.exec(line.text.slice(node.to - line.from))?.[0].length ?? 0;
+              to += trailingWsLen(state, node.from, node.to);
             }
             decos.push(hide.range(node.from, to));
             hiddenRanges.push(hide.range(node.from, to));
           }
           // revealed → emit nothing: the literal marker shows as editable text.
         } else if (mode === "markers-syntax") {
-          decos.push(syntaxMark.range(node.from, node.to));
+          if (isBlockMark) {
+            // RENDER-9: hang the block marker (#…/>) + its trailing space in the
+            // left margin so the heading/quote text stays flush at the margin.
+            decos.push(hangLine.range(state.doc.lineAt(node.from).from));
+            decos.push(hangMark.range(node.from, node.to + trailingWsLen(state, node.from, node.to)));
+          } else {
+            decos.push(syntaxMark.range(node.from, node.to));
+          }
         } else if (rendered) {
           decos.push(renderedMarks[rendered].range(node.from, node.to));
         }
