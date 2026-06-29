@@ -1,0 +1,46 @@
+name: Release
+
+# Cut a release by pushing a version tag:  git tag v0.1.0 && git push origin v0.1.0
+# Builds the Windows installer and publishes it as a GitHub Release. Unsigned for
+# now (first-run SmartScreen warning is expected — see docs/ci-cd.md).
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # create the Release + upload the installer assets
+
+jobs:
+  release:
+    name: Build & publish (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      # Sync the bundle version to the tag (v0.1.0 → 0.1.0) so the installer's
+      # version matches the GitHub Release instead of the placeholder 0.0.0.
+      - name: Set bundle version from tag
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          node -e "const v=process.env.TAG.replace(/^v/,'');const f='src-tauri/tauri.conf.json';const j=require('./'+f);j.version=v;require('fs').writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: szmde ${{ github.ref_name }}
+          releaseBody: |
+            Automated Windows build from ${{ github.ref_name }}.
+            Installer is **unsigned** — Windows SmartScreen shows a one-time "unknown publisher" warning on first run (More info → Run anyway).
+          releaseDraft: false
+          prerelease: false

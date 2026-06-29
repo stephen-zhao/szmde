@@ -30,6 +30,7 @@ was under-specified. Each round's classification is recorded in a triage doc.
 | [m4-feedback-triage.md](m4-feedback-triage.md) | M4 review feedback, each comment classified bug-vs-requirement |
 | [m3-cloud-setup.md](m3-cloud-setup.md) | Human steps to register the Google/Azure OAuth apps |
 | [llm-workflow-tests.md](llm-workflow-tests.md) | Live-behavior test scripts (`WF-*`) for things happy-dom can't cover, each linked to a `REQ-*` |
+| [ci-cd.md](ci-cd.md) | GitHub Actions CI gate + tag-triggered Windows release; the branch/PR workflow |
 
 ## Conventions
 
