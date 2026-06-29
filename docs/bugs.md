@@ -4,7 +4,7 @@
 
 - This file = **bugs** only: behavior that violated an *existing, documented* requirement.
 - **Requirements** (incl. ones born from under-specification feedback) live in the
-  requirements registry, [traceability.md](traceability.md) — not here.
+  requirements registry, [requirements.md](requirements.md) — not here.
 - Per-round feedback triage (how each comment was classified bug-vs-requirement)
   lives in its own working doc, e.g. [m4-feedback-triage.md](m4-feedback-triage.md),
   and feeds into this log. See [INDEX.md](INDEX.md) for the full doc map.

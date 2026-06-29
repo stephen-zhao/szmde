@@ -107,7 +107,7 @@ TDD, one commit each.
 ## Staged build sequence
 
 > Each slice: **failing test(s) first** (TDD, T4), then implementation, then `npm run test`
-> + `npm run check` green, update [traceability.md](traceability.md) with the new `REQ-*`
+> + `npm run check` green, update [requirements.md](requirements.md) with the new `REQ-*`
 > IDs and tag the tests, then commit. Visual-verify checkpoint with the user between slices.
 
 ### S1 — Horizontal rule ✅  (`REQ-HR-1`)
@@ -221,7 +221,7 @@ Panel converged on **pure deterministic core + a string-I/O `SettingsBackend` se
   (S7). Test files per slice (above).
 - **Changed:** `setup.ts` (register the new plugins + table block widget), `theme.ts` (HR,
   checkbox, image, alert, table CSS), `+page.svelte` (settings-backed status bar; image src
-  resolver injection), `src-tauri/src/lib.rs` (settings commands), `traceability.md` (new IDs).
+  resolver injection), `src-tauri/src/lib.rs` (settings commands), `requirements.md` (new IDs).
 
 ## Decisions taken (defaults — overridable)
 

@@ -4,7 +4,7 @@ _The authoritative schedule. **Every piece of work has a SPEC section, a milesto
 requirement ID before it is started — no ad-hoc work.** [SPEC.md](../SPEC.md) §10 is the
 high-level sketch; this doc is the tracker (what's shipped, what's scheduled, what's backlog),
 and per-milestone build breakdowns live in `docs/m<N>-plan.md`. When a requirement is built it
-moves into [traceability.md](traceability.md) with linked tests._
+moves into [requirements.md](requirements.md) with linked tests._
 
 _Status: ✅ shipped · 🔜 next · ⬜ planned · 🅑 backlog (specced, unscheduled — order TBD)._
 
@@ -56,7 +56,7 @@ user's OAuth client registrations + the OS-keyring / redirect-capture Tauri comm
 ### M4 — Authoring essentials ✅  (SPEC §5.4, §7.3, §4.1)
 Daily-authoring + reading-experience power-features for the target user (Stephen).
 Pulled ahead of table editing on 2026-06-27. **Shipped 2026-06-28 (S1–S6,
-[m4-plan.md](m4-plan.md)); all six REQs catalogued in [traceability.md](traceability.md).**
+[m4-plan.md](m4-plan.md)); all six REQs catalogued in [requirements.md](requirements.md).**
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
 | REQ-EMOJI-1 | Emoji shortcodes `:smile:` → rendered emoji | §5.4 |
@@ -143,5 +143,5 @@ _(REQ-EMOJI-1, REQ-FR-1, REQ-COUNT-1, REQ-FOLD-1 were promoted to **M4 — Autho
 1. **No ad-hoc work.** Anything beyond a trivial fix needs a SPEC section, a milestone here, and
    a REQ ID. If a new need appears, add it to SPEC + this tracker (backlog is fine) first.
 2. Starting a milestone → write its `docs/m<N>-plan.md` (architecture + `S<n>` slices), TDD each.
-3. Built requirements move into [traceability.md](traceability.md) with linked unit/integration
+3. Built requirements move into [requirements.md](requirements.md) with linked unit/integration
    tests; live-behavior aspects get a workflow in [llm-workflow-tests.md](llm-workflow-tests.md).

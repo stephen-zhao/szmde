@@ -6,7 +6,7 @@ Every comment from the M4 review pass, classified per the process rule:
   Fix the behavior; no new requirement needed.
 - **New requirement** — desired behavior that wasn't well documented by an existing
   requirement (i.e. a "bug" caused by under-specification). Catalogue a new REQ in
-  [traceability.md](traceability.md), then implement it.
+  [requirements.md](requirements.md), then implement it.
 
 Each row links the originating render mode where relevant. "Mode names": Formatted =
 `clean`, Source = `markers-rendered`, Syntax = `markers-syntax`.

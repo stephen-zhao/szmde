@@ -51,7 +51,7 @@ that line, exactly mirroring how `REQ-CLI-3` (`wsl_to_unc` shells to `wsl.exe`) 
 - **Live integration tail (tracked as gaps + LLM workflows, needs the user):** real OAuth
   client IDs in config; the actual redirect/loopback capture in the Tauri shell; the Rust
   Credential-Manager / Keychain / Keystore command; and real network round-trips. These get
-  catalogued in [traceability.md](traceability.md) "no automated test" + a workflow in
+  catalogued in [requirements.md](requirements.md) "no automated test" + a workflow in
   [llm-workflow-tests.md](llm-workflow-tests.md), not faked into the unit gate.
 
 > **User action with lead time:** S7/S8 live wiring needs an OAuth **client ID** for each
@@ -118,7 +118,7 @@ changes; this is service + shell-wiring work. Viewport/decoration layers are unt
 ## Staged build sequence
 
 > Each slice: **failing test(s) first** (TDD, T4), then implementation, then `npm run test` +
-> `npm run check` green, update [traceability.md](traceability.md) with the new `REQ-*` IDs and
+> `npm run check` green, update [requirements.md](requirements.md) with the new `REQ-*` IDs and
 > tag the tests, then commit. Live-behavior aspects (real OAuth/network/secure-store) get a
 > workflow in [llm-workflow-tests.md](llm-workflow-tests.md), not a unit test.
 
@@ -267,7 +267,7 @@ slices (OneDrive once the user registers Azure).
 - **Changed:** `+page.svelte` (route open/save through the registry; autosave + conflict modal
   + storage-account connect UI); `src-tauri/src/lib.rs` (`read_file_meta`/`stat_file`;
   secure-store + OAuth-redirect commands in the integration tail); `HamburgerMenu.svelte`
-  ("Storage account connections"); `traceability.md` (new IDs); `roadmap.md` (mark shipped).
+  ("Storage account connections"); `requirements.md` (new IDs); `roadmap.md` (mark shipped).
 
 ## Decisions taken (defaults — overridable)
 

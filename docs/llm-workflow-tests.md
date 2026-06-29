@@ -444,6 +444,6 @@ save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.
 | REQ-RENDER-11 | structure (`editor/markers.dom.test.ts`) | WF-25 (reveal = syntax style) |
 | REQ-RENDER-7 | unit (`render-mode.test.ts`, `render-mode-cycle.test.ts`) | WF-26 (toggle survives focus drift) |
 
-The three former [traceability.md](traceability.md) gaps with no automated test
+The three former [requirements.md](requirements.md) gaps with no automated test
 (REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest
 gain a live-behavior layer on top of their structural unit tests.
