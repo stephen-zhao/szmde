@@ -35,7 +35,12 @@ fn write_atomic(target: &std::path::Path, content: &str) -> Result<(), String> {
     // temp file (which one could truncate or delete out from under the other).
     static TMP_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let seq = TMP_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let tmp = dir.join(format!(".{}.{}.{}.szmde-tmp", name, std::process::id(), seq));
+    let tmp = dir.join(format!(
+        ".{}.{}.{}.szmde-tmp",
+        name,
+        std::process::id(),
+        seq
+    ));
 
     std::fs::write(&tmp, content.as_bytes()).map_err(|e| e.to_string())?;
     if let Err(e) = std::fs::rename(&tmp, target) {
@@ -126,7 +131,8 @@ fn settings_path(base: &std::path::Path, which: &str) -> Option<std::path::PathB
 #[tauri::command]
 fn read_settings_file(app: tauri::AppHandle, which: String) -> Result<Option<String>, String> {
     let base = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    let path = settings_path(&base, &which).ok_or_else(|| format!("unknown settings file: {which}"))?;
+    let path =
+        settings_path(&base, &which).ok_or_else(|| format!("unknown settings file: {which}"))?;
     read_optional(&path)
 }
 
@@ -389,7 +395,11 @@ struct Cli {
 /// Parse argv (program name already stripped). `Err(code)` means the caller
 /// should exit with that process code (0 for --help/--version, non-zero on bad args).
 fn parse_cli<I: Iterator<Item = String>>(args: I, cwd: Option<&str>) -> Result<Cli, i32> {
-    let mut cli = Cli { file: None, new_window: false, render_mode: None };
+    let mut cli = Cli {
+        file: None,
+        new_window: false,
+        render_mode: None,
+    };
     let mut it = args;
     while let Some(a) = it.next() {
         match a.as_str() {
@@ -405,7 +415,9 @@ fn parse_cli<I: Iterator<Item = String>>(args: I, cwd: Option<&str>) -> Result<C
             "--render-mode" => match it.next() {
                 Some(v) if RENDER_MODES.contains(&v.as_str()) => cli.render_mode = Some(v),
                 Some(v) => {
-                    eprintln!("szmde: invalid --render-mode '{v}' (expected one of {RENDER_MODES:?})");
+                    eprintln!(
+                        "szmde: invalid --render-mode '{v}' (expected one of {RENDER_MODES:?})"
+                    );
                     return Err(2);
                 }
                 None => {
@@ -445,7 +457,10 @@ fn resolve_path(arg: &str, cwd: Option<&str>) -> String {
         return arg.to_string();
     }
     match cwd {
-        Some(cwd) => std::path::Path::new(cwd).join(p).to_string_lossy().into_owned(),
+        Some(cwd) => std::path::Path::new(cwd)
+            .join(p)
+            .to_string_lossy()
+            .into_owned(),
         None => arg.to_string(),
     }
 }
@@ -504,7 +519,9 @@ pub fn run() {
 
     // First-launch CLI: this process runs in the invoking shell's cwd, so
     // current_dir() is the right base for relative paths.
-    let cwd = std::env::current_dir().ok().map(|p| p.to_string_lossy().into_owned());
+    let cwd = std::env::current_dir()
+        .ok()
+        .map(|p| p.to_string_lossy().into_owned());
     let cli = match parse_cli(std::env::args().skip(1), cwd.as_deref()) {
         Ok(c) => c,
         Err(code) => std::process::exit(code),
@@ -579,7 +596,10 @@ mod tests {
     use super::*;
 
     fn args(v: &[&str]) -> std::vec::IntoIter<String> {
-        v.iter().map(|s| s.to_string()).collect::<Vec<_>>().into_iter()
+        v.iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 
     #[test]
@@ -611,7 +631,10 @@ mod tests {
 
     #[test]
     fn parse_cli_invalid_render_mode_is_usage_error() {
-        assert_eq!(parse_cli(args(&["--render-mode", "nope"]), None).unwrap_err(), 2);
+        assert_eq!(
+            parse_cli(args(&["--render-mode", "nope"]), None).unwrap_err(),
+            2
+        );
     }
 
     #[test]
@@ -674,7 +697,11 @@ mod tests {
     fn write_file_leaves_no_temp_residue() {
         let dir = std::env::temp_dir().join(format!("szmde-tmpcheck-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        write_file(dir.join("note.md").to_string_lossy().into_owned(), "x".into()).unwrap();
+        write_file(
+            dir.join("note.md").to_string_lossy().into_owned(),
+            "x".into(),
+        )
+        .unwrap();
         let residue = std::fs::read_dir(&dir)
             .unwrap()
             .filter_map(|e| e.ok())
@@ -694,7 +721,10 @@ mod tests {
     fn settings_path_maps_known_files_and_rejects_unknown() {
         let base = std::path::Path::new("/cfg");
         assert_eq!(settings_path(base, "user"), Some(base.join("user.json")));
-        assert_eq!(settings_path(base, "system"), Some(base.join("system.json")));
+        assert_eq!(
+            settings_path(base, "system"),
+            Some(base.join("system.json"))
+        );
         assert_eq!(settings_path(base, "bogus"), None);
     }
 
@@ -705,7 +735,10 @@ mod tests {
         let user = settings_path(&dir, "user").unwrap();
         assert_eq!(read_optional(&user).unwrap(), None); // absent → None, not Err
         write_atomic(&user, "{\"version\":1}").unwrap();
-        assert_eq!(read_optional(&user).unwrap(), Some("{\"version\":1}".to_string()));
+        assert_eq!(
+            read_optional(&user).unwrap(),
+            Some("{\"version\":1}".to_string())
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -741,14 +774,20 @@ mod tests {
         assert_eq!(meta.content, "abc");
         assert!(meta.rev.ends_with("-3"), "len 3 in rev: {}", meta.rev);
         // stat_file on the same unchanged file yields the identical rev.
-        assert_eq!(stat_file(p.clone()).unwrap().as_deref(), Some(meta.rev.as_str()));
+        assert_eq!(
+            stat_file(p.clone()).unwrap().as_deref(),
+            Some(meta.rev.as_str())
+        );
         let _ = std::fs::remove_file(&f);
     }
 
     #[test]
     fn stat_file_is_none_for_a_missing_path() {
         let missing = std::env::temp_dir().join("szmde-absent-rev-xyz.md");
-        assert_eq!(stat_file(missing.to_string_lossy().into_owned()).unwrap(), None);
+        assert_eq!(
+            stat_file(missing.to_string_lossy().into_owned()).unwrap(),
+            None
+        );
     }
 
     // --- [REQ-SEC-1] OS secure store --------------------------------------
@@ -784,7 +823,10 @@ mod tests {
     fn parse_redirect_percent_decodes_values() {
         // Google often percent-encodes the `/` in the code as %2F.
         let req = "GET /?state=s1&code=4%2Fabc%20def HTTP/1.1\r\n\r\n";
-        assert_eq!(parse_redirect(req), Some(("4/abc def".to_string(), "s1".to_string())));
+        assert_eq!(
+            parse_redirect(req),
+            Some(("4/abc def".to_string(), "s1".to_string()))
+        );
     }
 
     #[test]
