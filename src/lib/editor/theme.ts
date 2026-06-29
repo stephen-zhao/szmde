@@ -35,6 +35,14 @@ export const baseTheme = EditorView.theme(
     ".cm-content": {
       caretColor: "var(--accent)",
       fontSize: "var(--editor-font-size)",
+      // REQ-RENDER-12 / REQ-ZOOM-4 — three columns: [fold chevron][marker gutter]
+      // [content]. The left two are reserved as padding so the chevron and the
+      // Syntax-mode hung markers live in their OWN lanes (no more overlap) and stay
+      // inside the reading column (never clipped off the left edge, even when the
+      // page width is maxed to the window). Sized off --editor-font-size so they
+      // scale with zoom; the gutter fits up to `######`'s small-grey prefix.
+      "--fold-col": "calc(var(--editor-font-size) * 1.7)",
+      "--marker-gutter": "calc(var(--editor-font-size) * 3.2)",
       // Reading-column width is driven by appearance.lineWidth (settings §8) via
       // --reading-width (px); falls back to 740px before settings load / on the
       // web. This is a max-width on an auto-width, margin-auto-centered block under
@@ -42,12 +50,15 @@ export const baseTheme = EditorView.theme(
       // exactly REQ-ZOOM-3: it grows up to --reading-width and centers; when the
       // window shrinks below that, auto width fills the container so the column
       // CLINGS to the window width (padding included, no overflow), then grows back
-      // out as the window widens. The px value is what's now adjustable up to the
-      // window width (Shift-scroll), which is the real change — no min()/padding
-      // math needed (border-box already counts the 28px padding inside the width).
+      // out as the window widens. border-box counts ALL the padding (incl. the two
+      // reserved columns) inside --reading-width, so the max page width (window
+      // width) keeps all three columns on-screen (REQ-ZOOM-4).
       maxWidth: "var(--reading-width, 740px)",
       margin: "0 auto",
-      padding: "72px 28px 40vh",
+      paddingTop: "72px",
+      paddingRight: "28px",
+      paddingBottom: "40vh",
+      paddingLeft: "calc(28px + var(--fold-col) + var(--marker-gutter))",
     },
     "&.cm-focused": { outline: "none" },
     ".cm-content ::selection": { backgroundColor: "var(--selection)" },
@@ -140,24 +151,16 @@ export const baseTheme = EditorView.theme(
     // paragraph font) so a heading's marker is the SAME small size as a
     // paragraph's, not enlarged by the inherited heading font-size. Explicit
     // weight/style override inherited bold/italic so it reads as a syntax token.
+    // This also styles the gutter-hung block-marker PREFIX (`#…`/`>`(s) + spaces),
+    // which is shifted into the marker-gutter column by the line's text-indent
+    // (RENDER-9/10/12, set in markers.ts) — the caret follows because text-indent
+    // moves the line's inline origin, not just the glyph. `white-space:pre` keeps
+    // the prefix's spaces (the measured gap that text flushes against).
     ".cm-md-mark-syntax": {
       color: "var(--faint)",
       fontWeight: "normal",
       fontStyle: "normal",
       fontSize: "calc(var(--editor-font-size) * 0.75)",
-      verticalAlign: "baseline",
-    },
-    // markers-syntax / Formatted-reveal RENDER-9/10: a block marker (#…/>) + its
-    // trailing space hangs in the LEFT gutter so the heading/quote text stays flush
-    // — while remaining real, editable, selectable text (not a replace widget) so
-    // the caret glides through it. It's an in-flow inline-block pulled left by
-    // `margin-left:-<own width>` (baked into the decoration in markers.ts, computed
-    // from a canvas measurement), giving zero net inline advance + a left overhang.
-    // `vertical-align:baseline` sits the small-grey marker on the heading/quote
-    // text baseline; `white-space:pre` keeps the trailing space, which is the gap
-    // between the marker and the content.
-    ".cm-md-mark-hang": {
-      display: "inline-block",
       verticalAlign: "baseline",
       whiteSpace: "pre",
     },
@@ -180,6 +183,10 @@ export const baseTheme = EditorView.theme(
     // --- Block constructs (headings / blockquote) ---------------------------
     // Heading size/weight come from the highlight tag; these add vertical
     // breathing room. Padding (measured by CM), never margin (cursor alignment).
+    // A foldable heading line (cm-foldhead, set by fold.ts on ATX AND setext lines)
+    // is position:relative so it's the containing block for its absolutely-positioned
+    // fold chevron (column A) — without it the chevron would anchor to the scroller.
+    ".cm-foldhead": { position: "relative" },
     ".cm-h1, .cm-h2": { paddingTop: "0.45em" },
     ".cm-h3, .cm-h4, .cm-h5, .cm-h6": { paddingTop: "0.3em" },
     // Blockquote: a left bar; consecutive quote lines stack into one continuous
@@ -341,24 +348,24 @@ export const baseTheme = EditorView.theme(
     // --- Folding (REQ-FOLD-1) -----------------------------------------------
     // A foldable heading's fold control, rendered as a real button chip (border +
     // raised fill) so it's clearly clickable and prominent in every render mode
-    // (no gutter → the centered reading column is preserved). It hangs in the
-    // heading's left padding via a negative margin, fully compensated by width +
-    // margin-right so the heading text still starts flush. Its font-size is pinned
-    // to the body size (NOT the heading's em), so the chip is the same, gutter-safe
-    // size on an h1 as on an h6.
+    // (no CM gutter → the centered reading column is preserved). REQ-RENDER-12: it
+    // lives in its OWN column (A), absolutely positioned just left of the marker
+    // gutter (B). Being out of the inline flow, it is NOT moved by the heading
+    // line's text-indent (which hangs the markers), so its lane is fixed regardless
+    // of heading depth — it never collides with a deep heading's `######` (the old
+    // negative-margin chevron did). The heading line is position:relative (below)
+    // so `left` is measured from the content edge; `left` reaches back across the
+    // gutter into column A. Font-size pinned to the body size (NOT the heading em).
     ".cm-fold-chevron": {
+      position: "absolute",
+      left: "calc(-1 * (var(--marker-gutter) + var(--fold-col)))",
+      top: "0.55em",
       display: "inline-flex",
       alignItems: "center",
       justifyContent: "center",
       boxSizing: "border-box",
-      width: "1.25em",
-      height: "1.25em",
-      // Sit at the far-left of the gutter so the hung Syntax-mode marker (which
-      // overhangs just left of the content edge) doesn't collide with it. Net
-      // inline advance stays 0 (width 1.25 − marginLeft 2.5 + marginRight 1.25)
-      // so the heading text is unaffected.
-      marginLeft: "-2.5em",
-      marginRight: "1.25em",
+      width: "1.45em",
+      height: "1.45em",
       border: "1px solid var(--border)",
       borderRadius: "5px",
       color: "var(--muted)",
@@ -367,7 +374,6 @@ export const baseTheme = EditorView.theme(
       userSelect: "none",
       fontSize: "calc(var(--editor-font-size) * 0.82)",
       lineHeight: "1",
-      verticalAlign: "middle",
     },
     ".cm-fold-chevron:hover": {
       color: "var(--text)",

@@ -4,7 +4,7 @@ import { EditorSelection, EditorState } from "@codemirror/state";
 import { cursorCharRight } from "@codemirror/commands";
 import { forceParsing } from "@codemirror/language";
 import { editorExtensions } from "./setup";
-import { markerAtomicRanges } from "./markers";
+import { markerAtomicRanges, remeasureMarkers } from "./markers";
 import type { RenderMode } from "./render-mode";
 
 // These assert on the RENDERED DOM (decorations/widgets), not just the document
@@ -176,13 +176,21 @@ describe("[REQ-RENDER-4] Syntax mode — rendered DOM", () => {
   });
 });
 
-describe("[REQ-RENDER-9] Syntax mode — block markers hang in the left margin (in-flow)", () => {
-  // Only the glyph run (`#…`/`>`) is the hung mark — a single uniform-highlight
-  // span pulled left by a per-decoration margin. The trailing space is a separate
-  // in-flow small-grey token (so the cursor stays navigable through it without the
-  // margin being applied twice). So `.cm-md-mark-hang` text is the glyphs only.
-  const hang = (v: EditorView) =>
-    Array.from(v.contentDOM.querySelectorAll(".cm-md-mark-hang"))
+describe("[REQ-RENDER-9][REQ-RENDER-12] Syntax mode — block markers hang in the gutter (in-flow)", () => {
+  // The block-marker prefix (`#…`/`>`(s) + spaces) is small-greyed (.cm-md-mark-syntax)
+  // and the LINE is text-indented by the prefix's measured width, so the markers hang
+  // in the gutter column while the content stays flush AND the caret follows (the
+  // text-indent moves the line's inline origin, not just the glyph — the WebView2
+  // caret fix). happy-dom has no canvas, so the indent value is 0 here (the pixel
+  // shift is verified live, WF-24); we assert the structure: a text-indent line deco
+  // is present, the prefix is small-grey, and it's in-flow editable (not atomic).
+  const lineEl = (v: EditorView, n = 0) => v.contentDOM.querySelectorAll(".cm-line")[n] as HTMLElement;
+  const hasIndent = (v: EditorView, n = 0) => (lineEl(v, n)?.getAttribute("style") || "").includes("text-indent");
+  // The small-grey prefix is ONE mark decoration but CM splits it into several DOM
+  // spans at highlight boundaries (`#` vs the heading-text space); count the joined
+  // text, not the span count, to assert the whole prefix is small-greyed.
+  const syntaxText = (v: EditorView, n = 0) =>
+    Array.from(lineEl(v, n)?.querySelectorAll(".cm-md-mark-syntax") ?? [])
       .map((e) => e.textContent)
       .join("");
   // The cm-widgetBuffer zero-width spans are inserted by CM around REPLACE/WIDGET
@@ -196,10 +204,10 @@ describe("[REQ-RENDER-9] Syntax mode — block markers hang in the left margin (
     return total;
   };
 
-  it("hangs a heading marker glyph as in-flow editable text, space kept as a token", () => {
+  it("hangs a heading marker prefix as in-flow editable text via a line text-indent", () => {
     const v = build("# Heading", "markers-syntax", 0);
-    expect(hang(v)).toBe("#"); // the glyph run is the hung mark (space is separate)
-    expect(count(v, ".cm-md-mark-hang")).toBe(1);
+    expect(hasIndent(v)).toBe(true); // the line carries the gutter text-indent deco
+    expect(syntaxText(v)).toBe("# "); // the whole `# ` prefix is small-grey
     expect(lineText(v, 0)).toBe("# Heading"); // full marker + space + text all present
     // In-flow (bugs B2/B6): the marker is a mark, so no widget buffers wrap it and
     // nothing is atomic — the caret glides into '#'/space, and they're selectable.
@@ -207,81 +215,116 @@ describe("[REQ-RENDER-9] Syntax mode — block markers hang in the left margin (
     expect(atomicSize(v)).toBe(0);
   });
 
-  it("hangs a deeper heading marker ('###') as a single span", () => {
+  it("hangs a deeper heading marker ('###') with the whole prefix + one indent", () => {
     const v = build("### Deep", "markers-syntax", 0);
-    expect(hang(v)).toBe("###"); // all hashes in ONE hang span (uniform highlight)
-    expect(count(v, ".cm-md-mark-hang")).toBe(1);
+    expect(hasIndent(v)).toBe(true);
+    expect(syntaxText(v)).toBe("### "); // `### ` prefix small-grey
     expect(lineText(v, 0)).toBe("### Deep");
   });
 
   it("hangs a blockquote marker ('>') and keeps it in-flow (bug B6)", () => {
     const v = build("> quote", "markers-syntax", 0);
-    expect(hang(v)).toBe(">");
+    expect(hasIndent(v)).toBe(true);
+    expect(syntaxText(v)).toBe("> ");
     expect(lineText(v, 0)).toBe("> quote");
     expect(widgetBuffers(v)).toBe(0);
     expect(atomicSize(v)).toBe(0);
   });
 
-  it("hangs each '>' of a nested blockquote as its own span, all in-flow", () => {
+  it("hangs a nested blockquote's whole prefix once ('> > '), all in-flow", () => {
     const v = build("> > deep", "markers-syntax", 0);
-    expect(hang(v)).toBe(">>"); // two glyph spans (one per QuoteMark)
-    expect(count(v, ".cm-md-mark-hang")).toBe(2);
+    expect(hasIndent(v)).toBe(true);
+    expect(syntaxText(v)).toBe("> > "); // the whole `> > ` prefix, one indent
     expect(lineText(v, 0)).toBe("> > deep");
     expect(widgetBuffers(v)).toBe(0);
   });
 
-  it("does NOT hang inline markers (they stay plain syntax tokens)", () => {
+  it("[bug] hangs an INDENTED heading (≤3 leading spaces — valid CommonMark ATX)", () => {
+    // The old `^`-anchored regex matched only column-0 markers, so `   # x` (lezer
+    // parses it as a real ATXHeading) rendered full-size, never greyed/hung.
+    const v = build("   # indented", "markers-syntax", 0);
+    expect(hasIndent(v)).toBe(true);
+    expect(syntaxText(v)).toBe("   # "); // leading indent + marker + space hang together
+  });
+
+  it("[bug] hangs an INDENTED blockquote marker too", () => {
+    const v = build("  > quote", "markers-syntax", 0);
+    expect(hasIndent(v)).toBe(true);
+    expect(syntaxText(v)).toBe("  > ");
+  });
+
+  it("[bug] does NOT grey/over-indent a CONTENT '#' after the heading marker", () => {
+    // `# # heading`: lezer marks only the first `#`; the second is content. A naive
+    // `[>#]+` greyed both and over-indented — the prefix must stop at the real marker.
+    const v = build("# # heading", "markers-syntax", 0);
+    expect(hasIndent(v)).toBe(true);
+    expect(syntaxText(v)).toBe("# "); // only the leading `# `, not the content `#`
+  });
+
+  it("[bug] does NOT grey a content '#' inside a blockquote ('> #tag')", () => {
+    // `#tag` has no space → not a heading → content; only the `>` is a block marker.
+    const v = build("> #tag here", "markers-syntax", 0);
+    expect(syntaxText(v)).toBe("> ");
+  });
+
+  it("does NOT hang inline markers (they stay plain syntax tokens, no line indent)", () => {
     const v = build("a **bold**", "markers-syntax", 0);
-    expect(count(v, ".cm-md-mark-hang")).toBe(0);
+    expect(hasIndent(v)).toBe(false); // no block marker on the line → no gutter indent
     expect(count(v, ".cm-md-mark-syntax")).toBeGreaterThan(0);
   });
 
-  it("emits no hang decorations in Source mode, nor in Clean mode off the line", () => {
-    expect(count(build("# H", "markers-rendered", 0), ".cm-md-mark-hang")).toBe(0);
+  it("emits no gutter indent in Source mode, nor in Clean mode off the line", () => {
+    expect(hasIndent(build("# H", "markers-rendered", 0))).toBe(false);
     // Clean mode with the caret on ANOTHER line → marker hidden, not hung.
-    expect(count(build("para\n# H", "clean", 0), ".cm-md-mark-hang")).toBe(0);
+    expect(hasIndent(build("para\n# H", "clean", 0), 1)).toBe(false);
   });
 
-  it("does NOT hang a setext underline (it's not a leading ATX marker)", () => {
+  it("treats a setext underline as a plain in-place token, NOT a gutter-hung block marker", () => {
     const v = build("Title\n=====", "markers-syntax", 0);
-    expect(count(v, ".cm-md-mark-hang")).toBe(0); // the ===== underline isn't hung
-    expect(count(v, ".cm-md-mark-syntax")).toBeGreaterThan(0); // shown as a plain token
+    expect(hasIndent(v, 0)).toBe(false); // Title line: no marker
+    expect(hasIndent(v, 1)).toBe(false); // underline is NOT gutter-hung (ATX-only exclusion)
+    expect(syntaxText(v, 1)).toBe("====="); // shown small-grey IN PLACE (proves the exclusion)
   });
 
   it("hangs only the OPENING marker of an ATX heading with a closing #", () => {
     const v = build("# H #", "markers-syntax", 0);
-    expect(hang(v)).toBe("#"); // only the leading '#', not the trailing closing #
-    expect(count(v, ".cm-md-mark-hang")).toBe(1);
-    // The closing '#' is a non-block HeaderMark → small-grey token, not hung.
-    expect(count(v, ".cm-md-mark-syntax")).toBeGreaterThan(count(v, ".cm-md-mark-hang"));
+    expect(hasIndent(v)).toBe(true);
+    // The leading prefix `# ` is hung; the trailing closing `#` is a non-block
+    // HeaderMark → a plain in-place small-grey token. Both are small-grey, so the
+    // joined syntax text is `# ` + `#`; the gutter indent reflects ONLY the prefix.
+    expect(syntaxText(v)).toBe("# #");
   });
 
   it("keeps the hung marker's DOM stable across an unrelated edit", () => {
     const v = build("# Heading", "markers-syntax", 0);
-    const before = v.contentDOM.querySelector(".cm-md-mark-hang");
-    expect(before?.textContent).toBe("#");
+    expect(hasIndent(v)).toBe(true);
+    expect(syntaxText(v)).toBe("# ");
     v.dispatch({ changes: { from: v.state.doc.length, insert: "!" } }); // edit far from the marker
     forceParsing(v, v.state.doc.length, 5000);
-    expect(v.contentDOM.querySelector(".cm-md-mark-hang")?.textContent).toBe("#");
+    expect(hasIndent(v)).toBe(true);
+    expect(syntaxText(v)).toBe("# ");
   });
 });
 
 describe("[REQ-RENDER-11] Formatted mode — reveal-on-cursor renders Syntax-style markers", () => {
-  const hang = (v: EditorView) =>
-    Array.from(v.contentDOM.querySelectorAll(".cm-md-mark-hang"))
+  const lineEl = (v: EditorView, n = 0) => v.contentDOM.querySelectorAll(".cm-line")[n] as HTMLElement;
+  const hasIndent = (v: EditorView, n = 0) => (lineEl(v, n)?.getAttribute("style") || "").includes("text-indent");
+  const syntaxText = (v: EditorView, n = 0) =>
+    Array.from(lineEl(v, n)?.querySelectorAll(".cm-md-mark-syntax") ?? [])
       .map((e) => e.textContent)
       .join("");
 
-  it("reveals a heading marker as a hung Syntax-style mark, not a raw literal", () => {
+  it("reveals a heading marker as a gutter-hung Syntax-style prefix, not a raw literal", () => {
     const v = build("# Heading", "clean", 2); // caret on the heading line
-    expect(hang(v)).toBe("#"); // hung glyph, exactly like Syntax mode
-    expect(count(v, ".cm-md-mark-hang")).toBe(1);
+    expect(hasIndent(v)).toBe(true); // hung in the gutter, exactly like Syntax mode
+    expect(syntaxText(v)).toBe("# ");
     expect(lineText(v, 0)).toBe("# Heading");
   });
 
-  it("reveals a blockquote marker as a hung Syntax-style mark", () => {
+  it("reveals a blockquote marker as a gutter-hung Syntax-style prefix", () => {
     const v = build("> quote", "clean", 3);
-    expect(hang(v)).toBe(">");
+    expect(hasIndent(v)).toBe(true);
+    expect(syntaxText(v)).toBe("> ");
   });
 
   it("reveals an inline emphasis marker as a small-grey Syntax token", () => {
@@ -356,13 +399,15 @@ describe("cursor gliding across markers — document-flow contract", () => {
     expect(atomicCovers(build("ab\n# Heading", "markers-syntax", 0), 4)).toBe(false);
   });
 
-  it("the hung marker's offset is carried by the DECORATION (re-applied on every render)", () => {
+  it("the gutter hang is carried by a line DECORATION (re-applied on every render)", () => {
     // Regression guard for the cursor-jump bug: the left-shift must be an attribute
-    // on the decoration (so CM re-applies it on each line re-render), NOT a style
-    // mutated by a post-layout plugin (which CM blows away on re-render).
+    // on a decoration (so CM re-applies it on each line re-render), NOT a style
+    // mutated by a post-layout plugin (which CM blows away on re-render). It's now a
+    // `text-indent` line decoration — which (unlike the old per-marker margin) also
+    // moves the caret, since it shifts the line's inline origin.
     const v = build("# Heading", "markers-syntax", 0);
-    const hangEl = v.contentDOM.querySelector(".cm-md-mark-hang");
-    expect(hangEl?.getAttribute("style") || "").toContain("margin-left");
+    const line = v.contentDOM.querySelector(".cm-line") as HTMLElement;
+    expect(line?.getAttribute("style") || "").toContain("text-indent");
   });
 });
 
@@ -457,5 +502,20 @@ describe("markerAtomicRanges — hidden markers become atomic", () => {
     const fns = view.state.facet(EditorView.atomicRanges);
     expect(fns.length).toBe(1);
     expect(fns[0](view).size).toBe(0);
+  });
+});
+
+describe("[REQ-RENDER-9] remeasureMarkers effect rebuilds the gutter", () => {
+  // The font-change watcher (remeasureOnFontChange, a browser-only ViewPlugin) is
+  // v8-ignored and verified live (WF-24); here we lock the effect→rebuild contract
+  // it depends on: dispatching remeasureMarkers re-runs the decoration build (so a
+  // new font metric takes effect) without throwing and with the markers intact.
+  it("rebuilds marker decorations on the effect, markers still hung & correct", () => {
+    const v = build("# Heading", "markers-syntax", 0);
+    const line = () => v.contentDOM.querySelector(".cm-line") as HTMLElement;
+    expect((line().getAttribute("style") || "")).toContain("text-indent");
+    v.dispatch({ effects: remeasureMarkers.of(null) }); // the path remeasureOnFontChange fires
+    expect((line().getAttribute("style") || "")).toContain("text-indent");
+    expect(lineText(v, 0)).toBe("# Heading");
   });
 });

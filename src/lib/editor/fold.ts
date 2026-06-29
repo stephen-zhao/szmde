@@ -80,6 +80,13 @@ function isHeadingLine(state: EditorState, lineFrom: number): boolean {
   return false;
 }
 
+// A line decoration making each chevron's line the containing block (position
+// :relative) for the chevron, which is absolutely positioned in its own column.
+// Applied via this class (not the heading-size `.cm-h*` classes) so it also covers
+// SETEXT headings — which get a chevron but NO `.cm-h*` class (blocks.ts only
+// classes ATX), so an absolute chevron would otherwise escape to the scroller.
+const foldHeadLine = Decoration.line({ class: "cm-foldhead" });
+
 function buildChevrons(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const { state } = view;
@@ -88,6 +95,8 @@ function buildChevrons(view: EditorView): DecorationSet {
     while (pos <= to) {
       const line = state.doc.lineAt(pos);
       if (isHeadingLine(state, line.from) && foldable(state, line.from, line.to)) {
+        // Line deco first (it sorts before the side:-1 widget at the same position).
+        builder.add(line.from, line.from, foldHeadLine);
         builder.add(
           line.from,
           line.from,

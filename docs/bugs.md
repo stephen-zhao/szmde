@@ -19,12 +19,17 @@ _None._
 
 | Area | Limitation | Why accepted |
 |------|-----------|--------------|
-| Syntax-mode markers | Nested quotes (`> >`) / quoted headings (`> #`) overlap their hung markers in the gutter | Cost of keeping markers in the document flow (REQ-RENDER-9 B2/B6); a single widget would fix the visual but break editability |
-| Syntax-mode markers | Very deep headings (`#####`/`######`) overhang far left and can overlap the fold chevron | The gutter is narrower than a 5–6 char marker; deep headings are rare |
+| Syntax-mode markers | An EXTREME combined prefix — a quoted deep heading (`> ###### `) or 4+ nested quotes (`> > > > `) — can exceed the marker-gutter width (`--marker-gutter`, sized for `######` / `> >`) and reach a few px into the fold-chevron column | The gutter is sized for the common cases; these prefixes are very rare. (The previous, much commoner overlaps — any nested quote, and `#####`/`######` colliding with the chevron — are now FIXED by the 3-column layout, REQ-RENDER-12.) |
+| Syntax-mode markers | A TAB inside a block-marker prefix (e.g. `>\tquote`) makes the gutter text-indent slightly off — canvas `measureText` doesn't expand tabs to tab stops the way layout does | A tab right after a marker is unusual; the misalignment is a few px. Headings are unaffected (lezer doesn't admit a tab there). |
+| Folding | A foldable heading INSIDE a blockquote (`> # h`) has its chevron shifted right by the blockquote's bar padding vs a plain heading's chevron | The chevron anchors to its line's padding box; a quoted *foldable* heading is rare and the offset is ~bar-padding small. |
 
 ## Fixed
 
-### M4 feedback — round 3 (2026-06-28)
+### M4 feedback — round 4 (2026-06-28)
+
+| ID | Title | REQ | Notes |
+|----|-------|-----|-------|
+| BUG-CARET-MARGIN | (Syntax / Formatted-reveal) the native caret rendered at the left margin instead of in the gutter, just before a hung block marker — only the *rendering* (the document flow was already correct). Root cause: the caret for "before `#`" attaches to the line's inline content ORIGIN, but the negative-margin hang moved only the marker GLYPH, leaving the origin at the margin. Engine-dependent (some Chromium builds drew it at the glyph, WebView2 at the margin); CM's own `RectangleMarker` cursor also placed it at the margin (46 vs the glyph at 37), so swapping to a CM-drawn cursor did NOT help. | REQ-RENDER-9 | Replaced the per-marker negative margin with a per-LINE `text-indent` equal to the marker prefix's measured width: text-indent shifts the inline origin itself, so the native caret follows the glyph into the gutter in EVERY engine (no custom cursor needed). Re-architected the left edge into 3 columns — [chevron][marker gutter][content] (REQ-RENDER-12) — so the fold chevron has its own lane (no longer overlaps deep `######`) and nothing clips when the page width is maxed (REQ-ZOOM-4). Re-measured on font load / size change so a customizable font stays aligned. Verified live (WF-24): caret sits at the glyph left (`caretRectX == coordsX == glyph.left`), glides smoothly through the marker, `######` clears the chevron by ~19px, text flush, columns visible at min & max width. **Awaiting user confirmation in WebView2.** |
 
 | ID | Title | REQ | Notes |
 |----|-------|-----|-------|

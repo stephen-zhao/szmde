@@ -30,7 +30,7 @@ import {
   renderModeCompartment,
   type RenderMode,
 } from "./render-mode";
-import { markerDecorations, markerAtomicRanges } from "./markers";
+import { markerDecorations, markerAtomicRanges, remeasureOnFontChange } from "./markers";
 import { blockConstructDecorations } from "./blocks";
 import { hrExtension } from "./hr";
 import { taskDecorations, taskAtomicRanges } from "./tasks";
@@ -392,6 +392,7 @@ export function editorExtensions(
     // then wins over a heading's enclosing 1.9em span instead of compounding.
     Prec.highest(markerDecorations),
     markerAtomicRanges,
+    remeasureOnFontChange,
     searchExtension,
     foldExtension,
     revealCursorInCodeBox,

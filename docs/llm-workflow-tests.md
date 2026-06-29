@@ -333,25 +333,36 @@ chosen width**; on a wider window the gesture can reach a larger max; a plain sc
 still scrolls normally; both values persist across an app reload; Ctrl+wheel doesn't
 trigger the WebView's native page-zoom.
 
-### WF-24 · Syntax-mode marker margin overhang · `REQ-RENDER-9` / `REQ-RENDER-10`
+### WF-24 · Syntax-mode marker gutter + 3-column layout · `REQ-RENDER-9` / `REQ-RENDER-10` / `REQ-RENDER-12` / `REQ-ZOOM-4`
 **Why:** decoration structure + in-flow proof (no widget-buffer, zero atomic) are
-dom-tested; the actual right-alignment, baseline, flush text + no-clipping, and
-cursor navigation INTO the hung marker need real layout.
-**Setup:** Syntax mode, a doc with `#`..`######` headings + a `>` quote +
-paragraphs.
-**Steps:** each marker hangs in the left gutter with its right edge near the content
-margin, heading/quote text starts ~flush with paragraph text, nothing clips at the
-left; **the small-grey marker sits on the SAME baseline as the heading/quote text
-(its bottom aligns), not floated to the top** (REQ-RENDER-10). **Cursor-glide (the
-core check):** put the caret at the END of the line BEFORE a heading and press →;
-the caret lands in the GUTTER, just left of the first `#` (not at the margin, not
-past the hashes). Keep pressing → : it steps through each `#`, the space, then the
-heading text — one position at a time, no jumps. Crucially, **move the caret on/off
-the heading repeatedly and scroll: the `#` must stay put in the gutter every time**
-(the bug was it flicking between gutter and margin as lines re-rendered, dragging
-the caret with it). Same for a `>` quote. It holds when `--editor-font-size`
-changes (Ctrl+scroll). _Known cosmetic limit: nested quotes (`> >`) / quoted
-headings (`> #`) overlap their hung markers in the gutter._
+dom-tested; the actual gutter hang, baseline, flush text, the caret landing in the
+gutter, the 3 columns, and no-clipping need real layout — and the native-caret
+position is engine-dependent, so this is also the **WebView2** confirmation that the
+text-indent fix lands the caret in the gutter (where some Chromium builds masked the
+bug).
+**Setup:** Syntax mode, a doc with `#`..`######` headings (each with a body so they
+fold) + a `>` quote + `> >` nested quote + paragraphs.
+**Steps:**
+- **Columns (REQ-RENDER-12):** three lanes left-to-right — fold-chevron, marker
+  gutter, content. The chevron sits in its OWN column at the SAME x for every
+  heading level (`#` through `######`); the small-grey marker prefix hangs in the
+  gutter; heading/quote text is flush with paragraph text. The `######` markers must
+  NOT touch the chevron (there's a clear gap) — the old deep-heading/chevron overlap
+  is gone. The marker sits on the SAME baseline as the heading text (REQ-RENDER-10).
+- **Caret in the gutter (the core fix, REQ-RENDER-9):** put the caret at the END of
+  the line BEFORE a heading and press →; the caret lands in the GUTTER, just left of
+  the first `#` (NOT at the margin, NOT past the hashes). This is the WebView2 bug —
+  confirm it's now correct there. Keep pressing → : it steps through each `#`, the
+  space, then the heading text — one position at a time, no jumps. Move the caret
+  on/off the heading repeatedly and scroll: the `#` stays put and the caret tracks
+  it every time. Same for a `>` quote.
+- **Page width (REQ-ZOOM-4):** Shift+scroll the page width out to the window max —
+  the chevron + markers stay fully visible (never clip off the left edge), no
+  horizontal scrollbar appears.
+- It all holds when `--editor-font-size` changes (Ctrl+scroll) and with a custom
+  font family — the gutter re-measures so text stays flush.
+_Residual cosmetic limit: an extreme combined prefix (`> ###### `, or 4+ nested
+quotes) can reach a few px into the chevron column._
 
 ### WF-25 · Formatted-mode reveal renders Syntax-style markers · `REQ-RENDER-11`
 **Why:** the decoration choice is dom-tested; the live look/feel of a revealed
@@ -423,8 +434,10 @@ save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.
 | REQ-FOLD-2 | structure (`editor/fold.dom.test.ts`) | WF-22 (button prominence) |
 | REQ-ZOOM-1/2 | logic (`editor/zoom.test.ts`) | WF-23 (scroll zoom/width) |
 | REQ-ZOOM-3 | logic (`editor/zoom.test.ts`) | WF-23 (window-relative width) |
-| REQ-RENDER-9 | structure (`editor/markers.dom.test.ts`) | WF-24 (margin overhang, in-flow) |
+| REQ-ZOOM-4 | — (visual gap) | WF-24 (columns stay visible at max width) |
+| REQ-RENDER-9 | structure (`editor/markers.dom.test.ts`) | WF-24 (gutter hang, in-flow, caret-in-gutter) |
 | REQ-RENDER-10 | — (visual gap) | WF-24 (baseline alignment) |
+| REQ-RENDER-12 | structure (`markers.dom.test.ts`, `fold.dom.test.ts`) | WF-24 (3-column layout, no overlap) |
 | REQ-RENDER-11 | structure (`editor/markers.dom.test.ts`) | WF-25 (reveal = syntax style) |
 | REQ-RENDER-7 | unit (`render-mode.test.ts`, `render-mode-cycle.test.ts`) | WF-26 (toggle survives focus drift) |
 

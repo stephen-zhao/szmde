@@ -112,17 +112,26 @@ CSS vars apply automatically.
 preventDefault-only-when-handled) via synthetic events; `stepFontSize` clamp; `stepLineWidth`
 enum clamp. Live scroll feel + persistence → workflow.
 
-### S6 — Syntax-mode margin overhang ✅  (`REQ-RENDER-9`)
-In `markers.ts`'s `markers-syntax` branch, split block marks (HeaderMark/QuoteMark) from inline:
-emit a `Decoration.line` (`cm-md-hang-line`, `position:relative`) + a `Decoration.mark`
-(`cm-md-mark-syntax cm-md-mark-hang`) over `[from, to+trailingSpace]` (reuse the existing
-trailing-space trim helper). `theme.ts`: `.cm-md-hang-line{position:relative}` +
-`.cm-md-mark-hang{position:absolute; right:100%; white-space:pre; padding-right:0.25em}` —
-em-based, so the marker's own measured width sets how far it hangs, right-aligned to the margin
-with no px constant. Chars stay real/selectable (modes-2&3 rule). Headings + blockquotes only.
-**Tests** (`markers.dom.test.ts`): `.cm-md-mark-hang` text `"# "`/`"### "`/`"> "` in Syntax;
-chars stay in the line; `.cm-md-hang-line` on the line; NO hang in Clean/Source. Live
-right-alignment/flush-margin → workflow.
+### S6 — Syntax-mode marker gutter ✅  (`REQ-RENDER-9`/`-10`/`-12`)
+> **Superseded across M4 feedback rounds.** The original plan (a `position:absolute;
+> right:100%` `.cm-md-mark-hang`) top-floated the marker (B1) and, in later attempts, a
+> negative `margin-left` stranded the native caret at the margin in WebView2. The SHIPPED
+> design is a per-LINE `text-indent` (see [traceability.md](traceability.md) REQ-RENDER-9
+> and [bugs.md](bugs.md) BUG-CARET-MARGIN), inside a 3-column layout (REQ-RENDER-12).
+
+In `markers.ts`, `handleShownBlockLine` (shared by Syntax mode + Formatted reveal) greys the
+whole leading block-marker prefix (`#…`/`>`(s) + spaces, matched by `BLOCK_PREFIX`) with one
+`Decoration.mark` (`cm-md-mark-syntax`) and pulls the line left by the prefix's canvas-measured
+width via a `Decoration.line` `text-indent` — which moves the line's inline ORIGIN so the caret
+follows the glyph into the gutter in every engine. `theme.ts` reserves the chevron + marker
+columns as `.cm-content` left padding; the fold chevron is `position:absolute` in its own column
+(`.cm-foldhead{position:relative}` anchors it). Chars stay real/selectable (modes-2&3 rule);
+re-measured on font change (`remeasureOnFontChange`). Headings + blockquotes only.
+**Tests** (`markers.dom.test.ts`): line `text-indent` present + joined prefix syntax text
+`"# "`/`"### "`/`"> > "` (and indented `"   # "`, no content-`#` over-match) in Syntax/reveal;
+chars in-flow (no widget-buffer, zero atomic) + cursor-glide step-through; NO hang in
+Clean-off-line/Source; setext underline stays a plain token. Live gutter/flush/caret-in-gutter
++ columns + no-clip → WF-24.
 
 ## New / changed files (anticipated)
 
