@@ -349,6 +349,9 @@ fold) + a `>` quote + `> >` nested quote + paragraphs.
   gutter; heading/quote text is flush with paragraph text. The `######` markers must
   NOT touch the chevron (there's a clear gap) — the old deep-heading/chevron overlap
   is gone. The marker sits on the SAME baseline as the heading text (REQ-RENDER-10).
+  The arrow glyph (▾/▸) is CENTRED inside the chevron button at every depth — the
+  heading line's inherited `text-indent` is reset on the chevron so the glyph isn't
+  dragged out of the button (worse for deeper headings).
 - **Caret in the gutter (the core fix, REQ-RENDER-9):** put the caret at the END of
   the line BEFORE a heading and press →; the caret lands in the GUTTER, just left of
   the first `#` (NOT at the margin, NOT past the hashes). This is the WebView2 bug —

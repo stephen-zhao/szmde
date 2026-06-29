@@ -60,15 +60,21 @@ describe("[REQ-RENDER-2][REQ-RENDER-3] Clean (Formatted) mode — rendered DOM",
     expect(lineText(v, 0)).not.toContain("1.");
   });
 
-  it("hides a heading marker when the caret is on another line", () => {
-    const v = build("para\n# Heading", "clean", 0); // caret on line 1
-    expect(lineText(v, 1)).not.toContain("#");
+  it("renders an off-cursor heading marker TRANSPARENT + gutter-hung (present, not removed)", () => {
+    const v = build("para\n# Heading", "clean", 0); // caret on line 0
+    const line = v.contentDOM.querySelectorAll(".cm-line")[1] as HTMLElement;
+    // Present in flow but invisible (so revealing it → grey doesn't reflow the
+    // content — no jitter), and hung in the gutter so the heading reads flush.
+    expect(line.querySelector(".cm-md-mark-invisible")).not.toBeNull();
+    expect(line.getAttribute("style") || "").toContain("text-indent");
     expect(lineText(v, 1)).toContain("Heading");
   });
 
-  it("reveals the heading marker when the caret is on its line", () => {
+  it("reveals the heading marker as GREY (not transparent) when the caret is on its line", () => {
     const v = build("para\n# Heading", "clean", 6); // caret on the heading line
-    expect(lineText(v, 1)).toContain("#");
+    const line = v.contentDOM.querySelectorAll(".cm-line")[1] as HTMLElement;
+    expect(line.querySelector(".cm-md-mark-syntax")).not.toBeNull();
+    expect(line.querySelector(".cm-md-mark-invisible")).toBeNull(); // grey, not transparent
   });
 
   it("hides emphasis markers, leaving only the styled word", () => {
@@ -76,24 +82,35 @@ describe("[REQ-RENDER-2][REQ-RENDER-3] Clean (Formatted) mode — rendered DOM",
     expect(lineText(v, 0)).toBe("a bold c");
   });
 
-  it("[REQ-RENDER-8] hides the heading marker's trailing space too (heading text is flush)", () => {
-    const v = build("para\n# Heading", "clean", 0); // caret on line 0 → heading rendered
-    expect(lineText(v, 1)).toBe("Heading"); // no leading space from the `# `
+  // REQ-RENDER-8 (heading/quote text flush): the marker prefix (incl. its trailing
+  // space) hangs transparent in the gutter via text-indent, so the content reads
+  // flush — without the marker being removed (which is what used to jitter on reveal).
+  const offCursorLine = (doc: string, lineIdx: number) => {
+    const v = build(doc, "clean", 0); // caret on line 0, marker line off-cursor
+    return v.contentDOM.querySelectorAll(".cm-line")[lineIdx] as HTMLElement;
+  };
+
+  it("[REQ-RENDER-8] an off-cursor heading is flush via the gutter hang (marker transparent)", () => {
+    const line = offCursorLine("para\n# Heading", 1);
+    expect(line.getAttribute("style") || "").toContain("text-indent"); // flush via gutter
+    expect(line.querySelector(".cm-md-mark-invisible")).not.toBeNull(); // marker invisible
   });
 
-  it("[REQ-RENDER-8] hides the trailing space for deeper headings (## etc.)", () => {
-    const v = build("para\n### Deep", "clean", 0);
-    expect(lineText(v, 1)).toBe("Deep");
+  it("[REQ-RENDER-8] same for a deeper heading (###)", () => {
+    const line = offCursorLine("para\n### Deep", 1);
+    expect(line.getAttribute("style") || "").toContain("text-indent");
+    expect(line.querySelector(".cm-md-mark-invisible")).not.toBeNull();
   });
 
-  it("[REQ-RENDER-8] handles a heading marker with no trailing space (in-progress `#`)", () => {
-    const v = build("para\n#", "clean", 0);
-    expect(lineText(v, 1)).toBe(""); // `#` hidden; nothing to trim after it
+  it("[REQ-RENDER-8] handles a bare heading marker '#' (no trailing space)", () => {
+    const line = offCursorLine("para\n#", 1);
+    expect(line.querySelector(".cm-md-mark-invisible")).not.toBeNull();
   });
 
-  it("[REQ-RENDER-8] hides the blockquote marker's trailing space too (quote text is flush)", () => {
-    const v = build("para\n> quote", "clean", 0); // caret on line 0 → quote rendered
-    expect(lineText(v, 1)).toBe("quote"); // no leading space from the `> `
+  it("[REQ-RENDER-8] same for a blockquote marker", () => {
+    const line = offCursorLine("para\n> quote", 1);
+    expect(line.getAttribute("style") || "").toContain("text-indent");
+    expect(line.querySelector(".cm-md-mark-invisible")).not.toBeNull();
   });
 });
 
@@ -273,10 +290,10 @@ describe("[REQ-RENDER-9][REQ-RENDER-12] Syntax mode — block markers hang in th
     expect(count(v, ".cm-md-mark-syntax")).toBeGreaterThan(0);
   });
 
-  it("emits no gutter indent in Source mode, nor in Clean mode off the line", () => {
+  it("emits no gutter indent in Source mode (literal markers, no hang)", () => {
     expect(hasIndent(build("# H", "markers-rendered", 0))).toBe(false);
-    // Clean mode with the caret on ANOTHER line → marker hidden, not hung.
-    expect(hasIndent(build("para\n# H", "clean", 0), 1)).toBe(false);
+    // NB: Clean mode off-line DOES hang now — transparent, so reveal doesn't reflow
+    // (asserted in the Clean-mode describe). Source is the only mode with no hang.
   });
 
   it("treats a setext underline as a plain in-place token, NOT a gutter-hung block marker", () => {
@@ -389,14 +406,20 @@ describe("cursor gliding across markers — document-flow contract", () => {
     expect(atomicSize(v)).toBe(0);
   });
 
-  it("Clean mode: a hidden marker is atomic — caret can't rest inside it", () => {
-    // caret on line 1 → the '# ' on line 2 (positions 3..5) is hidden + atomic, so
-    // the caret skips it as a unit. pos 4 (between '#' and the space) is INSIDE the
-    // atomic range → unreachable; in Syntax mode the same position is reachable.
+  it("Clean mode: an off-cursor BLOCK marker is transparent-in-flow, NOT atomic (glides like Syntax)", () => {
+    // Block markers are no longer removed/atomic in Clean mode — they keep their slot
+    // (transparent) so revealing doesn't reflow, and the caret steps through them
+    // exactly as in Syntax mode (pos 4, between '#' and space, is reachable in both).
     const v = build("ab\n# Heading", "clean", 0);
-    expect(atomicSize(v)).toBeGreaterThan(0);
-    expect(atomicCovers(v, 4)).toBe(true);
+    expect(atomicCovers(v, 4)).toBe(false);
     expect(atomicCovers(build("ab\n# Heading", "markers-syntax", 0), 4)).toBe(false);
+  });
+
+  it("Clean mode: a hidden INLINE marker IS still atomic (only block markers changed)", () => {
+    // Inline markers are removed off-cursor (reserving their slot would leave gaps),
+    // so they stay atomic — the caret skips the hidden `**` as a unit.
+    const v = build("x **bold** y", "clean", 0); // caret off the construct
+    expect(atomicSize(v)).toBeGreaterThan(0);
   });
 
   it("the gutter hang is carried by a line DECORATION (re-applied on every render)", () => {
@@ -478,8 +501,10 @@ describe("markerAtomicRanges — hidden markers become atomic", () => {
   // The exported facet maps the view to the marker plugin's `hidden` RangeSet so
   // arrow keys skip hidden markers. It defends with `?? RangeSet.empty` when the
   // plugin isn't installed.
-  it("contributes an atomic range for a hidden marker in clean mode", () => {
-    const v = build("para\n# H", "clean", 0); // caret on line 1 → '# ' on line 2 hidden
+  it("contributes an atomic range for a hidden INLINE marker in clean mode", () => {
+    // Block markers are transparent-in-flow (non-atomic) now; inline markers (here
+    // the emphasis `**`) are still hidden + atomic off-cursor.
+    const v = build("a **b** c", "clean", 0);
     let total = 0;
     for (const fn of v.state.facet(EditorView.atomicRanges)) total += fn(v).size;
     expect(total).toBeGreaterThan(0);

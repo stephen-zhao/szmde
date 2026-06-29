@@ -164,6 +164,10 @@ export const baseTheme = EditorView.theme(
       verticalAlign: "baseline",
       whiteSpace: "pre",
     },
+    // Clean mode, block marker OFF the caret line: same hung prefix as cm-md-mark-
+    // syntax (so the slot/width is identical) but painted transparent, so revealing
+    // it (drop this class → grey) changes only colour and the content never reflows.
+    ".cm-md-mark-invisible": { color: "transparent" },
     // markers-syntax: a list marker (bullet dash / ordered number) is content, not
     // pure syntax, so it shows its literal in normal text style — not small-grey.
     ".cm-md-list-marker": { color: "var(--text)" },
@@ -360,6 +364,11 @@ export const baseTheme = EditorView.theme(
       position: "absolute",
       left: "calc(-1 * (var(--marker-gutter) + var(--fold-col)))",
       top: "0.55em",
+      // text-indent is inherited; the heading line carries a negative text-indent
+      // (the gutter hang, RENDER-9), which would otherwise drag the arrow GLYPH left
+      // out of the button (the absolutely-positioned box ignores it, the inline glyph
+      // doesn't). Reset it so the glyph centres in the chip at every heading depth.
+      textIndent: "0",
       display: "inline-flex",
       alignItems: "center",
       justifyContent: "center",

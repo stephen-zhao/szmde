@@ -124,6 +124,13 @@ function orderedNumberDeco(label: string): Decoration {
 
 const hide = Decoration.replace({});
 const syntaxMark = Decoration.mark({ class: "cm-md-mark-syntax" });
+// Clean mode, block marker OFF the caret line: the SAME gutter-hung prefix as the
+// grey revealed marker, but painted transparent. The marker keeps its slot in the
+// reserved gutter column, so revealing it (→ grey) only changes COLOUR — the
+// heading/quote content never reflows, killing the sub-pixel jitter that came from
+// adding the marker + text-indent on reveal vs removing them when hidden. Shares
+// cm-md-mark-syntax sizing so the transparent and grey prefixes are pixel-identical.
+const invisibleMark = Decoration.mark({ class: "cm-md-mark-syntax cm-md-mark-invisible" });
 
 // RENDER-9/10/12 (Syntax mode + Formatted reveal): a block marker (#…, >) + its
 // trailing space hangs in the LEFT "marker gutter" column so the heading/quote text
@@ -193,13 +200,6 @@ function markerFont(view: EditorView): string {
 // styling — never the small-grey syntax-token look (matches the task checkbox).
 const listMarkerNormal = Decoration.mark({ class: "cm-md-list-marker" });
 
-/** Length of the whitespace right after a block marker (the syntactic space after
- *  `#`/`>`), so the hidden (Clean) / hung (Syntax) range reaches the content. */
-function trailingWsLen(state: EditorState, from: number, to: number): number {
-  const line = state.doc.lineAt(from);
-  return /^[ \t]+/.exec(line.text.slice(to - line.from))?.[0].length ?? 0;
-}
-
 /** The leading block-marker prefix on a line, up to the first content char — its
  *  rendered width is the `text-indent` that hangs the markers in the gutter.
  *  Mirrors lezer's block-marker boundaries: an optional CommonMark indent (≤3
@@ -226,6 +226,7 @@ function handleShownBlockLine(
   lineNumber: number,
   handled: Set<number>,
   font: string,
+  mark: Decoration, // syntaxMark (grey) or invisibleMark (transparent, Clean off-line)
 ): void {
   if (handled.has(lineNumber)) return;
   handled.add(lineNumber);
@@ -234,7 +235,7 @@ function handleShownBlockLine(
   // marker the prefix is non-empty; bail on the (defensive, unreachable) empty case.
   const prefixLen = BLOCK_PREFIX.exec(text)?.[0].length ?? 0;
   if (prefixLen === 0) return;
-  decos.push(syntaxMark.range(lineFrom, lineFrom + prefixLen)); // small-grey markers + spaces
+  decos.push(mark.range(lineFrom, lineFrom + prefixLen)); // markers + spaces (grey or transparent)
   // text-indent = the prefix's rendered width (0 in happy-dom — no canvas 2d — so the
   // pixel shift is verified live; the deco is still emitted so its presence is tested).
   const w = Math.round(measureTextWidth(text.slice(0, prefixLen), font));
@@ -242,12 +243,14 @@ function handleShownBlockLine(
 }
 
 /**
- * Emit the "syntax-token" styling for a SHOWN managed marker, shared by Syntax mode
- * and Formatted-mode reveal-on-cursor (so a revealed marker looks/behaves exactly
- * like Syntax mode, never like a raw Source literal — RENDER #7):
+ * Emit GREY "syntax-token" styling for a SHOWN managed marker — Syntax mode, and
+ * Clean-mode inline reveal-on-cursor (so a revealed marker looks like Syntax mode,
+ * never a raw Source literal — RENDER #7):
  * - block marks (heading `#…` / quote `>`): a per-line gutter hang (text-indent +
- *   small-grey prefix), keeping the marker editable/selectable text;
- * - inline marks (`**`, `*`, `~~`, `` ` ``): a small-grey syntax token in place.
+ *   grey prefix), keeping the marker editable/selectable text;
+ * - inline marks (`**`, `*`, `~~`, `` ` ``): a grey syntax token in place.
+ * (Clean mode renders block markers via handleShownBlockLine directly, choosing grey
+ * vs transparent per the caret line — see the mode branch below.)
  */
 function pushShownMark(
   state: EditorState,
@@ -260,7 +263,7 @@ function pushShownMark(
 ): void {
   if (isBlockMark) {
     const line = state.doc.lineAt(from);
-    handleShownBlockLine(state, decos, line.from, line.number, handled, font);
+    handleShownBlockLine(state, decos, line.from, line.number, handled, font, syntaxMark);
   } else {
     decos.push(syntaxMark.range(from, to));
   }
@@ -471,29 +474,34 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
         if (rendered === undefined) return;
 
         if (mode === "clean") {
-          const revealed = isBlockMark
-            ? caretLines.has(state.doc.lineAt(node.from).number)
-            : caretPos.some(
-                (p) => p >= (parent ? parent.from : node.from) && p <= (parent ? parent.to : node.to),
-              );
-          if (!revealed) {
-            let to = node.to;
-            if (isBlockMark) {
-              // A fully-hidden block marker's trailing space(s) are syntax too —
-              // hide them so the content sits flush (no leading space) in Clean
-              // mode. Applies to headings (`# `) and blockquotes (`> `). (Bullets
-              // and ordered numbers keep their space — they show a glyph there.)
-              to += trailingWsLen(state, node.from, node.to);
-            }
-            decos.push(hide.range(node.from, to));
-            hiddenRanges.push(hide.range(node.from, to));
+          if (isBlockMark) {
+            // Block markers (heading `#…` / quote `>`) ALWAYS hang in the gutter
+            // (text-indent) in flow; revealing only flips colour grey↔transparent, so
+            // the heading/quote content NEVER reflows when the caret lands on the line
+            // — killing the sub-pixel jitter of add-marker+indent vs remove. They sit
+            // in the reserved gutter column, so an off-cursor transparent marker is
+            // invisible at zero layout cost. In flow ⇒ NOT atomic in Clean mode: the
+            // caret glides through them exactly as in Syntax mode (the cursor-glide
+            // contract), instead of skipping a removed marker.
+            const line = state.doc.lineAt(node.from);
+            const revealed = caretLines.has(line.number);
+            handleShownBlockLine(
+              state, decos, line.from, line.number, handledBlockLines, getFont(),
+              revealed ? syntaxMark : invisibleMark,
+            );
           } else {
-            // RENDER (#7): a revealed marker renders as a Syntax-style token — small
-            // grey for inline marks, a gutter-hung prefix for block marks — NOT a raw
-            // Source literal. It stays editable (a mark, never atomic) and the
-            // heading/quote text doesn't shift when the caret lands (the gutter is
-            // reserved in every mode, so the marker just appears in it).
-            pushShownMark(state, decos, node.from, node.to, isBlockMark, handledBlockLines, getFont());
+            // Inline markers are IN the text, so reserving their slot would leave
+            // visible gaps — keep them hidden (removed, atomic) off-cursor and shown
+            // (grey, RENDER #7) when a caret is within their construct.
+            const revealed = caretPos.some(
+              (p) => p >= (parent ? parent.from : node.from) && p <= (parent ? parent.to : node.to),
+            );
+            if (!revealed) {
+              decos.push(hide.range(node.from, node.to));
+              hiddenRanges.push(hide.range(node.from, node.to));
+            } else {
+              decos.push(syntaxMark.range(node.from, node.to));
+            }
           }
         } else if (mode === "markers-syntax") {
           pushShownMark(state, decos, node.from, node.to, isBlockMark, handledBlockLines, getFont());

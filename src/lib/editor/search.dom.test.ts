@@ -79,12 +79,15 @@ describe("[REQ-FR-1] find & replace", () => {
     expect(v.state.selection.main.from).toBe(4); // the lowercase 'foo', not 'Foo'
   });
 
-  it("selecting a match on a hidden Clean-mode marker line reveals the marker", () => {
-    // caret on line 0 → the '# ' on line 1 is hidden in Clean mode.
+  it("selecting a match on a Clean-mode marker line reveals (greys) the marker", () => {
+    // caret on line 0 → the '# ' on line 1 hangs TRANSPARENT in the gutter (present
+    // but invisible). A search selection landing on the line reveals it = greys it.
     const v = build("para\n# Heading", 0);
-    expect(v.contentDOM.querySelectorAll(".cm-line")[1]?.textContent).not.toContain("#");
+    const line = () => v.contentDOM.querySelectorAll(".cm-line")[1] as HTMLElement;
+    expect(line().querySelector(".cm-md-mark-invisible")).not.toBeNull(); // transparent off-cursor
     v.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: "Heading" })) });
-    findNext(v); // selection lands on the heading line → reveal-on-cursor shows '#'
-    expect(v.contentDOM.querySelectorAll(".cm-line")[1]?.textContent).toContain("#");
+    findNext(v); // selection lands on the heading line → reveal-on-cursor greys '#'
+    expect(line().querySelector(".cm-md-mark-invisible")).toBeNull(); // now grey, not transparent
+    expect(line().querySelector(".cm-md-mark-syntax")).not.toBeNull();
   });
 });
