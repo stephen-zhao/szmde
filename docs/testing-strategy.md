@@ -3,7 +3,7 @@
 _Status: **testing gate complete** (after M1, before M2; deferred E2E/LLM infra aside). See
 [SPEC.md §10](../SPEC.md). **T1 — done** (coverage tooling + ratchet; 100% lines + Rust units).
 **T2 — substantially in place** (editor integration tests); orchestration-needing cases deferred.
-**T3 — done** (catalog + matrix in [traceability.md](traceability.md); tests tagged with
+**T3 — done** (catalog + matrix in [requirements.md](requirements.md); tests tagged with
 `REQ-*` IDs; `npm run test:trace` audits the link). **T4 — in practice** (TDD). M2 is unblocked._
 
 ## Requirements
@@ -109,6 +109,6 @@ Enter bug was reproduced by a failing test (the realistic "sibling above" struct
 1. ✅ Add coverage tooling + reporting; set thresholds and ratchet toward 100% (T1).
 2. ✅ Backfill unit tests for existing modules to reach the threshold. ✅ `cargo test` for Rust units (14).
 3. ✅ Build the requirement catalog + traceability matrix; tag tests with requirement IDs (T3).
-   → [traceability.md](traceability.md) (28 requirements, 6 tracked gaps), `npm run test:trace`.
+   → [requirements.md](requirements.md) (28 requirements, 6 tracked gaps), `npm run test:trace`.
 4. ✅ Integration tests for critical combinations in place (render-mode × markers × keymap ×
    blocks, code-block wrap); E2E + Tauri-IPC orchestration cases noted as deferred (T2).

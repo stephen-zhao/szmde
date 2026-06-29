@@ -1,13 +1,13 @@
-# Requirement ↔ test traceability (T3)
+# Requirements registry
 
-> **This is the central requirements registry.** Bugs are tracked separately in
-> [bugs.md](bugs.md); see [INDEX.md](INDEX.md) for the full doc map.
+> **The central list of every product requirement (`REQ-*`) and the test(s) that cover it.**
+> Bugs are tracked separately in [bugs.md](bugs.md); see [INDEX.md](INDEX.md) for the full doc map.
 
-_The auditable map from product requirements to the tests that cover them
-([testing-strategy.md](testing-strategy.md) T3). Every implemented requirement has a stable
-`REQ-*` ID, links to its test(s), and is tagged in those tests so the audit is **automatable**:
-`node scripts/check-traceability.mjs` cross-checks the IDs catalogued here against the `[REQ-*]`
-tags in the test files and flags either side that's missing._
+_Every implemented requirement has a stable `REQ-*` ID, links to its test(s), and is tagged in
+those tests, so the requirement↔test map is **audited automatically** (the "traceability" gate,
+[testing-strategy.md](testing-strategy.md) T3): `node scripts/check-traceability.mjs` cross-checks
+the IDs catalogued here against the `[REQ-*]` tags in the test files and flags either side that's
+missing. Requirements with no automated test are tracked explicitly in the gaps section below._
 
 ## How the link works
 

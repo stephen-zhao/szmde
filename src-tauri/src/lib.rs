@@ -569,7 +569,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    // Requirement coverage (docs/traceability.md):
+    // Requirement coverage (docs/requirements.md):
     //   [REQ-CLI-1] parse_cli   ·  [REQ-CLI-2] resolve_path
     //   [REQ-FILE-1] read_file   ·  [REQ-FILE-2] write_file (atomic)
     //   [REQ-SET-3] settings file IO (settings_path / write_atomic / read_optional)

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Audits requirement <-> test traceability (docs/traceability.md, T3).
+// Audits requirement <-> test traceability (docs/requirements.md, T3).
 //
 //   - Every CATALOGUED (implemented) requirement must be tagged in >= 1 test.
 //   - Every [REQ-*] tag in a test must be a known requirement ID.
@@ -18,11 +18,11 @@ const rel = (p) => relative(root, p).replace(/\\/g, "/");
 
 // --- Parse the catalog: IDs before the gaps heading are REQUIRED to have a
 //     test; IDs under the gaps heading are known-untested (allowed). ---------
-const doc = readFileSync(join(root, "docs/traceability.md"), "utf8");
+const doc = readFileSync(join(root, "docs/requirements.md"), "utf8");
 const gapHeading = "## Requirements with no automated test";
 const gapIdx = doc.indexOf(gapHeading);
 if (gapIdx === -1) {
-  console.error("traceability.md: missing the gaps-section heading; cannot classify IDs.");
+  console.error("requirements.md: missing the gaps-section heading; cannot classify IDs.");
   process.exit(1);
 }
 const required = idSet(doc.slice(0, gapIdx));
@@ -64,7 +64,7 @@ if (unknown.length) {
   unknown.forEach((u) => console.error("   " + u));
 }
 if (!ok) {
-  console.error("\nFix docs/traceability.md or the test tags so they agree.");
+  console.error("\nFix docs/requirements.md or the test tags so they agree.");
   process.exit(1);
 }
 console.log(

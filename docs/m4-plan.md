@@ -57,7 +57,7 @@ The editor stays framework-agnostic: new state flows out via callbacks (like
 ## Staged build sequence
 
 > Each slice: **failing test(s) first** (TDD, T4), then implementation, `npm run test` +
-> `npm run check` green, update [traceability.md](traceability.md) with the new `REQ-*` and tag
+> `npm run check` green, update [requirements.md](requirements.md) with the new `REQ-*` and tag
 > the tests, then commit. Per the standing preference, run an adversarial review over a
 > substantial slice before moving on; live-only behavior gets an `llm-workflow-tests.md` entry.
 
@@ -116,7 +116,7 @@ enum clamp. Live scroll feel + persistence → workflow.
 > **Superseded across M4 feedback rounds.** The original plan (a `position:absolute;
 > right:100%` `.cm-md-mark-hang`) top-floated the marker (B1) and, in later attempts, a
 > negative `margin-left` stranded the native caret at the margin in WebView2. The SHIPPED
-> design is a per-LINE `text-indent` (see [traceability.md](traceability.md) REQ-RENDER-9
+> design is a per-LINE `text-indent` (see [requirements.md](requirements.md) REQ-RENDER-9
 > and [bugs.md](bugs.md) BUG-CARET-MARGIN), inside a 3-column layout (REQ-RENDER-12).
 
 In `markers.ts`, `handleShownBlockLine` (shared by Syntax mode + Formatted reveal) greys the
@@ -140,7 +140,7 @@ Clean-off-line/Source; setext underline stays a plain token. Live gutter/flush/c
   `theme.ts` (search panel, emoji, fold chevron/placeholder, hang CSS), `Editor.svelte`
   (getCount/oncount, setEmoji, onzoom* ), `+page.svelte` (count chip, zoom wiring, emoji seed),
   `keymap.ts` (fold), `settings/schema.ts` (`appearance.showWordCount`, `markdown.emoji`),
-  `package.json` (`@codemirror/search`), `traceability.md`, `llm-workflow-tests.md`.
+  `package.json` (`@codemirror/search`), `requirements.md`, `llm-workflow-tests.md`.
 
 ## New deps / settings
 - **Dep:** `@codemirror/search@^6` (S2 only).
