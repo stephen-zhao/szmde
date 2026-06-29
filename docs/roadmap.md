@@ -20,6 +20,7 @@ spec + milestone + requirement so it can be scheduled without inventing scope._
 | M1 — Core WYSIWYG | render modes 1–3, markdown shortcuts, bold/italic/strike/headings/quote/lists/code/links, EOL+indent+status widgets, perf | §4, §10.2 | [m1-plan.md](m1-plan.md) | ✅ |
 | Testing gate | 100% unit coverage (ratcheted), integration tests, requirement↔test traceability | §10.3 | [testing-strategy.md](testing-strategy.md) | ✅ |
 | M2 — Remaining v1 blocks + settings | HR, task lists, images, GFM alerts, tables (render), nested lists, two-tier settings | §5.1, §8, §10.4 | [m2-plan.md](m2-plan.md) | ✅ |
+| CI/CD + branch workflow | GitHub Actions: CI gate (typecheck/build/test/coverage/traceability + Rust fmt/clippy/test) on push+PR; tag-triggered Windows release (unsigned); switch to branch/PR development | — | [ci-cd.md](ci-cd.md) | ✅ |
 
 This completes the **§5.1 v1 markdown feature set** + the settings system. Everything below is post-v1.
 
