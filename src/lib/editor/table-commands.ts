@@ -121,6 +121,28 @@ function structuralCommand(
   };
 }
 
+/**
+ * Tidy the table at the caret: re-serialize it to canonical FITTED GFM (single-space
+ * cells, minimal `---` delimiter with alignment colons) — REQ-TBLED-6. Structural ops
+ * already tidy as a side effect; this is the explicit command for a hand-typed messy
+ * table (most useful in Source/Syntax mode). Returns false (passes the key through)
+ * when not in a table or it's already tidy.
+ */
+export const tidyTable: StateCommand = ({ state, dispatch }) => {
+  const tbl = tableBlockAt(state, state.selection.main.head);
+  if (!tbl) return false;
+  const src = state.doc.sliceString(tbl.from, tbl.to);
+  const tidied = serialize(parseTable(src, tbl.from));
+  if (tidied === src) return false; // already canonical
+  dispatch(
+    state.update({
+      changes: { from: tbl.from, to: tbl.to, insert: tidied },
+      userEvent: "input",
+    }),
+  );
+  return true;
+};
+
 const body = (row: number) => Math.max(0, row); // header/delimiter (row<0) acts at body 0
 
 export const insertRowBelow = structuralCommand(

@@ -17,6 +17,7 @@ import {
   moveRowUp,
   moveColRight,
   moveColLeft,
+  tidyTable,
 } from "./table-commands";
 import { closeTableMenu } from "./table-menu";
 import type { RenderMode } from "./render-mode";
@@ -277,6 +278,27 @@ describe("[REQ-TBLED-3][REQ-TBLED-5] structural table commands", () => {
   it("returns false when the caret is not in a table", () => {
     const v = build("just text", "clean", 0);
     expect(run(v, insertRowBelow)).toBe(false);
+  });
+});
+
+describe("[REQ-TBLED-6] tidyTable — explicit canonicalize command", () => {
+  const run = (v: EditorView, cmd: StateCommand) => cmd({ state: v.state, dispatch: (tr) => v.dispatch(tr) });
+  // Source mode so a hand-typed messy table stays raw text the caret can sit inside.
+  it("re-serializes a hand-typed messy table to canonical fitted GFM", () => {
+    const MESSY = "intro\n\n|a|b|\n|-|:-:|\n|1|2|";
+    const v = build(MESSY, "markers-rendered", MESSY.indexOf("a"));
+    expect(run(v, tidyTable)).toBe(true);
+    expect(v.state.doc.toString()).toBe("intro\n\n| a | b |\n| --- | :-: |\n| 1 | 2 |");
+  });
+  it("returns false (passes through) on an already-tidy table", () => {
+    const TIDY = "intro\n\n| a | b |\n| --- | --- |\n| 1 | 2 |";
+    const v = build(TIDY, "markers-rendered", TIDY.indexOf("a"));
+    expect(run(v, tidyTable)).toBe(false);
+    expect(v.state.doc.toString()).toBe(TIDY);
+  });
+  it("returns false when the caret is not in a table", () => {
+    const v = build("just text", "markers-rendered", 0);
+    expect(run(v, tidyTable)).toBe(false);
   });
 });
 

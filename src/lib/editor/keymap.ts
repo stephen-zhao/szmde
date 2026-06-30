@@ -14,6 +14,7 @@ import {
   moveRowUp,
   moveColLeft,
   moveColRight,
+  tidyTable,
 } from "./table-commands";
 
 /** True if `pos` is inside inline or fenced code (where B/I should be inert). */
@@ -320,5 +321,7 @@ export const editingKeymap: Extension = Prec.high(
     { key: "Alt-Shift-ArrowUp", run: moveRowUp },
     { key: "Alt-Shift-ArrowLeft", run: moveColLeft },
     { key: "Alt-Shift-ArrowRight", run: moveColRight },
+    // Re-tidy a hand-typed messy table to canonical GFM (inert outside a table).
+    { key: "Mod-Alt-t", run: tidyTable, preventDefault: true },
   ]),
 );
