@@ -34,7 +34,7 @@
               hovRow = r + 1;
               hovCol = c + 1;
             }}
-            onclick={() => oninsert(hovRow, hovCol)}
+            onclick={() => oninsert(r + 1, c + 1)}
           ></button>
         {/each}
       </div>
