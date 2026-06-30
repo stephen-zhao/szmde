@@ -519,6 +519,13 @@ describe("[REQ-TBLED-3] hover insert-gizmos on table edges", () => {
     expect(cells(v, "thead th")).toEqual(["a", "b"]); // no stray '+'
   });
 
+  it("[REQ-TBLED-4] places a drag grip on each header cell + each body row", () => {
+    const v = build(MDOC, "clean", 0);
+    expect(count(v, "thead th .cm-tbl-drag-col")).toBe(2); // one per column
+    expect(count(v, "tbody tr .cm-tbl-drag-row")).toBe(1); // one per body row
+    expect(count(v, "thead .cm-tbl-drag-row")).toBe(0); // header isn't a draggable row
+  });
+
   it("a header column handle inserts a column to its right", () => {
     const v = build(MDOC, "clean", 0);
     mdown(giz(v, "thead th .cm-tbl-gizmo-col")); // first header cell, right edge

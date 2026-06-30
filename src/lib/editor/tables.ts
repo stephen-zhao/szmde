@@ -21,6 +21,7 @@ import {
   type TableModel,
 } from "./table-model";
 import { showTableMenu, closeTableMenu } from "./table-menu";
+import { indexAt, applyMove, type DragKind } from "./table-drag";
 
 /**
  * Render a cell's inline markdown (bold / italic / strikethrough / inline code /
@@ -143,6 +144,62 @@ class TableWidget extends WidgetType {
       cell.appendChild(g);
     };
 
+    // A drag grip to reorder a row/column (M5 S5, REQ-TBLED-4). Shown on hover; on a
+    // primary-button drag it pointer-captures, hit-tests the row/column under the
+    // pointer (highlighting the drop target), and on release moves source → target as
+    // a whole-table replace (caret left outside → in-place update). The drop math
+    // (`indexAt`) and the move (`applyMove`) are pure + unit-tested; the gesture
+    // (pointer capture + getBoundingClientRect) is layout-only, hence v8-ignored.
+    const addDragGrip = (cell: HTMLElement, kind: DragKind, index: number) => {
+      const g = document.createElement("span");
+      g.className = `cm-tbl-drag cm-tbl-drag-${kind}`;
+      g.title = kind === "row" ? "Drag to reorder row" : "Drag to reorder column";
+      g.setAttribute("aria-hidden", "true");
+      g.addEventListener("pointerdown", (e) => {
+        /* v8 ignore start -- pointer DnD gesture: needs real layout + pointer capture
+           (happy-dom has neither); the drop index + the move are unit-tested separately. */
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+          g.setPointerCapture(e.pointerId); // route move/up here even off the grip
+        } catch {
+          /* no active pointer (e.g. synthetic event) — the drag still tracks */
+        }
+        let target = index;
+        const clearDrop = () =>
+          table.querySelectorAll(".cm-tbl-drop").forEach((el) => el.classList.remove("cm-tbl-drop"));
+        const spansNow = () =>
+          kind === "row"
+            ? [...table.tBodies[0].rows].map((r) => {
+                const b = r.getBoundingClientRect();
+                return { start: b.top, end: b.bottom };
+              })
+            : [...(table.tHead?.rows[0].cells ?? [])].map((c) => {
+                const b = c.getBoundingClientRect();
+                return { start: b.left, end: b.right };
+              });
+        const dropEl = (i: number): HTMLElement | undefined =>
+          kind === "row" ? table.tBodies[0].rows[i] : table.tHead?.rows[0].cells[i];
+        const onMove = (ev: PointerEvent) => {
+          target = indexAt(kind === "row" ? ev.clientY : ev.clientX, spansNow());
+          clearDrop();
+          dropEl(target)?.classList.add("cm-tbl-drop");
+        };
+        const onUp = () => {
+          g.removeEventListener("pointermove", onMove);
+          g.removeEventListener("pointerup", onUp);
+          clearDrop();
+          applyMove(view, m, kind, index, target);
+          view.focus();
+        };
+        g.addEventListener("pointermove", onMove);
+        g.addEventListener("pointerup", onUp);
+        /* v8 ignore stop */
+      });
+      cell.appendChild(g);
+    };
+
     // `row` = -1 for a header cell, 0+ for a body row; carried as data-row/data-col
     // so the right-click menu knows which row + column the clicked cell belongs to.
     const fill = (el: HTMLTableCellElement, c: Cell, col: number, row: number) => {
@@ -157,9 +214,11 @@ class TableWidget extends WidgetType {
       if (row === -1) {
         addGizmo(el, "cm-tbl-gizmo-col", "Insert column right", () => insertCol(m, col + 1));
         if (col === 0) addGizmo(el, "cm-tbl-gizmo-colstart", "Insert column left", () => insertCol(m, 0));
+        addDragGrip(el, "col", col); // drag the header cell to reorder its column
       }
       if (col === 0) {
         addGizmo(el, "cm-tbl-gizmo-row", "Insert row below", () => insertRow(m, row + 1));
+        if (row >= 0) addDragGrip(el, "row", row); // drag a body row's first cell to reorder it
       }
     };
 

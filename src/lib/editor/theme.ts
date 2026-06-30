@@ -315,6 +315,36 @@ export const baseTheme = EditorView.theme(
     ".cm-tbl-gizmo-col": { right: "-9px", top: "50%", transform: "translateY(-50%)" },
     ".cm-tbl-gizmo-colstart": { left: "-9px", top: "50%", transform: "translateY(-50%)" },
     ".cm-tbl-gizmo-row": { bottom: "-9px", left: "50%", transform: "translateX(-50%)" },
+    // Drag-to-reorder grips (M5 S5): a dotted handle at the top of each header cell
+    // (column) / the left of each body row's first cell (row). Hover-revealed; grab
+    // cursor. The drop target row/column tints while dragging.
+    ".cm-tbl-drag": {
+      position: "absolute",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "var(--muted)",
+      fontSize: "11px",
+      lineHeight: "1",
+      opacity: "0",
+      pointerEvents: "none",
+      cursor: "grab",
+      userSelect: "none",
+      transition: "opacity 0.08s ease",
+      zIndex: "6",
+    },
+    ".cm-tbl-drag::before": { content: '"⠿"' },
+    ".cm-md-table th:hover .cm-tbl-drag, .cm-md-table td:hover .cm-tbl-drag": {
+      opacity: "0.65",
+      pointerEvents: "auto",
+    },
+    ".cm-tbl-drag:hover": { opacity: "1" },
+    ".cm-tbl-drag:active": { cursor: "grabbing" },
+    ".cm-tbl-drag-col": { top: "0", left: "50%", transform: "translateX(-50%)", width: "18px", height: "9px" },
+    ".cm-tbl-drag-row": { left: "0", top: "50%", transform: "translateY(-50%)", width: "9px", height: "18px" },
+    ".cm-md-table tr.cm-tbl-drop td, .cm-md-table th.cm-tbl-drop": {
+      background: "color-mix(in srgb, var(--accent) 22%, transparent)",
+    },
     // Source / Syntax-mode table gizmos (M5 S3c). A zero-width anchor sits in the
     // pipe text (no shift); the "+" floats off it — above the header pipes (columns)
     // or at each table line's right edge (rows). Revealed on line hover.
