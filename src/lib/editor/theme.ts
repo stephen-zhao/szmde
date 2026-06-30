@@ -315,6 +315,46 @@ export const baseTheme = EditorView.theme(
     ".cm-tbl-gizmo-col": { right: "-9px", top: "50%", transform: "translateY(-50%)" },
     ".cm-tbl-gizmo-colstart": { left: "-9px", top: "50%", transform: "translateY(-50%)" },
     ".cm-tbl-gizmo-row": { bottom: "-9px", left: "50%", transform: "translateX(-50%)" },
+    // Source / Syntax-mode table gizmos (M5 S3c). A zero-width anchor sits in the
+    // pipe text (no shift); the "+" floats off it — above the header pipes (columns)
+    // or at each table line's right edge (rows). Revealed on line hover.
+    ".cm-tbl-src-anchor": {
+      position: "relative",
+      display: "inline-block",
+      width: "0",
+      height: "0",
+      verticalAlign: "baseline",
+    },
+    ".cm-tbl-src-gizmo": {
+      position: "absolute",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: "15px",
+      height: "15px",
+      padding: "0",
+      lineHeight: "1",
+      fontSize: "12px",
+      border: "1px solid var(--border)",
+      borderRadius: "50%",
+      background: "var(--bg-raised)",
+      color: "var(--accent)",
+      cursor: "pointer",
+      opacity: "0",
+      pointerEvents: "none",
+      transition: "opacity 0.08s ease",
+      zIndex: "6",
+    },
+    ".cm-tbl-src-gizmo::before": { content: '"+"' },
+    ".cm-line:hover .cm-tbl-src-gizmo": { opacity: "1", pointerEvents: "auto" },
+    ".cm-tbl-src-gizmo:hover": { background: "var(--accent)", color: "var(--bg)" },
+    ".cm-tbl-src-col, .cm-tbl-src-colstart": {
+      top: "-1.2em", // float above the header pipes
+      left: "0",
+      transform: "translateX(-50%)",
+    },
+    // Centered on the line's right edge (the anchor sits on the baseline).
+    ".cm-tbl-src-row": { top: "-0.35em", left: "0.5em" },
     // Inline image (Clean mode): replaces `![alt](src)`. Constrain to the reading
     // column width and keep aspect ratio; rounded to match the code-card style.
     ".cm-md-image": {

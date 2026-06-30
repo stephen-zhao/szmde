@@ -38,6 +38,7 @@ import { imageDecorations, imageAtomicRanges } from "./images";
 import { emojiDecorations, emojiAtomicRanges, emojiEnabled, emojiCompartment } from "./emoji";
 import { alertDecorations, alertAtomicRanges } from "./alerts";
 import { tableExtension } from "./tables";
+import { tableSourceGizmos } from "./table-source-gizmos";
 import { searchExtension } from "./search";
 import { foldExtension } from "./fold";
 import { zoomGestures, type ZoomConfig } from "./zoom";
@@ -377,6 +378,7 @@ export function editorExtensions(
     blockLineDecorations,
     blockConstructDecorations,
     tableExtension,
+    tableSourceGizmos,
     alertDecorations,
     alertAtomicRanges,
     hrExtension,
