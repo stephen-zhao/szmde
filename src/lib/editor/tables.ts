@@ -270,9 +270,13 @@ class TableWidget extends WidgetType {
   destroy() {
     closeTableMenu(); // table removed (re-render / scroll-away) → drop a stray menu
   }
-  /* v8 ignore start -- pointer-event plumbing; not dispatchable in happy-dom. */
-  ignoreEvent() {
-    return true;
+  /* v8 ignore start -- event plumbing; widget events aren't dispatched in happy-dom. */
+  ignoreEvent(e: Event) {
+    // Let CM see WHEEL events so scroll-zoom still works over the table — otherwise
+    // shift+scroll can't change the page width and ctrl/cmd+scroll can't zoom the font
+    // (REQ-ZOOM-1/2). The widget handles its own pointer events (cell clicks, gizmos,
+    // drag grips, the context menu) and those stay ignored by the editor.
+    return e.type !== "wheel";
   }
   /* v8 ignore stop */
 }

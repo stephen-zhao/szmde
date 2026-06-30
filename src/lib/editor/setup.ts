@@ -166,9 +166,9 @@ class WrapToggleWidget extends WidgetType {
     });
     return b;
   }
-  /* v8 ignore start -- pointer-event plumbing; not dispatchable in happy-dom. */
-  ignoreEvent() {
-    return true;
+  /* v8 ignore start -- event plumbing; widget events aren't dispatched in happy-dom. */
+  ignoreEvent(e: Event) {
+    return e.type !== "wheel"; // let CM handle scroll-zoom over the widget (REQ-ZOOM)
   }
   /* v8 ignore stop */
 }
