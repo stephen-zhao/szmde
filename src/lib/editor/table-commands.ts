@@ -11,6 +11,7 @@ import {
   deleteCol,
   moveRow,
   moveCol,
+  makeTable,
   type TableModel,
 } from "./table-model";
 
@@ -185,3 +186,54 @@ export const moveColLeft = structuralCommand(
   (m, l) => moveCol(m, l.col, l.col - 1),
   (l) => ({ row: l.row, col: Math.max(0, l.col - 1) }),
 );
+
+/**
+ * Insert a fresh `rows`×`cols` GFM table as its own block at the caret (REQ-TBLED-1),
+ * with the caret placed in the first header cell. The table is flanked by blank lines
+ * so it parses as a block: on a blank line it's inserted there; otherwise a new block
+ * is opened after the caret's line. Always succeeds (returns true).
+ */
+export function insertTable(rows: number, cols: number): StateCommand {
+  return ({ state, dispatch }) => {
+    const table = serialize(makeTable(rows, cols));
+    const pos = state.selection.main.head;
+    const line = state.doc.lineAt(pos);
+    const docLen = state.doc.length;
+
+    let from: number, to: number, lead: string, trail: string;
+    if (docLen === 0) {
+      from = 0;
+      to = 0;
+      lead = "";
+      trail = "";
+    } else if (line.text.trim() === "") {
+      // Caret on a blank line: replace it, flanking the table with one newline each
+      // side (the surrounding newlines + these make blank lines), trimmed at doc edges.
+      from = line.from;
+      to = line.to;
+      lead = line.from === 0 ? "" : "\n";
+      trail = line.to === docLen ? "" : "\n";
+    } else {
+      // Open a new block after the caret's line. A blank line before; and after, unless
+      // the next line is already blank (or it's the document's end).
+      from = line.to;
+      to = line.to;
+      lead = "\n\n";
+      const nextBlank =
+        line.number === state.doc.lines || state.doc.line(line.number + 1).text.trim() === "";
+      trail = nextBlank ? "" : "\n\n";
+    }
+
+    const insert = lead + table + trail;
+    const caret = from + lead.length + 2; // first header cell: past the opening "| "
+    dispatch(
+      state.update({
+        changes: { from, to, insert },
+        selection: EditorSelection.cursor(caret),
+        scrollIntoView: true,
+        userEvent: "input",
+      }),
+    );
+    return true;
+  };
+}

@@ -188,7 +188,13 @@ rendered). **Tests:** PURE move ops covered in S1 (identity no-op; clamp; col mo
 the drag-end calls and mutates `state.doc` (test the COMMAND, not the gesture). **WF (mandatory):**
 live mouse drag reorders with a visible drop indicator and no WebView2 DnD glitch.
 
-### S6 — Insert N×M table from scratch ⬜  (`REQ-TBLED-1`)
+### S6 — Insert N×M table from scratch ✅  (`REQ-TBLED-1`)
+**Shipped:** `insertTable(rows, cols)` (`table-commands.ts`) block-inserts `serialize(makeTable(r,c))` at
+the caret — empty doc → just the table; on a blank line → flanked by blank lines; else a new block after
+the caret's line — with the caret in the first header cell. Exposed via `EditorApi.insertTable`; the
+hamburger menu's **Insert → Table…** opens `TableSizePicker.svelte`, an 8×8 hover-preview grid (click a
+cell → insert that size, menu closes). 4 command tests (empty/text-line/blank-line/dimensions); the
+picker → insert → render flow verified live. Original plan ⬇:
 `makeTable(rows, cols)` (a `serialize` of an empty model — trivially pure; assert it round-trips via
 `parseTable`). `insertTable(rows, cols)` command + EditorApi method inserts at the caret as one
 transaction; a `.svelte` grid-picker with hover-preview calls it. **Tests:** PURE `makeTable(2,3)` ===

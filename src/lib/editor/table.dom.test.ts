@@ -18,6 +18,7 @@ import {
   moveColRight,
   moveColLeft,
   tidyTable,
+  insertTable,
 } from "./table-commands";
 import { closeTableMenu } from "./table-menu";
 import type { RenderMode } from "./render-mode";
@@ -278,6 +279,40 @@ describe("[REQ-TBLED-3][REQ-TBLED-5] structural table commands", () => {
   it("returns false when the caret is not in a table", () => {
     const v = build("just text", "clean", 0);
     expect(run(v, insertRowBelow)).toBe(false);
+  });
+});
+
+describe("[REQ-TBLED-1] insertTable — create a table from scratch", () => {
+  const run = (v: EditorView, cmd: StateCommand) => cmd({ state: v.state, dispatch: (tr) => v.dispatch(tr) });
+  const doc = (v: EditorView) => v.state.doc.toString();
+  const T22 = "|  |  |\n| --- | --- |\n|  |  |"; // makeTable(2,2): header + 1 body, 2 cols
+
+  it("into an empty document inserts just the table, caret in the first cell", () => {
+    const v = build("", "markers-rendered", 0);
+    expect(run(v, insertTable(2, 2))).toBe(true);
+    expect(doc(v)).toBe(T22);
+    expect(v.state.selection.main.head).toBe(2); // inside "| ▏ |"
+  });
+
+  it("after a text line opens a new block separated by a blank line", () => {
+    const v = build("intro", "markers-rendered", 3);
+    run(v, insertTable(2, 2));
+    expect(doc(v)).toBe(`intro\n\n${T22}`);
+    expect(v.state.selection.main.head).toBe(9); // first cell of the new table
+  });
+
+  it("on a blank line between paragraphs flanks the table with blank lines", () => {
+    const v = build("a\n\nb", "markers-rendered", 2); // caret on the blank line
+    run(v, insertTable(2, 2));
+    expect(doc(v)).toBe(`a\n\n${T22}\n\nb`);
+  });
+
+  it("builds the requested dimensions (3×4)", () => {
+    const v = build("", "markers-rendered", 0);
+    run(v, insertTable(3, 4));
+    expect(doc(v)).toBe(
+      "|  |  |  |  |\n| --- | --- | --- | --- |\n|  |  |  |  |\n|  |  |  |  |",
+    );
   });
 });
 
