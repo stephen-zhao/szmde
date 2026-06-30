@@ -10,7 +10,16 @@ import {
 } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import { renderMode } from "./render-mode";
-import { parseTable, tokenizeInline, type Align, type Cell, type TableModel } from "./table-model";
+import {
+  parseTable,
+  serialize,
+  insertRow,
+  insertCol,
+  tokenizeInline,
+  type Align,
+  type Cell,
+  type TableModel,
+} from "./table-model";
 import { showTableMenu, closeTableMenu } from "./table-menu";
 
 /**
@@ -110,6 +119,27 @@ class TableWidget extends WidgetType {
     table.setAttribute("contenteditable", "false");
     const align = (i: number): Align => m.aligns[i] ?? null;
 
+    // A hover "+" affordance that inserts a row/column at a table edge (M5 S3b). Like
+    // the menu ops it's a whole-table replace with the caret left OUTSIDE, so the
+    // rendered table updates in place. The "+" glyph is a CSS ::before (not DOM text)
+    // so it never leaks into a cell's textContent. tabindex -1: it's a hover-only
+    // mouse affordance — the keyboard paths are the keymap + the right-click menu.
+    const addGizmo = (cell: HTMLElement, cls: string, title: string, op: () => TableModel) => {
+      const g = document.createElement("button");
+      g.className = `cm-tbl-gizmo ${cls}`;
+      g.type = "button";
+      g.tabIndex = -1;
+      g.title = title;
+      g.setAttribute("aria-label", title);
+      g.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        e.stopPropagation(); // beat the table's reveal-on-mousedown
+        view.dispatch({ changes: { from: m.from, to: m.to, insert: serialize(op()) } });
+        view.focus();
+      });
+      cell.appendChild(g);
+    };
+
     // `row` = -1 for a header cell, 0+ for a body row; carried as data-row/data-col
     // so the right-click menu knows which row + column the clicked cell belongs to.
     const fill = (el: HTMLTableCellElement, c: Cell, col: number, row: number) => {
@@ -118,6 +148,16 @@ class TableWidget extends WidgetType {
       el.dataset.row = String(row);
       el.dataset.col = String(col);
       if (align(col)) el.style.textAlign = align(col)!;
+      // Header strip → column-insert handles (right edge of each; the first cell also
+      // gets a leading-column handle on its left edge). Left gutter (col 0) → a
+      // row-insert handle on each cell's bottom edge (the header's adds body row 0).
+      if (row === -1) {
+        addGizmo(el, "cm-tbl-gizmo-col", "Insert column right", () => insertCol(m, col + 1));
+        if (col === 0) addGizmo(el, "cm-tbl-gizmo-colstart", "Insert column left", () => insertCol(m, 0));
+      }
+      if (col === 0) {
+        addGizmo(el, "cm-tbl-gizmo-row", "Insert row below", () => insertRow(m, row + 1));
+      }
     };
 
     const hr = table.createTHead().insertRow();

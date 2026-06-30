@@ -466,6 +466,70 @@ describe("[REQ-TBLED-3][REQ-TBLED-5][REQ-TBLED-6] right-click table context menu
   });
 });
 
+describe("[REQ-TBLED-3] hover insert-gizmos on table edges", () => {
+  // Formatted-mode "+" affordances: column-insert handles on the header strip,
+  // row-insert handles in the left gutter. Each is a whole-table replace with the
+  // caret left outside, so the table updates in place. (Hover/opacity is CSS — not
+  // exercised here; happy-dom can still see the elements + dispatch their mousedown.)
+  const MDOC = "intro\n\n| a | b |\n| - | - |\n| 1 | 2 |";
+  const TIDY = "intro\n\n| a | b |\n| --- | --- |";
+  const doc = (v: EditorView) => v.state.doc.toString();
+  const mdown = (el: Element) =>
+    el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+  const giz = (v: EditorView, sel: string, i = 0) =>
+    v.contentDOM.querySelectorAll<HTMLButtonElement>(sel)[i];
+
+  it("puts a column-insert handle on each header cell (+ a leading one on the first)", () => {
+    const v = build(MDOC, "clean", 0);
+    expect(count(v, "thead .cm-tbl-gizmo-col")).toBe(2); // one per header column
+    expect(count(v, "thead .cm-tbl-gizmo-colstart")).toBe(1); // only the first cell
+  });
+
+  it("puts a row-insert handle only on the left-column cells", () => {
+    const v = build(MDOC, "clean", 0);
+    expect(count(v, ".cm-tbl-gizmo-row")).toBe(2); // header + 1 body row, first column
+    expect(count(v, "thead th:not(:first-child) .cm-tbl-gizmo-row")).toBe(0);
+    expect(count(v, "tbody td:not(:first-child) .cm-tbl-gizmo-row")).toBe(0);
+  });
+
+  it("the '+' glyph is CSS-only (never in a cell's textContent)", () => {
+    const v = build(MDOC, "clean", 0);
+    expect(cells(v, "thead th")).toEqual(["a", "b"]); // no stray '+'
+  });
+
+  it("a header column handle inserts a column to its right", () => {
+    const v = build(MDOC, "clean", 0);
+    mdown(giz(v, "thead th .cm-tbl-gizmo-col")); // first header cell, right edge
+    expect(doc(v)).toBe("intro\n\n| a |  | b |\n| --- | --- | --- |\n| 1 |  | 2 |");
+  });
+
+  it("the leading-column handle inserts a column at the start", () => {
+    const v = build(MDOC, "clean", 0);
+    mdown(giz(v, ".cm-tbl-gizmo-colstart"));
+    expect(doc(v)).toBe("intro\n\n|  | a | b |\n| --- | --- | --- |\n|  | 1 | 2 |");
+  });
+
+  it("the header's row handle inserts the first body row", () => {
+    const v = build(MDOC, "clean", 0);
+    mdown(giz(v, "thead .cm-tbl-gizmo-row"));
+    expect(doc(v)).toBe(`${TIDY}\n|  |  |\n| 1 | 2 |`);
+  });
+
+  it("a body row's handle inserts a row below it", () => {
+    const v = build(MDOC, "clean", 0);
+    mdown(giz(v, "tbody tr:first-child .cm-tbl-gizmo-row"));
+    expect(doc(v)).toBe(`${TIDY}\n| 1 | 2 |\n|  |  |`);
+  });
+
+  it("a gizmo insert keeps the table rendered with the caret outside", () => {
+    const v = build(MDOC, "clean", 0);
+    mdown(giz(v, "thead th .cm-tbl-gizmo-col"));
+    forceParsing(v, v.state.doc.length, 5000);
+    expect(count(v, "table.cm-md-table")).toBe(1); // applied in place, not revealed
+    expect(v.state.selection.main.head).toBe(0); // caret never entered the table
+  });
+});
+
 describe("[REQ-TABLE-1] renderInlineMarkdown — cell inline tokens", () => {
   const render = (s: string) => {
     const d = document.createElement("div");

@@ -240,6 +240,7 @@ export const baseTheme = EditorView.theme(
       border: "1px solid var(--border)",
       padding: "5px 12px",
       textAlign: "left",
+      position: "relative", // anchor for the hover-insert gizmos
     },
     ".cm-md-table th": {
       backgroundColor: "var(--code-header-bg)",
@@ -280,6 +281,40 @@ export const baseTheme = EditorView.theme(
       margin: "4px 7px",
       background: "var(--border)",
     },
+    // Hover-insert "+" gizmos (M5 S3b). A small circular button straddling a cell
+    // edge; hidden (and non-interactive) until the cell — or the gizmo — is hovered,
+    // so it never intercepts a click meant for the cell. Column handles sit on the
+    // header strip, row handles in the left gutter. Glyph is a ::before (kept out of
+    // the cell's textContent).
+    ".cm-tbl-gizmo": {
+      position: "absolute",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: "16px",
+      height: "16px",
+      padding: "0",
+      lineHeight: "1",
+      fontSize: "13px",
+      border: "1px solid var(--border)",
+      borderRadius: "50%",
+      background: "var(--bg-raised)",
+      color: "var(--accent)",
+      cursor: "pointer",
+      opacity: "0",
+      pointerEvents: "none",
+      transition: "opacity 0.08s ease",
+      zIndex: "6",
+    },
+    ".cm-tbl-gizmo::before": { content: '"+"' },
+    ".cm-md-table th:hover .cm-tbl-gizmo, .cm-md-table td:hover .cm-tbl-gizmo": {
+      opacity: "1",
+      pointerEvents: "auto",
+    },
+    ".cm-tbl-gizmo:hover": { background: "var(--accent)", color: "var(--bg)" },
+    ".cm-tbl-gizmo-col": { right: "-9px", top: "50%", transform: "translateY(-50%)" },
+    ".cm-tbl-gizmo-colstart": { left: "-9px", top: "50%", transform: "translateY(-50%)" },
+    ".cm-tbl-gizmo-row": { bottom: "-9px", left: "50%", transform: "translateX(-50%)" },
     // Inline image (Clean mode): replaces `![alt](src)`. Constrain to the reading
     // column width and keep aspect ratio; rounded to match the code-card style.
     ".cm-md-image": {
