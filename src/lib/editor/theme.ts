@@ -353,7 +353,8 @@ export const baseTheme = EditorView.theme(
       left: "0",
       transform: "translateX(-50%)",
     },
-    // Centered on the line's right edge (the anchor sits on the baseline).
+    // Sits just RIGHT of the line's end (the anchor is at line.to) — offset out into
+    // the margin so it clears the trailing pipe — and lifted to ride on the line.
     ".cm-tbl-src-row": { top: "-0.35em", left: "0.5em" },
     // Inline image (Clean mode): replaces `![alt](src)`. Constrain to the reading
     // column width and keep aspect ratio; rounded to match the code-card style.

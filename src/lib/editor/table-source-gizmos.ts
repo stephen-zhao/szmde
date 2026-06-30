@@ -13,9 +13,11 @@ import { parseTable, serialize, insertRow, insertCol, type TableModel } from "./
  * at each table line's edge (the gap to the next line). Both reuse the pure model ops
  * and dispatch ONE whole-table replace.
  *
- * The same edits are already reachable from the keymap (`structuralCommand` works in
- * every mode — it edits the source); these are the mouse affordances. Clean mode is
- * skipped here (the rendered table carries its own gizmos + right-click menu).
+ * These are the MOUSE affordances for inserting. Keyboard parity is partial: row
+ * insert (`Mod-Enter`/`Mod-Shift-Enter`) and the row/column MOVES (`Alt-Shift-Arrows`)
+ * are bound in every mode via `structuralCommand`, but column INSERT and the deletes
+ * have no keybinding — they're reachable only here (and the Formatted right-click
+ * menu). Clean mode is skipped (the rendered table carries its own gizmos + menu).
  */
 
 // Re-resolve the Table block containing `pos` at click time (positions may have
