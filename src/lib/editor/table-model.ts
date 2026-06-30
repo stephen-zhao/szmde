@@ -36,10 +36,6 @@ export interface TableModel {
   colCount: number;
 }
 
-/** Code-point length (so emoji/astral chars count as one). Used for padding width;
- *  CJK/east-asian double-width is a documented approximation (mirrors count.ts). */
-const cp = (s: string): number => [...s].length;
-
 const mkCell = (text: string): Cell => ({ text, from: 0, to: 0 });
 
 /**
@@ -128,30 +124,23 @@ function effectiveCols(m: TableModel): number {
 
 const cellText = (cells: Cell[], i: number): string => cells[i]?.text ?? "";
 
-/** Serialize a model to TIDY canonical GFM: every column padded to its max content
- *  width (code-point count, min 3 for the delimiter), the delimiter normalized with
- *  the alignment colons, ragged short rows padded, long rows already widened. */
+/** Serialize a model to GFM, FITTED: each cell is its trimmed text with single
+ *  spaces — columns are NOT padded to equal widths across rows (per the user's
+ *  preference; cells stay fitted to their content). A ragged short row is padded
+ *  with empty cells; a long row widens the table. The delimiter is a minimal 3-char
+ *  `---` per column with the alignment colons (`:--`/`--:`/`:-:`). */
 export function serialize(m: TableModel): string {
   const cols = effectiveCols(m);
-  const widths: number[] = [];
-  for (let i = 0; i < cols; i++) {
-    let w = 3;
-    w = Math.max(w, cp(cellText(m.header, i)));
-    for (const r of m.rows) w = Math.max(w, cp(cellText(r, i)));
-    widths.push(w);
-  }
-  const pad = (t: string, w: number): string => t + " ".repeat(Math.max(0, w - cp(t)));
-  const rowLine = (cells: Cell[]): string =>
-    "| " + widths.map((w, i) => pad(cellText(cells, i), w)).join(" | ") + " |";
-  const delimCell = (i: number): string => {
-    const w = widths[i];
-    const a = m.aligns[i] ?? null;
-    if (a === "center") return ":" + "-".repeat(w - 2) + ":";
-    if (a === "right") return "-".repeat(w - 1) + ":";
-    if (a === "left") return ":" + "-".repeat(w - 1);
-    return "-".repeat(w);
+  const rowLine = (cells: Cell[]): string => {
+    const out: string[] = [];
+    for (let i = 0; i < cols; i++) out.push(cellText(cells, i));
+    return "| " + out.join(" | ") + " |";
   };
-  const delimLine = "| " + widths.map((_, i) => delimCell(i)).join(" | ") + " |";
+  const delimCell = (i: number): string => {
+    const a = m.aligns[i] ?? null;
+    return a === "center" ? ":-:" : a === "right" ? "--:" : a === "left" ? ":--" : "---";
+  };
+  const delimLine = "| " + Array.from({ length: cols }, (_, i) => delimCell(i)).join(" | ") + " |";
   return [rowLine(m.header), delimLine, ...m.rows.map(rowLine)].join("\n");
 }
 

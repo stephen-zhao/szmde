@@ -72,11 +72,12 @@ toolbar/picker glue.
 | **Reshaping serialization** | per-cell diff vs whole-table replace | **Whole-table replace** (`{from:m.from, to:m.to, insert:tidy(m')}`) for ops that re-pad every line (insert/delete/move row/col, tidy). One clean undo step; avoids fiddly splice math. |
 | **Bounded serialization** | always-tidy vs targeted | **Targeted single-region `ChangeSpec`** for `setColAlign` (one delimiter cell) and a single in-cell text edit — preserves the caret + manual spacing. Plain typing inside a revealed cell stays a NORMAL CM edit (no model round-trip per keystroke — the M4 "gate recompute" lesson). |
 | **Auto-tidy trigger** | every keystroke vs structural-only | Tidy runs on **structural ops + an explicit Tidy command**, never per-keystroke. |
-| **Tidy padding width** | raw bytes vs display | **Code-point count** (`[...cell].length`), CJK/emoji as documented approximation (mirrors `count.ts`'s CJK note). Padding is cosmetic + reversible; tidy NEVER changes cell content. |
+| **Serialize style (REQ-TBLED-6)** | column-aligned vs fitted | **FITTED, no alignment padding** (user, 2026-06-30): each cell is its trimmed text with single spaces (`\| a \| bb \|`), NOT padded to equal column widths across rows. Delimiter = minimal `---`/`:--`/`--:`/`:-:`. "Tidy" therefore = normalize spacing + delimiter, not align. (No code-point width math needed.) |
 | **Escaped pipe `\|`** | unescape vs preserve | **Preserved literally** inside the cell (lezer `esc` flag); never re-split, never unescaped. Padding counts the source chars. |
 | **Ragged-row overflow** | clamp vs widen vs keep | A short body row is **padded** to colCount; a long body row **widens the whole table** (adds header+delimiter cols) rather than dropping cells — silently clamping would corrupt the file. |
 | **Drag mechanism** | HTML5 `draggable` vs pointer | **Pointer events + `setPointerCapture` on explicit grips.** HTML5 DnD fights CM's contenteditable host + `atomicRanges` + WebView2 native DnD. Matches every existing widget handler. |
-| **Toggle-header OFF (REQ-TBLED-2)** | no portable GFM headerless table | **Default: clear the header row's cell text** (keep header+delimiter so it stays a valid GFM table; "off" = blank header). Converting to plain paragraphs is the overridable alt. **Open question — confirm with user.** |
+| **Toggle-header OFF (REQ-TBLED-2)** | no portable GFM headerless table | **Within GFM: blank the header cells** (stays a valid, rendered table). User (2026-06-30) wants truly-headerless tables ALLOWED for OPENING — GFM/lezer won't render those as a `<table>`, but szmde already round-trips them losslessly as literal text (no crash/corruption). Rendering non-GFM headerless tables (MultiMarkdown / Pandoc-grid style) as real tables = a flagged **follow-up** (custom parse), not v1. |
+| **Edit affordances (REQ-TBLED-3/4)** | keybindings only vs gizmos+menu | User (2026-06-30): keybindings PLUS **hover gizmos in every mode** + a **right-click context menu** (Formatted). Formatted: insert/delete gizmos appear on cell/row/column EDGES on hover; right-click → insert/delete/move/align menu. Source/Syntax: gizmos appear when hovering the **edge `\|` chars** (insert column) and the **inter-line gaps** (insert row) over the raw pipe source. The source-mode gizmos are a new decoration layer (S3 extends beyond the rendered widget). |
 | **Arrow "enter table" (REQ-TBLED-7)** | land in source vs rendered-cell nav | **Land in the SOURCE** at the column under the caret's x (trips the existing reveal). Rendered-cell-to-cell navigation while the table stays rendered is **out of scope v1**. |
 | **Post-edit caret** | inside vs outside block | Cursor-context ops (-5) + click (-7) leave the caret **inside** (reveal is desired). Drag (-4) + toolbar ops (-1/-2/-3/-6) place the caret **outside** `[from,to]` so the rendered table updates in place (no flicker-to-pipes). |
 | **Insert affordance (REQ-TBLED-1)** | picker vs command | Ship a **command first** (`insertTable`), the grid-picker `.svelte` as the affordance over it. |
@@ -203,13 +204,11 @@ GFM; DOM: the toggle mutates `state.doc` + re-renders header vs body. **WF:** to
    the splice offsets from `state.doc` lines at dispatch time — never from stale node positions. The model
    is pure (can't see freshness); `tables.ts`/`table-commands.ts` own re-resolving the `Table` node.
 
-## Open questions (confirm before building)
-1. **Toggle-header OFF semantics (REQ-TBLED-2):** GFM has no headerless table. Default chosen =
-   blank the header cells (stays valid GFM). Confirm vs the alt (convert the table to plain paragraphs).
-2. **Ragged-row overflow:** default = widen the whole table (add header+delimiter cols) when a body row
-   has more cells than the header. Confirm vs keeping overflow flagged or a hard clamp.
-3. **Cursor-context keybindings:** proposed `Alt-Shift-Arrows` (move) + `Mod-Enter`/`Mod-Shift-Enter`
-   (insert row) + a scheme for insert/delete col. Confirm the chords (and whether macOS `Option`-Arrow
-   word-nav collisions matter).
-4. **Empty-cell placeholder on insert (REQ-TBLED-1/-3):** a single space per new cell (editable) vs truly
-   empty `||`. Default = single space.
+## Open questions — RESOLVED (user, 2026-06-30)
+1. **Toggle-header OFF (REQ-TBLED-2):** blank the header within GFM; truly-headerless tables open as
+   text (lossless), rendering them is a flagged follow-up. (See the Decisions table.)
+2. **Ragged-row overflow:** **widen** (confirmed).
+3. **Cursor-context keybindings (REQ-TBLED-5):** the proposed chords are fine — **and add UI gizmos +
+   a right-click menu in every mode** (see the "Edit affordances" decision; expands S3).
+4. **New-cell placeholder (REQ-TBLED-1/-3):** **single space** (confirmed).
+5. **Serialize style (REQ-TBLED-6):** **fitted, no alignment padding** (confirmed; see Decisions).

@@ -16,9 +16,9 @@ import {
   type TableModel,
 } from "./table-model";
 
-// A canonical already-tidy 2×2 table (header + one body row), single-char cells
-// padded to the delimiter's min width 3 — used as the round-trip fixture.
-const T = "| a   | b   |\n| --- | --- |\n| 1   | 2   |";
+// A canonical already-tidy 2×2 table (header + one body row). FITTED style: cells
+// sized to content, single spaces, NOT column-padded — used as the round-trip fixture.
+const T = "| a | b |\n| --- | --- |\n| 1 | 2 |";
 
 describe("[REQ-TBLED-6] splitRow — pipe geometry, empties included", () => {
   it("splits a pipe-delimited row into trimmed cells with absolute offsets", () => {
@@ -96,9 +96,9 @@ describe("[REQ-TBLED-6] serialize / tidy", () => {
     expect(tidy(tidy(T))).toBe(tidy(T));
   });
 
-  it("pads columns to the widest cell (min 3 so the delimiter fits)", () => {
-    const out = tidy("| name | x |\n|-|-|\n| alice | 1 |");
-    expect(out).toBe("| name  | x   |\n| ----- | --- |\n| alice | 1   |");
+  it("keeps cells FITTED to content (no column-width padding)", () => {
+    const out = tidy("|  name | x |\n|-|-|\n| alice |   1 |");
+    expect(out).toBe("| name | x |\n| --- | --- |\n| alice | 1 |");
   });
 
   it("normalizes the delimiter with alignment colons", () => {
@@ -107,23 +107,17 @@ describe("[REQ-TBLED-6] serialize / tidy", () => {
     expect(out).toBe("| :-: | --: | :-- |");
   });
 
-  it("pads a ragged SHORT body row to colCount", () => {
+  it("pads a ragged SHORT body row to colCount with empty cells", () => {
     const out = tidy("| a | b |\n| - | - |\n| x |");
-    expect(out).toBe("| a   | b   |\n| --- | --- |\n| x   |     |");
+    expect(out).toBe("| a | b |\n| --- | --- |\n| x |  |");
   });
 
   it("WIDENS the table for a ragged LONG body row (never drops cells)", () => {
     const out = tidy("| a | b |\n| - | - |\n| 1 | 2 | 3 |");
     const lines = out.split("\n");
-    expect(lines[0]).toBe("| a   | b   |     |"); // header widened with a 3rd empty col
+    expect(lines[0]).toBe("| a | b |  |"); // header widened with a 3rd empty col
     expect(lines[1]).toBe("| --- | --- | --- |");
-    expect(lines[2]).toBe("| 1   | 2   | 3   |");
-  });
-
-  it("counts emoji as one code point for padding width (cp, not .length)", () => {
-    // 4 astral emoji = 4 code points but 8 UTF-16 units; col0 width must be 4, not 8.
-    const out = tidy("| 😀😀😀😀 | b |\n|-|-|\n| x | y |");
-    expect(out.split("\n")[1]).toBe("| ---- | --- |");
+    expect(lines[2]).toBe("| 1 | 2 | 3 |");
   });
 });
 
@@ -133,7 +127,7 @@ const model = (src: string): TableModel => parseTable(src, 0);
 describe("[REQ-TBLED-3] insert/delete rows", () => {
   it("inserts an empty row at an index", () => {
     expect(serialize(insertRow(model(T), 0))).toBe(
-      "| a   | b   |\n| --- | --- |\n|     |     |\n| 1   | 2   |",
+      "| a | b |\n| --- | --- |\n|  |  |\n| 1 | 2 |",
     );
   });
   it("appends when index === rows.length", () => {
@@ -141,11 +135,11 @@ describe("[REQ-TBLED-3] insert/delete rows", () => {
     expect(serialize(insertRow(m, m.rows.length)).split("\n").length).toBe(4);
   });
   it("clamps an out-of-range insert index (negative → front, huge → end)", () => {
-    expect(serialize(insertRow(model(T), -5)).split("\n")[2]).toBe("|     |     |");
+    expect(serialize(insertRow(model(T), -5)).split("\n")[2]).toBe("|  |  |");
     expect(serialize(insertRow(model(T), 99)).split("\n").length).toBe(4);
   });
   it("deletes a body row", () => {
-    expect(serialize(deleteRow(model(T), 0))).toBe("| a   | b   |\n| --- | --- |");
+    expect(serialize(deleteRow(model(T), 0))).toBe("| a | b |\n| --- | --- |");
   });
   it("is a no-op for an out-of-range delete index", () => {
     expect(deleteRow(model(T), -1)).toEqual(model(T));
@@ -156,15 +150,15 @@ describe("[REQ-TBLED-3] insert/delete rows", () => {
 describe("[REQ-TBLED-3] insert/delete columns", () => {
   it("inserts an empty column at an index (header + delimiter + every row)", () => {
     const out = serialize(insertCol(model("| a | b |\n| - | - |\n| 1 | 2 |"), 1));
-    expect(out).toBe("| a   |     | b   |\n| --- | --- | --- |\n| 1   |     | 2   |");
+    expect(out).toBe("| a |  | b |\n| --- | --- | --- |\n| 1 |  | 2 |");
   });
   it("pads a ragged short row before inserting a column", () => {
     const out = serialize(insertCol(model("| a | b |\n| - | - |\n| x |"), 2));
-    expect(out.split("\n")[2]).toBe("| x   |     |     |");
+    expect(out.split("\n")[2]).toBe("| x |  |  |");
   });
   it("deletes a column from header + delimiter + every row", () => {
     const out = serialize(deleteCol(model("| a | b | c |\n| - | - | - |\n| 1 | 2 | 3 |"), 1));
-    expect(out).toBe("| a   | c   |\n| --- | --- |\n| 1   | 3   |");
+    expect(out).toBe("| a | c |\n| --- | --- |\n| 1 | 3 |");
   });
   it("is a no-op for an out-of-range column delete", () => {
     const m = model(T);
@@ -179,7 +173,7 @@ describe("[REQ-TBLED-3] insert/delete columns", () => {
 describe("[REQ-TBLED-4] move rows/columns", () => {
   it("reorders body rows", () => {
     const out = serialize(moveRow(model("| a | b |\n| - | - |\n| 1 | x |\n| 2 | y |"), 0, 1));
-    expect(out.split("\n").slice(2)).toEqual(["| 2   | y   |", "| 1   | x   |"]);
+    expect(out.split("\n").slice(2)).toEqual(["| 2 | y |", "| 1 | x |"]);
   });
   it("is a no-op for an out-of-range row move", () => {
     const m = model(T);
@@ -188,7 +182,7 @@ describe("[REQ-TBLED-4] move rows/columns", () => {
   });
   it("reorders a column across header + delimiter + every row", () => {
     const out = serialize(moveCol(model("| a | b |\n| :-- | --: |\n| 1 | 2 |"), 0, 1));
-    expect(out).toBe("| b   | a   |\n| --: | :-- |\n| 2   | 1   |");
+    expect(out).toBe("| b | a |\n| --: | :-- |\n| 2 | 1 |");
   });
   it("is a no-op for an out-of-range column move", () => {
     const m = model(T);
@@ -198,7 +192,7 @@ describe("[REQ-TBLED-4] move rows/columns", () => {
   it("pads ragged rows/aligns when moving a column on a widened table", () => {
     // long body row widens to 3 cols; aligns (2) get padded before the move
     const out = serialize(moveCol(model("| a | b |\n| - | - |\n| 1 | 2 | 3 |"), 0, 2));
-    expect(out.split("\n")[2]).toBe("| 2   | 3   | 1   |");
+    expect(out.split("\n")[2]).toBe("| 2 | 3 | 1 |");
   });
 });
 
@@ -210,7 +204,7 @@ describe("[REQ-TBLED-6] setColAlign", () => {
     const m = model(T);
     expect(setColAlign(m, 9, "left")).toEqual(m);
   });
-  it("pads aligns when the table was widened before aligning", () => {
+  it("widens aligns when the table was widened before aligning", () => {
     const out = serialize(setColAlign(model("| a | b |\n| - | - |\n| 1 | 2 | 3 |"), 2, "right"));
     expect(out.split("\n")[1]).toBe("| --- | --- | --: |");
   });
@@ -219,22 +213,20 @@ describe("[REQ-TBLED-6] setColAlign", () => {
 describe("[REQ-TBLED-2] toggleHeader", () => {
   it("blanks the header cells (stays valid GFM)", () => {
     const out = serialize(toggleHeader(model(T)));
-    expect(out.split("\n")[0]).toBe("|     |     |");
+    expect(out.split("\n")[0]).toBe("|  |  |");
     expect(out.split("\n").length).toBe(3); // still header + delimiter + body
   });
 });
 
 describe("[REQ-TBLED-1] makeTable", () => {
   it("builds an empty rows×cols table (row 0 = header)", () => {
-    expect(serialize(makeTable(2, 3))).toBe(
-      "|     |     |     |\n| --- | --- | --- |\n|     |     |     |",
-    );
+    expect(serialize(makeTable(2, 3))).toBe("|  |  |  |\n| --- | --- | --- |\n|  |  |  |");
   });
   it("round-trips via parseTable", () => {
     const out = serialize(makeTable(3, 2));
     expect(tidy(out)).toBe(out);
   });
   it("clamps rows/cols to a minimum of 1", () => {
-    expect(serialize(makeTable(0, 0))).toBe("|     |\n| --- |");
+    expect(serialize(makeTable(0, 0))).toBe("|  |\n| --- |");
   });
 });
