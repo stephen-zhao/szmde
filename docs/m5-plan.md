@@ -120,7 +120,7 @@ the line above lands `selection.head` inside the table. **WF (update WF-3):** cl
 bold cell → caret on the matching source char; ArrowDown/Up cross the table boundary live. The
 `caretPositionFromPoint` hop stays `/* v8 ignore */` live-only; the offset MATH is unit-covered.
 
-### S3 — Insert/delete row & col + cursor-context shortcuts ⬜  (`REQ-TBLED-3`, `REQ-TBLED-5`)
+### S3 — Insert/delete row & col + cursor-context shortcuts ✅  (`REQ-TBLED-3`, `REQ-TBLED-5`)
 Pure ops built+tested in S1. `table-commands.ts`: `StateCommand`s resolving the `Table` at the caret
 (`resolveInner`+walk; `return false` to pass the key through when not in a table) → model op →
 serialize → ONE replace over `[m.from, m.to]` → re-place caret in the same logical cell. Bindings
@@ -134,7 +134,18 @@ keydown, assert resulting doc + caret cell. Edge tests (the off-by-one lesson): 
 delete header-adjacent row, insert into a header-only table. **WF:** handle buttons fire at the right
 position; physical keys reach the commands.
 
-### S4 — Per-column alignment UI + tidy command ⬜  (`REQ-TBLED-6` UI half)
+### S3b — Edit affordances: right-click menu ✅ + hover gizmos ⬜  (`REQ-TBLED-3`/`-5`/`-6`)
+**Right-click context menu (done, `table-menu.ts`):** in Formatted mode, right-clicking any rendered
+cell opens `showTableMenu` — every structural op for that cell's row + column (insert/delete row,
+insert/delete column, move row/column, per-column alignment). Each op is a whole-table replace via the
+pure model; the caret is NOT moved, so it stays outside the block and the `<table>` updates in place (no
+reveal flicker). Dismisses on outside-click/Escape; viewport-clamped (live-only, v8-ignored). 16 DOM
+tests; the menu is appended into `view.dom` so the `EditorView.theme` rules reach it.
+**Remaining — hover "+" insert gizmos (⬜):** Formatted mode — a `+` affordance on cell/row/column
+edges to insert a row/column there. Source/Syntax mode — the same insert gizmos over the edge `|` chars
+(insert column) and the inter-line gaps (insert row). Insert-only; delete/move/align stay menu/keymap.
+
+### S4 — Per-column alignment UI + tidy command ⬜  (`REQ-TBLED-6` UI half — alignment now also in the S3b menu)
 `setColAlign`/`tidy` pure (S1). Alignment control in the column handle cycling `:--`/`:-:`/`--:`
 (targeted single-region `ChangeSpec` on the one delimiter cell). An explicit Tidy command (whole-table
 replace). **Tests:** PURE re-asserted (delimiter cell correct, tidy idempotent); DOM: clicking the
