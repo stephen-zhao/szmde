@@ -155,6 +155,14 @@ class TableWidget extends WidgetType {
       g.className = `cm-tbl-drag cm-tbl-drag-${kind}`;
       g.title = kind === "row" ? "Drag to reorder row" : "Drag to reorder column";
       g.setAttribute("aria-hidden", "true");
+      // A real pointer drag ALSO fires a compatibility mousedown on the grip; swallow
+      // it so it can't bubble to the table's reveal-on-mousedown handler and abort the
+      // drag (a synthetic PointerEvent doesn't emit this, so it's invisible to tests
+      // that only dispatch pointer events — hence the dedicated mousedown test).
+      g.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
       g.addEventListener("pointerdown", (e) => {
         /* v8 ignore start -- pointer DnD gesture: needs real layout + pointer capture
            (happy-dom has neither); the drop index + the move are unit-tested separately. */

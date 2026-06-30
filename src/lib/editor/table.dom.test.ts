@@ -526,6 +526,16 @@ describe("[REQ-TBLED-3] hover insert-gizmos on table edges", () => {
     expect(count(v, "thead .cm-tbl-drag-row")).toBe(0); // header isn't a draggable row
   });
 
+  it("[REQ-TBLED-4] a grip swallows mousedown so the drag's compat-mousedown can't reveal", () => {
+    // A real pointer drag also fires a compatibility mousedown on the grip; if it
+    // reached the table's reveal handler the table would flip to source mid-drag.
+    const v = build(MDOC, "clean", 0);
+    const grip = v.contentDOM.querySelector(".cm-tbl-drag-row")!;
+    grip.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 }));
+    expect(count(v, "table.cm-md-table")).toBe(1); // still rendered
+    expect(v.state.selection.main.head).toBe(0); // caret never entered the table
+  });
+
   it("a header column handle inserts a column to its right", () => {
     const v = build(MDOC, "clean", 0);
     mdown(giz(v, "thead th .cm-tbl-gizmo-col")); // first header cell, right edge
