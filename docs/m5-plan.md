@@ -159,7 +159,12 @@ primary-mousedown re-resolves the `Table` at click time (robust to intervening e
 replace via the pure ops. The same edits are already keymap-reachable in every mode; these are the mouse
 affordances. 10 DOM tests (incl. re-resolve-after-edit); verified live in Source mode.
 
-### S4 — Per-column alignment UI + tidy command ⬜  (`REQ-TBLED-6` UI half — alignment now also in the S3b menu)
+### S4 — Per-column alignment UI + tidy command ✅  (`REQ-TBLED-6` UI half)
+**Alignment UI** shipped via the S3b right-click menu (Align left/center/right/clear on the clicked
+column → `setColAlign` → whole-table replace). **`tidyTable`** (`table-commands.ts`) re-serializes the
+table at the caret to canonical fitted GFM; bound to `Mod-Alt-t` (inert outside a table; returns false
+when already tidy). Verified live in Source mode. (Original plan below — the alignment-cycle-on-the-handle
+idea was superseded by the menu's discrete align items + the source-mode gizmos.)
 `setColAlign`/`tidy` pure (S1). Alignment control in the column handle cycling `:--`/`:-:`/`--:`
 (targeted single-region `ChangeSpec` on the one delimiter cell). An explicit Tidy command (whole-table
 replace). **Tests:** PURE re-asserted (delimiter cell correct, tidy idempotent); DOM: clicking the
