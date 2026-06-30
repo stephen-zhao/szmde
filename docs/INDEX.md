@@ -27,6 +27,7 @@ was under-specified. Each round's classification is recorded in a triage doc.
 |-----|---------|
 | [m3-plan.md](m3-plan.md) | M3 (cloud storage) architecture + slices + live-wiring tail |
 | [m4-plan.md](m4-plan.md) | M4 (authoring essentials) architecture + slices |
+| [m5-plan.md](m5-plan.md) | M5 (rich table editing) architecture + slices (scouted) |
 | [m4-feedback-triage.md](m4-feedback-triage.md) | M4 review feedback, each comment classified bug-vs-requirement |
 | [m3-cloud-setup.md](m3-cloud-setup.md) | Human steps to register the Google/Azure OAuth apps |
 | [llm-workflow-tests.md](llm-workflow-tests.md) | Live-behavior test scripts (`WF-*`) for things happy-dom can't cover, each linked to a `REQ-*` |
