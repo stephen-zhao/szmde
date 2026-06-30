@@ -47,6 +47,11 @@ missing. Requirements with no automated test are tracked explicitly in the gaps 
 | REQ-ALERT-2 | Alert box shows in every mode; the `[!TYPE]` label reveals literally on cursor / in Source; a normal or bogus blockquote is unaffected | §5.1 | integration (DOM) | `alerts.dom.test.ts` |
 | REQ-TABLE-1 | GFM pipe table renders as a real `<table>` in Clean (header/body cells, per-column alignment); header-only tables don't crash | §5.1 | integration (DOM) | `table.dom.test.ts` |
 | REQ-TABLE-2 | Table reveals raw pipe source on cursor (atomic); literal pipe text kept in Source/Syntax | §5.1 | integration (DOM) | `table.dom.test.ts` |
+| REQ-TBLED-1 | Insert an N×M table from scratch — **model layer (M5 S1):** `makeTable`; the insert command + grid picker land in S6 | §7.4 | unit | `table-model.test.ts` |
+| REQ-TBLED-2 | Toggle the header row on/off — **model (S1):** `toggleHeader` (blank-header keeps valid GFM); command/UI in S7 | §7.4 | unit | `table-model.test.ts` |
+| REQ-TBLED-3 | Insert/delete rows & columns at any position — **model (S1):** `insertRow`/`deleteRow`/`insertCol`/`deleteCol`; commands + handles in S3 | §7.4 | unit | `table-model.test.ts` |
+| REQ-TBLED-4 | Drag to reorder rows/columns — **model (S1):** `moveRow`/`moveCol`; pointer-drag UI in S5 | §7.4 | unit | `table-model.test.ts` |
+| REQ-TBLED-6 | Auto-tidy + per-column alignment — **model (S1):** `parseTable`/`serialize`/`tidy`/`setColAlign` (columns from pipe geometry, empty cells preserved — fixes the lezer node-index bug); alignment UI + Tidy command in S4 | §7.4 | unit | `table-model.test.ts` |
 | REQ-NEST-1 | Nested lists render (mixed ordered/unordered); unordered bullets vary by depth (•/◦/▪) and continuation hang-indents track the depth glyph | §5.1 | integration (DOM) | `nested.dom.test.ts` |
 | REQ-BLOCK-1 | ATX headings get `cm-h1`..`cm-h6` by level | §5.1 | integration (DOM) | `blocks.test.ts` |
 | REQ-BLOCK-2 | Blockquote lines get `cm-blockquote` (every line; no bleed) | §5.1 | integration (DOM) | `blocks.test.ts` |
