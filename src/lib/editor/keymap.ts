@@ -5,7 +5,16 @@ import { indentLess, indentMore, insertNewlineAndIndent } from "@codemirror/comm
 import { getIndentUnit, indentString, syntaxTree } from "@codemirror/language";
 import { deleteMarkupBackward, insertNewlineContinueMarkup } from "@codemirror/lang-markdown";
 import { cycleRenderMode } from "./render-mode";
-import { enterTableDown, enterTableUp } from "./table-commands";
+import {
+  enterTableDown,
+  enterTableUp,
+  insertRowBelow,
+  insertRowAbove,
+  moveRowDown,
+  moveRowUp,
+  moveColLeft,
+  moveColRight,
+} from "./table-commands";
 
 /** True if `pos` is inside inline or fenced code (where B/I should be inert). */
 function inCode(state: Parameters<StateCommand>[0]["state"], pos: number): boolean {
@@ -303,5 +312,13 @@ export const editingKeymap: Extension = Prec.high(
     // block). Both return false off a table edge, so normal nav is unaffected.
     { key: "ArrowDown", run: enterTableDown },
     { key: "ArrowUp", run: enterTableUp },
+    // Cursor-context table edits (REQ-TBLED-5) — all return false outside a table,
+    // so the chords are inert elsewhere. Insert/delete via gizmos + menu too (S3).
+    { key: "Mod-Enter", run: insertRowBelow },
+    { key: "Mod-Shift-Enter", run: insertRowAbove },
+    { key: "Alt-Shift-ArrowDown", run: moveRowDown },
+    { key: "Alt-Shift-ArrowUp", run: moveRowUp },
+    { key: "Alt-Shift-ArrowLeft", run: moveColLeft },
+    { key: "Alt-Shift-ArrowRight", run: moveColRight },
   ]),
 );

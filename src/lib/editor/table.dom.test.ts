@@ -4,7 +4,20 @@ import { EditorSelection, EditorState } from "@codemirror/state";
 import { forceParsing } from "@codemirror/language";
 import { editorExtensions } from "./setup";
 import { renderInlineMarkdown } from "./tables";
-import { enterTableDown, enterTableUp } from "./table-commands";
+import {
+  enterTableDown,
+  enterTableUp,
+  insertRowBelow,
+  insertRowAbove,
+  deleteCurrentRow,
+  insertColRight,
+  insertColLeft,
+  deleteCurrentCol,
+  moveRowDown,
+  moveRowUp,
+  moveColRight,
+  moveColLeft,
+} from "./table-commands";
 import type { RenderMode } from "./render-mode";
 import type { StateCommand } from "@codemirror/state";
 
@@ -194,6 +207,74 @@ describe("[REQ-TBLED-7] arrow keys enter a rendered table", () => {
 
   it("returns false when the caret is already inside the table", () => {
     expect(run(at(build(DOC2, "clean", 0), 3), enterTableDown)).toBe(false);
+  });
+});
+
+describe("[REQ-TBLED-3][REQ-TBLED-5] structural table commands", () => {
+  const TBL = "| a | b | c |\n| - | - | - |\n| 1 | 2 | 3 |\n| 4 | 5 | 6 |";
+  const DELIM = "| --- | --- | --- |"; // tables re-serialize fitted on every edit
+  const run = (v: EditorView, cmd: StateCommand) => cmd({ state: v.state, dispatch: (tr) => v.dispatch(tr) });
+  const withCaretOn = (chr: string) => {
+    const v = build(TBL, "clean", 0);
+    v.dispatch({ selection: { anchor: v.state.doc.toString().indexOf(chr) } });
+    return v;
+  };
+  const doc = (v: EditorView) => v.state.doc.toString();
+
+  it("insertRowBelow inserts an empty row after the caret's row", () => {
+    const v = withCaretOn("2"); // body row 0
+    expect(run(v, insertRowBelow)).toBe(true);
+    expect(doc(v)).toBe(`| a | b | c |\n${DELIM}\n| 1 | 2 | 3 |\n|  |  |  |\n| 4 | 5 | 6 |`);
+  });
+  it("insertRowAbove inserts before the caret's row", () => {
+    const v = withCaretOn("2");
+    run(v, insertRowAbove);
+    expect(doc(v)).toBe(`| a | b | c |\n${DELIM}\n|  |  |  |\n| 1 | 2 | 3 |\n| 4 | 5 | 6 |`);
+  });
+  it("deleteCurrentRow removes the caret's body row", () => {
+    const v = withCaretOn("2");
+    run(v, deleteCurrentRow);
+    expect(doc(v)).toBe(`| a | b | c |\n${DELIM}\n| 4 | 5 | 6 |`);
+  });
+  it("deleteCurrentRow is a no-op on the header row (returns false)", () => {
+    const v = withCaretOn("a"); // header
+    expect(run(v, deleteCurrentRow)).toBe(false);
+    expect(doc(v)).toBe(TBL); // untouched
+  });
+  it("insertColRight inserts an empty column after the caret's column", () => {
+    const v = withCaretOn("2"); // col 1
+    run(v, insertColRight);
+    expect(doc(v)).toBe(`| a | b |  | c |\n| --- | --- | --- | --- |\n| 1 | 2 |  | 3 |\n| 4 | 5 |  | 6 |`);
+  });
+  it("insertColLeft inserts before the caret's column", () => {
+    const v = withCaretOn("2");
+    run(v, insertColLeft);
+    expect(doc(v).split("\n")[0]).toBe("| a |  | b | c |");
+  });
+  it("deleteCurrentCol removes the caret's column", () => {
+    const v = withCaretOn("2"); // col 1
+    run(v, deleteCurrentCol);
+    expect(doc(v)).toBe("| a | c |\n| --- | --- |\n| 1 | 3 |\n| 4 | 6 |");
+  });
+  it("moveRowDown / moveRowUp swap adjacent body rows", () => {
+    const down = withCaretOn("2"); // body row 0
+    run(down, moveRowDown);
+    expect(doc(down)).toBe(`| a | b | c |\n${DELIM}\n| 4 | 5 | 6 |\n| 1 | 2 | 3 |`);
+    const up = withCaretOn("5"); // body row 1
+    run(up, moveRowUp);
+    expect(doc(up)).toBe(`| a | b | c |\n${DELIM}\n| 4 | 5 | 6 |\n| 1 | 2 | 3 |`);
+  });
+  it("moveColRight / moveColLeft reorder columns across all rows", () => {
+    const right = withCaretOn("2"); // col 1 → 2
+    run(right, moveColRight);
+    expect(doc(right)).toBe(`| a | c | b |\n${DELIM}\n| 1 | 3 | 2 |\n| 4 | 6 | 5 |`);
+    const left = withCaretOn("2"); // col 1 → 0
+    run(left, moveColLeft);
+    expect(doc(left)).toBe(`| b | a | c |\n${DELIM}\n| 2 | 1 | 3 |\n| 5 | 4 | 6 |`);
+  });
+  it("returns false when the caret is not in a table", () => {
+    const v = build("just text", "clean", 0);
+    expect(run(v, insertRowBelow)).toBe(false);
   });
 });
 
