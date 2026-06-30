@@ -18,6 +18,7 @@ import {
   moveColRight,
   moveColLeft,
 } from "./table-commands";
+import { closeTableMenu } from "./table-menu";
 import type { RenderMode } from "./render-mode";
 import type { StateCommand } from "@codemirror/state";
 
@@ -27,6 +28,7 @@ import type { StateCommand } from "@codemirror/state";
 // deferred §7.4 effort). happy-dom builds a real <table> we can walk.
 let view: EditorView | undefined;
 afterEach(() => {
+  closeTableMenu(); // drop any open context menu + its document listeners
   view?.destroy();
   view = undefined;
 });
@@ -275,6 +277,166 @@ describe("[REQ-TBLED-3][REQ-TBLED-5] structural table commands", () => {
   it("returns false when the caret is not in a table", () => {
     const v = build("just text", "clean", 0);
     expect(run(v, insertRowBelow)).toBe(false);
+  });
+});
+
+describe("[REQ-TBLED-3][REQ-TBLED-5][REQ-TBLED-6] right-click table context menu", () => {
+  // Formatted-mode structural-edit UI: right-click a cell → a menu of every op for
+  // that cell's row + column. The op is a whole-table replace; the caret stays
+  // outside the block, so the rendered table updates in place. (The hover "+"
+  // gizmos are a separate convenience.)
+  const MDOC = "intro\n\n| a | b |\n| - | - |\n| 1 | 2 |"; // caret on line 0 → renders
+  const TIDY = "intro\n\n| a | b |\n| --- | --- |"; // delimiter after a re-serialize
+
+  const bodyCell = (v: EditorView, i = 0) =>
+    v.contentDOM.querySelectorAll<HTMLTableCellElement>("tbody td")[i];
+  const headerCell = (v: EditorView, i = 0) =>
+    v.contentDOM.querySelectorAll<HTMLTableCellElement>("thead th")[i];
+  const rightClick = (cell: Element) =>
+    cell.dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 11, clientY: 13 }),
+    );
+  const menuOf = (v: EditorView) => v.dom.querySelector<HTMLElement>(".cm-md-table-menu");
+  const itemEls = (v: EditorView) => [...v.dom.querySelectorAll<HTMLButtonElement>(".cm-md-table-menu-item")];
+  const itemEl = (v: EditorView, label: string) => itemEls(v).find((b) => b.textContent === label)!;
+  const clickItem = (v: EditorView, label: string) =>
+    itemEl(v, label).dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+  const doc = (v: EditorView) => v.state.doc.toString();
+
+  it("right-clicking a cell opens a menu (inside the editor wrapper) with the ops", () => {
+    const v = build(MDOC, "clean", 0);
+    rightClick(bodyCell(v, 0));
+    const menu = menuOf(v);
+    expect(menu).not.toBeNull();
+    expect(menu!.style.left).toBe("11px"); // positioned at the click (clientX/clientY)
+    expect(menu!.style.top).toBe("13px");
+    const labels = itemEls(v).map((b) => b.textContent);
+    for (const l of ["Insert row below", "Delete row", "Insert column right", "Delete column", "Align center"])
+      expect(labels).toContain(l);
+  });
+
+  it("resolves the cell even when right-clicking an inline segment inside it", () => {
+    const v = build("intro\n\n| a | b |\n| - | - |\n| **x** | y |", "clean", 0);
+    const strong = v.contentDOM.querySelector("tbody td strong")!;
+    rightClick(strong); // target is the <strong>, not the <td>
+    expect(menuOf(v)).not.toBeNull(); // closest('[data-row]') still finds the cell
+  });
+
+  it("does NOT open a menu when the right-click misses every cell", () => {
+    const v = build(MDOC, "clean", 0);
+    const table = v.contentDOM.querySelector("table.cm-md-table")!;
+    rightClick(table); // target is the <table>, which has no data-row
+    expect(menuOf(v)).toBeNull();
+  });
+
+  it("'Insert row below' adds an empty body row after the clicked row", () => {
+    const v = build(MDOC, "clean", 0);
+    rightClick(bodyCell(v, 0));
+    clickItem(v, "Insert row below");
+    expect(doc(v)).toBe(`${TIDY}\n| 1 | 2 |\n|  |  |`);
+    expect(menuOf(v)).toBeNull(); // applying closes the menu
+  });
+
+  it("'Insert row above' adds an empty body row before the clicked row", () => {
+    const v = build(MDOC, "clean", 0);
+    rightClick(bodyCell(v, 0));
+    clickItem(v, "Insert row above");
+    expect(doc(v)).toBe(`${TIDY}\n|  |  |\n| 1 | 2 |`);
+  });
+
+  it("'Delete row' removes the clicked body row", () => {
+    const v = build(MDOC, "clean", 0);
+    rightClick(bodyCell(v, 0));
+    clickItem(v, "Delete row");
+    expect(doc(v)).toBe(TIDY);
+  });
+
+  it("disables row ops on a header cell (no body row to act on)", () => {
+    const v = build(MDOC, "clean", 0);
+    rightClick(headerCell(v, 0));
+    expect(itemEl(v, "Delete row").disabled).toBe(true);
+    expect(itemEl(v, "Move row up").disabled).toBe(true);
+    expect(itemEl(v, "Move row down").disabled).toBe(true);
+    expect(itemEl(v, "Insert column right").disabled).toBe(false); // column ops still apply
+  });
+
+  it("'Insert column right' / 'Delete column' edit the clicked column", () => {
+    const ins = build(MDOC, "clean", 0);
+    rightClick(bodyCell(ins, 0)); // column 0
+    clickItem(ins, "Insert column right");
+    expect(doc(ins)).toBe("intro\n\n| a |  | b |\n| --- | --- | --- |\n| 1 |  | 2 |");
+
+    const del = build(MDOC, "clean", 0);
+    rightClick(bodyCell(del, 0));
+    clickItem(del, "Delete column");
+    expect(doc(del)).toBe("intro\n\n| b |\n| --- |\n| 2 |");
+  });
+
+  it("'Align center' rewrites the clicked column's delimiter", () => {
+    const v = build(MDOC, "clean", 0);
+    rightClick(bodyCell(v, 1)); // column 1
+    clickItem(v, "Align center");
+    expect(doc(v)).toBe("intro\n\n| a | b |\n| --- | :-: |\n| 1 | 2 |");
+  });
+
+  it("'Move row down' / 'Move column right' reorder via the menu", () => {
+    const MD2 = "intro\n\n| a | b |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |";
+    const rows = build(MD2, "clean", 0);
+    rightClick(bodyCell(rows, 0)); // body row 0 ('1 2')
+    clickItem(rows, "Move row down");
+    expect(doc(rows)).toBe("intro\n\n| a | b |\n| --- | --- |\n| 3 | 4 |\n| 1 | 2 |");
+
+    const cols = build(MD2, "clean", 0);
+    rightClick(bodyCell(cols, 0)); // column 0
+    clickItem(cols, "Move column right");
+    expect(doc(cols)).toBe("intro\n\n| b | a |\n| --- | --- |\n| 2 | 1 |\n| 4 | 3 |");
+
+    const up = build(MD2, "clean", 0);
+    rightClick(bodyCell(up, 2)); // body row 1 ('3 4'), col 0
+    clickItem(up, "Move row up");
+    expect(doc(up)).toBe("intro\n\n| a | b |\n| --- | --- |\n| 3 | 4 |\n| 1 | 2 |");
+  });
+
+  it("a no-op op (move column 0 left) leaves the doc untouched and closes the menu", () => {
+    const v = build(MDOC, "clean", 0);
+    rightClick(bodyCell(v, 0)); // column 0 — cannot move further left
+    clickItem(v, "Move column left");
+    expect(doc(v)).toBe(MDOC); // unchanged (no dispatch — source not even tidied)
+    expect(menuOf(v)).toBeNull();
+  });
+
+  it("clicking outside the menu dismisses it", () => {
+    const v = build(MDOC, "clean", 0);
+    rightClick(bodyCell(v, 0));
+    expect(menuOf(v)).not.toBeNull();
+    document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    expect(menuOf(v)).toBeNull();
+  });
+
+  it("Escape dismisses the menu; other keys leave it open", () => {
+    const v = build(MDOC, "clean", 0);
+    rightClick(bodyCell(v, 0));
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
+    expect(menuOf(v)).not.toBeNull(); // unrelated key — still open
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(menuOf(v)).toBeNull();
+  });
+
+  it("opening a second menu replaces the first (only one at a time)", () => {
+    const v = build(MDOC, "clean", 0);
+    rightClick(bodyCell(v, 0));
+    rightClick(bodyCell(v, 1));
+    expect(v.dom.querySelectorAll(".cm-md-table-menu").length).toBe(1);
+  });
+
+  it("destroying the table widget (caret revealing it) closes a stray menu", () => {
+    const v = build(MDOC, "clean", 0);
+    rightClick(bodyCell(v, 0));
+    expect(menuOf(v)).not.toBeNull();
+    // Move the caret into the table → the widget is removed (reveal) → destroy().
+    v.dispatch({ selection: { anchor: v.state.doc.line(3).from } });
+    expect(count(v, "table.cm-md-table")).toBe(0); // revealed to source
+    expect(menuOf(v)).toBeNull(); // widget.destroy() dropped the menu
   });
 });
 

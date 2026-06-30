@@ -10,7 +10,8 @@ import {
 } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import { renderMode } from "./render-mode";
-import { parseTable, tokenizeInline, type Align, type Cell } from "./table-model";
+import { parseTable, tokenizeInline, type Align, type Cell, type TableModel } from "./table-model";
+import { showTableMenu, closeTableMenu } from "./table-menu";
 
 /**
  * Render a cell's inline markdown (bold / italic / strikethrough / inline code /
@@ -94,51 +95,65 @@ function cellPosAt(e: MouseEvent, fallback: number): number {
 
 class TableWidget extends WidgetType {
   constructor(
-    readonly headers: Cell[],
-    readonly rows: Cell[][],
-    readonly aligns: Align[],
-    readonly from: number, // table start — fallback caret target on click
+    readonly m: TableModel, // full cell map + alignments; table start is m.from
     readonly key: string,
   ) {
     super();
   }
   eq(o: TableWidget) {
-    return o.key === this.key && o.from === this.from;
+    return o.key === this.key && o.m.from === this.m.from;
   }
   toDOM(view: EditorView) {
+    const m = this.m;
     const table = document.createElement("table");
     table.className = "cm-md-table";
     table.setAttribute("contenteditable", "false");
-    const align = (i: number): Align => this.aligns[i] ?? null;
+    const align = (i: number): Align => m.aligns[i] ?? null;
 
-    const fill = (el: HTMLTableCellElement, c: Cell, i: number) => {
+    // `row` = -1 for a header cell, 0+ for a body row; carried as data-row/data-col
+    // so the right-click menu knows which row + column the clicked cell belongs to.
+    const fill = (el: HTMLTableCellElement, c: Cell, col: number, row: number) => {
       renderInlineMarkdown(el, c.text, c.from); // segments carry absolute data-seg-from
       el.dataset.cellFrom = String(c.from);
-      if (align(i)) el.style.textAlign = align(i)!;
+      el.dataset.row = String(row);
+      el.dataset.col = String(col);
+      if (align(col)) el.style.textAlign = align(col)!;
     };
 
     const hr = table.createTHead().insertRow();
-    this.headers.forEach((c, i) => {
+    m.header.forEach((c, i) => {
       const th = document.createElement("th");
-      fill(th, c, i);
+      fill(th, c, i, -1);
       hr.appendChild(th);
     });
 
     const tbody = table.createTBody();
-    for (const row of this.rows) {
+    m.rows.forEach((row, r) => {
       const tr = tbody.insertRow();
-      row.forEach((c, i) => fill(tr.insertCell(), c, i));
-    }
+      row.forEach((c, i) => fill(tr.insertCell(), c, i, r));
+    });
     // Clicking a cell reveals the raw pipe source with the caret in that cell at
     // the clicked position. stopPropagation beats CM's own block-edge placement.
-    // (The rich structured table-editing experience is SPEC §7.4.)
     table.addEventListener("mousedown", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      view.dispatch({ selection: EditorSelection.cursor(cellPosAt(e, this.from)), scrollIntoView: true });
+      view.dispatch({ selection: EditorSelection.cursor(cellPosAt(e, m.from)), scrollIntoView: true });
       view.focus();
     });
+    // Right-click a cell → its structural-edit menu (insert/delete/move/align for
+    // the cell's row + column — M5 S3, REQ-TBLED-3/-5/-6). The menu ops keep the
+    // caret outside the block, so the rendered table updates in place.
+    table.addEventListener("contextmenu", (e) => {
+      const cell = (e.target as HTMLElement | null)?.closest?.("[data-row]") as HTMLElement | null;
+      if (!cell) return;
+      e.preventDefault();
+      e.stopPropagation();
+      showTableMenu(view, m, cell, e.clientX, e.clientY);
+    });
     return table;
+  }
+  destroy() {
+    closeTableMenu(); // table removed (re-render / scroll-away) → drop a stray menu
   }
   /* v8 ignore start -- pointer-event plumbing; not dispatchable in happy-dom. */
   ignoreEvent() {
@@ -173,12 +188,12 @@ function computeTableDecos(state: EditorState): TableDecos {
       // no TableCell node for it, and the old getChildren("TableCell") indexing then
       // mis-assigned alignment + click targets for any table with a blank cell).
       // lezer is used only to locate the Table block [from, to].
-      const { header: headers, rows, aligns } = parseTable(state.doc.sliceString(from, to), from);
+      const m = parseTable(state.doc.sliceString(from, to), from);
 
-      const key = JSON.stringify([headers, rows, aligns]);
+      const key = JSON.stringify([m.header, m.rows, m.aligns]);
       decos.push(
         Decoration.replace({
-          widget: new TableWidget(headers, rows, aligns, from, key),
+          widget: new TableWidget(m, key),
           block: true,
         }).range(from, to),
       );

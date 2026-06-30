@@ -245,6 +245,41 @@ export const baseTheme = EditorView.theme(
       backgroundColor: "var(--code-header-bg)",
       fontWeight: "700",
     },
+    // Right-click structural-edit menu (M5 S3). Floats over the table (position:
+    // fixed = viewport coords from the click), appended into the editor wrapper so
+    // these rules reach it. A flat button list with separators.
+    ".cm-md-table-menu": {
+      position: "fixed",
+      zIndex: "30",
+      minWidth: "184px",
+      padding: "4px",
+      background: "var(--bg-raised)",
+      color: "var(--text)",
+      border: "1px solid var(--border)",
+      borderRadius: "8px",
+      boxShadow: "0 6px 22px rgba(0, 0, 0, 0.28)",
+      fontSize: "calc(var(--editor-font-size, 16px) * 0.82)",
+      userSelect: "none",
+    },
+    ".cm-md-table-menu-item": {
+      display: "block",
+      width: "100%",
+      textAlign: "left",
+      padding: "5px 11px",
+      border: "none",
+      borderRadius: "5px",
+      background: "transparent",
+      color: "inherit",
+      font: "inherit",
+      cursor: "pointer",
+    },
+    ".cm-md-table-menu-item:hover:not(:disabled)": { background: "var(--selection)" },
+    ".cm-md-table-menu-item:disabled": { opacity: "0.38", cursor: "default" },
+    ".cm-md-table-menu-sep": {
+      height: "1px",
+      margin: "4px 7px",
+      background: "var(--border)",
+    },
     // Inline image (Clean mode): replaces `![alt](src)`. Constrain to the reading
     // column width and keep aspect ratio; rounded to match the code-card style.
     ".cm-md-image": {
