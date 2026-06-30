@@ -132,6 +132,9 @@ class TableWidget extends WidgetType {
       g.title = title;
       g.setAttribute("aria-label", title);
       g.addEventListener("mousedown", (e) => {
+        // Primary button only — a right/middle-click must fall through (don't insert,
+        // don't stopPropagation) so it reaches the contextmenu handler for the menu.
+        if (e.button !== 0) return;
         e.preventDefault();
         e.stopPropagation(); // beat the table's reveal-on-mousedown
         view.dispatch({ changes: { from: m.from, to: m.to, insert: serialize(op()) } });

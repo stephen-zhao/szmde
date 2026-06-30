@@ -528,6 +528,18 @@ describe("[REQ-TBLED-3] hover insert-gizmos on table edges", () => {
     expect(count(v, "table.cm-md-table")).toBe(1); // applied in place, not revealed
     expect(v.state.selection.main.head).toBe(0); // caret never entered the table
   });
+
+  it("a non-primary click on a gizmo does not insert (falls through to the menu)", () => {
+    const v = build(MDOC, "clean", 0);
+    const before = doc(v);
+    const g = giz(v, "thead th .cm-tbl-gizmo-col");
+    // Right-click (button 2) on the gizmo must NOT insert...
+    g.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 2 }));
+    expect(doc(v)).toBe(before); // unchanged
+    // ...and the contextmenu (on the gizmo, which lives inside a cell) opens the menu.
+    g.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    expect(v.dom.querySelector(".cm-md-table-menu")).not.toBeNull();
+  });
 });
 
 describe("[REQ-TABLE-1] renderInlineMarkdown — cell inline tokens", () => {
