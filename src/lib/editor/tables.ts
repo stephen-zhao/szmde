@@ -1,7 +1,6 @@
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 import type { DecorationSet } from "@codemirror/view";
 import {
-  EditorSelection,
   RangeSet,
   StateField,
   type EditorState,
@@ -22,6 +21,7 @@ import {
 } from "./table-model";
 import { showTableMenu, closeTableMenu } from "./table-menu";
 import { indexAt, applyMove, type DragKind } from "./table-drag";
+import { editCellAt, commitCellEditor } from "./table-cell-editor";
 
 /**
  * Render a cell's inline markdown (bold / italic / strikethrough / inline code /
@@ -55,11 +55,12 @@ export function renderInlineMarkdown(parent: HTMLElement, text: string, baseOffs
 }
 
 /**
- * GFM tables (SPEC §5.1) — **render-only** in M2. Clean mode replaces the
- * pipe-table source with a real `<table>` (a block widget); the caret entering
- * the table reveals the raw source so it stays editable. The rich structured
- * editing experience (insert/reorder rows & columns, drag handles, cursor-context
- * shortcuts) is the separate, deferred §7.4 effort.
+ * GFM tables (SPEC §5.1). Clean (Formatted) mode replaces the pipe-table source with
+ * a real `<table>` block widget. The table STAYS rendered while you edit — clicking a
+ * cell opens an inline editor over just that cell (`table-cell-editor.ts`); the table
+ * never flips to raw pipes here (use Source mode for that). Structural editing — the
+ * right-click menu, hover gizmos, and drag handles — operates on the source via
+ * whole-table replaces, so the rendered table updates in place.
  *
  * Block-level / cross-line replacing decorations cannot be supplied from a
  * ViewPlugin (the editor needs them before computing vertical layout), so unlike
@@ -68,40 +69,8 @@ export function renderInlineMarkdown(parent: HTMLElement, text: string, baseOffs
  *
  * The cell map (text + source offsets + alignment) comes from the pure
  * `table-model.ts` (`parseTable`); this module is the CodeMirror adapter — locate
- * the `Table` block, render the model as a `<table>`, reveal source on caret-in.
+ * the `Table` block and render the model as a `<table>`.
  */
-
-/* v8 ignore start -- caretPositionFromPoint/caretRangeFromPoint need real layout,
-   which happy-dom doesn't provide; the plain-cell char mapping runs in the WebView. */
-function caretOffsetIn(cell: HTMLElement, x: number, y: number): number | null {
-  const doc = cell.ownerDocument as Document & {
-    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
-  };
-  const pos = doc.caretPositionFromPoint?.(x, y);
-  if (pos && cell.contains(pos.offsetNode)) return pos.offset;
-  const range = doc.caretRangeFromPoint?.(x, y);
-  if (range && cell.contains(range.startContainer)) return range.startOffset;
-  return null;
-}
-/* v8 ignore stop */
-
-/** Source position for a click on the table: the clicked inline SEGMENT's source
- *  start plus the in-segment character offset (segments carry `data-seg-from`, so it
- *  works inside formatted cells too — REQ-TBLED-7); else the clicked cell's start;
- *  else the table start (click not on a cell). */
-function cellPosAt(e: MouseEvent, fallback: number): number {
-  const target = e.target as HTMLElement | null;
-  const seg = target?.closest?.("[data-seg-from]") as HTMLElement | null;
-  if (seg) {
-    const segFrom = Number(seg.dataset.segFrom);
-    /* v8 ignore start -- caretPositionFromPoint is live-only; happy-dom returns null → +0. */
-    const off = caretOffsetIn(seg, e.clientX, e.clientY);
-    /* v8 ignore stop */
-    return segFrom + (off ?? 0);
-  }
-  const cell = target?.closest?.("[data-cell-from]") as HTMLElement | null;
-  return cell ? Number(cell.dataset.cellFrom) : fallback;
-}
 
 class TableWidget extends WidgetType {
   constructor(
@@ -242,18 +211,15 @@ class TableWidget extends WidgetType {
       const tr = tbody.insertRow();
       row.forEach((c, i) => fill(tr.insertCell(), c, i, r));
     });
-    // Left-clicking a cell reveals the raw pipe source with the caret in that cell
-    // at the clicked position. stopPropagation beats CM's own block-edge placement.
+    // Left-clicking a cell opens the inline editor over it — the table stays rendered
+    // (REQ-TBLED-7). A right/middle-click falls through (return) to the contextmenu
+    // handler for the structural menu. stopPropagation keeps CM from placing a caret.
     table.addEventListener("mousedown", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      // Only the PRIMARY button moves the caret. A right-click's mousedown fires
-      // BEFORE its contextmenu — if it moved the caret into the cell, the table
-      // would reveal to source before the menu could open. Swallow it and let the
-      // contextmenu handler open the menu over the still-rendered table.
       if (e.button !== 0) return;
-      view.dispatch({ selection: EditorSelection.cursor(cellPosAt(e, m.from)), scrollIntoView: true });
-      view.focus();
+      const cell = (e.target as HTMLElement | null)?.closest?.("[data-row]") as HTMLElement | null;
+      if (cell) editCellAt(view, m.from, Number(cell.dataset.row), Number(cell.dataset.col));
     });
     // Right-click a cell → its structural-edit menu (insert/delete/move/align for
     // the cell's row + column — M5 S3b, REQ-TBLED-3/-5/-6). The menu ops keep the
@@ -269,6 +235,7 @@ class TableWidget extends WidgetType {
   }
   destroy() {
     closeTableMenu(); // table removed (re-render / scroll-away) → drop a stray menu
+    commitCellEditor(); // …and flush an open inline cell editor (keep the edit)
   }
   /* v8 ignore start -- event plumbing; widget events aren't dispatched in happy-dom. */
   ignoreEvent(e: Event) {
@@ -292,15 +259,14 @@ function computeTableDecos(state: EditorState): TableDecos {
   if (state.facet(renderMode) !== "clean") return EMPTY;
   const decos: Range<Decoration>[] = [];
   const hidden: Range<Decoration>[] = [];
-  const sel = state.selection.ranges;
 
   syntaxTree(state).iterate({
     enter(node) {
       if (node.name !== "Table") return undefined;
       const from = state.doc.lineAt(node.from).from;
       const to = state.doc.lineAt(node.to).to;
-      // Reveal-to-source when the caret/selection touches the table.
-      if (sel.some((r) => r.to >= from && r.from <= to)) return false;
+      // The table ALWAYS stays rendered in Clean mode now (no reveal-to-source);
+      // cells are edited in place via the inline editor (table-cell-editor.ts).
 
       // M5 S1: build the cell map from the pure table-model, which parses columns
       // from PIPE GEOMETRY — so an empty cell isn't dropped (the lezer grammar emits
@@ -327,9 +293,10 @@ function computeTableDecos(state: EditorState): TableDecos {
 const tableField = StateField.define<TableDecos>({
   create: computeTableDecos,
   update(value, tr) {
+    // No `tr.selection` trigger: the table no longer reveals on caret-in, so the
+    // decorations depend only on the doc / render mode / parse tree, not the cursor.
     if (
       tr.docChanged ||
-      tr.selection ||
       tr.startState.facet(renderMode) !== tr.state.facet(renderMode) ||
       syntaxTree(tr.startState) !== syntaxTree(tr.state)
     ) {

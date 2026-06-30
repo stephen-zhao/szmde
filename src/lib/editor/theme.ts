@@ -240,7 +240,30 @@ export const baseTheme = EditorView.theme(
       border: "1px solid var(--border)",
       padding: "5px 12px",
       textAlign: "left",
-      position: "relative", // anchor for the hover-insert gizmos
+      position: "relative", // anchor for the hover gizmos + the inline cell editor
+    },
+    // Inline cell editor (REQ-TBLED-7): a textarea filling the clicked cell so the
+    // table stays rendered while you edit that cell's markdown source. Padding matches
+    // the cell; an accent border marks it active.
+    ".cm-md-cell-editor": {
+      position: "absolute",
+      inset: "0",
+      width: "100%",
+      height: "100%",
+      margin: "0",
+      padding: "4px 11px",
+      border: "1px solid var(--accent)",
+      borderRadius: "2px",
+      background: "var(--bg)",
+      color: "var(--text)",
+      font: "inherit",
+      lineHeight: "inherit",
+      textAlign: "inherit",
+      resize: "none",
+      boxSizing: "border-box",
+      overflow: "hidden",
+      outline: "none",
+      zIndex: "7",
     },
     ".cm-md-table th": {
       backgroundColor: "var(--code-header-bg)",

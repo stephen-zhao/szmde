@@ -6,8 +6,6 @@ import { getIndentUnit, indentString, syntaxTree } from "@codemirror/language";
 import { deleteMarkupBackward, insertNewlineContinueMarkup } from "@codemirror/lang-markdown";
 import { cycleRenderMode } from "./render-mode";
 import {
-  enterTableDown,
-  enterTableUp,
   insertRowBelow,
   insertRowAbove,
   moveRowDown,
@@ -309,12 +307,9 @@ export const editingKeymap: Extension = Prec.high(
     { key: "Mod-i", run: toggleItalic, preventDefault: true },
     { key: "Mod-Shift-m", run: cycleRenderMode, preventDefault: true },
     { key: "Tab", run: insertSoftTab, shift: indentLess },
-    // Enter a rendered table the caret is moving into (else CM skips the atomic
-    // block). Both return false off a table edge, so normal nav is unaffected.
-    { key: "ArrowDown", run: enterTableDown },
-    { key: "ArrowUp", run: enterTableUp },
     // Cursor-context table edits (REQ-TBLED-5) — all return false outside a table,
     // so the chords are inert elsewhere. Insert/delete via gizmos + menu too (S3).
+    // (A rendered table is atomic, so arrows skip past it; cells are edited by click.)
     { key: "Mod-Enter", run: insertRowBelow },
     { key: "Mod-Shift-Enter", run: insertRowAbove },
     { key: "Alt-Shift-ArrowDown", run: moveRowDown },
