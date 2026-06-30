@@ -245,7 +245,7 @@ export const baseTheme = EditorView.theme(
       backgroundColor: "var(--code-header-bg)",
       fontWeight: "700",
     },
-    // Right-click structural-edit menu (M5 S3). Floats over the table (position:
+    // Right-click structural-edit menu (M5 S3b). Floats over the table (position:
     // fixed = viewport coords from the click), appended into the editor wrapper so
     // these rules reach it. A flat button list with separators.
     ".cm-md-table-menu": {

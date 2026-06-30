@@ -329,6 +329,23 @@ describe("[REQ-TBLED-3][REQ-TBLED-5][REQ-TBLED-6] right-click table context menu
     expect(menuOf(v)).toBeNull();
   });
 
+  it("a real right-click (mousedown button 2 → contextmenu) keeps the table rendered", () => {
+    // Regression: a right-click's mousedown fires BEFORE its contextmenu. If that
+    // mousedown moved the caret into the cell, the table would reveal to source
+    // before the menu opened (and the op would flicker). The button-2 guard stops it.
+    const v = build(MDOC, "clean", 0);
+    const td = bodyCell(v, 0);
+    td.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 2 }));
+    expect(v.state.selection.main.head).toBe(0); // caret did NOT jump into the cell
+    expect(count(v, "table.cm-md-table")).toBe(1); // table still rendered
+    rightClick(td); // contextmenu → menu over the still-rendered table
+    expect(menuOf(v)).not.toBeNull();
+    clickItem(v, "Insert row below");
+    forceParsing(v, v.state.doc.length, 5000);
+    expect(count(v, "table.cm-md-table")).toBe(1); // applied in place, NOT revealed
+    expect(v.state.selection.main.head).toBe(0); // caret stayed outside the block
+  });
+
   it("'Insert row below' adds an empty body row after the clicked row", () => {
     const v = build(MDOC, "clean", 0);
     rightClick(bodyCell(v, 0));
@@ -351,13 +368,22 @@ describe("[REQ-TBLED-3][REQ-TBLED-5][REQ-TBLED-6] right-click table context menu
     expect(doc(v)).toBe(TIDY);
   });
 
-  it("disables row ops on a header cell (no body row to act on)", () => {
+  it("disables header-nonsensical row ops, keeps the meaningful ones", () => {
     const v = build(MDOC, "clean", 0);
     rightClick(headerCell(v, 0));
     expect(itemEl(v, "Delete row").disabled).toBe(true);
     expect(itemEl(v, "Move row up").disabled).toBe(true);
     expect(itemEl(v, "Move row down").disabled).toBe(true);
+    expect(itemEl(v, "Insert row above").disabled).toBe(true); // nothing above a header
+    expect(itemEl(v, "Insert row below").disabled).toBe(false); // adds the first body row
     expect(itemEl(v, "Insert column right").disabled).toBe(false); // column ops still apply
+  });
+
+  it("'Insert row below' on the header adds a body row right under it", () => {
+    const v = build(MDOC, "clean", 0);
+    rightClick(headerCell(v, 0));
+    clickItem(v, "Insert row below");
+    expect(doc(v)).toBe(`${TIDY}\n|  |  |\n| 1 | 2 |`); // new blank row before '1 2'
   });
 
   it("'Insert column right' / 'Delete column' edit the clicked column", () => {

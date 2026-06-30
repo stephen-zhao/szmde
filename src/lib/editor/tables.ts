@@ -132,16 +132,21 @@ class TableWidget extends WidgetType {
       const tr = tbody.insertRow();
       row.forEach((c, i) => fill(tr.insertCell(), c, i, r));
     });
-    // Clicking a cell reveals the raw pipe source with the caret in that cell at
-    // the clicked position. stopPropagation beats CM's own block-edge placement.
+    // Left-clicking a cell reveals the raw pipe source with the caret in that cell
+    // at the clicked position. stopPropagation beats CM's own block-edge placement.
     table.addEventListener("mousedown", (e) => {
       e.preventDefault();
       e.stopPropagation();
+      // Only the PRIMARY button moves the caret. A right-click's mousedown fires
+      // BEFORE its contextmenu — if it moved the caret into the cell, the table
+      // would reveal to source before the menu could open. Swallow it and let the
+      // contextmenu handler open the menu over the still-rendered table.
+      if (e.button !== 0) return;
       view.dispatch({ selection: EditorSelection.cursor(cellPosAt(e, m.from)), scrollIntoView: true });
       view.focus();
     });
     // Right-click a cell → its structural-edit menu (insert/delete/move/align for
-    // the cell's row + column — M5 S3, REQ-TBLED-3/-5/-6). The menu ops keep the
+    // the cell's row + column — M5 S3b, REQ-TBLED-3/-5/-6). The menu ops keep the
     // caret outside the block, so the rendered table updates in place.
     table.addEventListener("contextmenu", (e) => {
       const cell = (e.target as HTMLElement | null)?.closest?.("[data-row]") as HTMLElement | null;

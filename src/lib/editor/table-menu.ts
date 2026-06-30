@@ -12,7 +12,7 @@ import {
   type TableModel,
 } from "./table-model";
 
-// The right-click context menu for a rendered table cell (Formatted mode, M5 S3 —
+// The right-click context menu for a rendered table cell (Formatted mode, M5 S3b —
 // REQ-TBLED-3/-5/-6). Every structural op for the clicked cell's row + column,
 // applied as one whole-table replace; the caret stays OUTSIDE the block (we don't
 // move it) so the rendered table updates in place — no flicker to raw pipes.
@@ -71,8 +71,11 @@ export function showTableMenu(
   };
   const setA = (a: Align) => () => setColAlign(m, col, a);
 
-  item("Insert row above", () => insertRow(m, Math.max(0, row)));
-  item("Insert row below", () => insertRow(m, Math.max(0, row + 1)));
+  // On a header cell (row = -1) there is no row "above" it (the header must stay
+  // first), so disable that; "below" still means "add the first body row" → insert
+  // at index 0. On a body row, above/below are the obvious row ± 1.
+  item("Insert row above", isHeader ? null : () => insertRow(m, row));
+  item("Insert row below", () => insertRow(m, row + 1)); // header: row+1 = 0
   item("Delete row", isHeader ? null : () => deleteRow(m, row));
   sep();
   item("Insert column left", () => insertCol(m, col));
