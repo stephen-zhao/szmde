@@ -4,7 +4,9 @@ import { EditorSelection, EditorState } from "@codemirror/state";
 import { forceParsing } from "@codemirror/language";
 import { editorExtensions } from "./setup";
 import { renderInlineMarkdown } from "./tables";
+import { enterTableDown, enterTableUp } from "./table-commands";
 import type { RenderMode } from "./render-mode";
+import type { StateCommand } from "@codemirror/state";
 
 // Rendered-DOM tests for GFM tables (M2 S5, render-only). Clean mode replaces the
 // pipe-table source with a real <table> (block widget); the caret entering the
@@ -153,6 +155,45 @@ describe("[REQ-TABLE-2] Tables — reveal-to-source and other modes", () => {
     const v = build("intro\n\n| a | b |\n| - | - |\n| **x** | `y` |", "clean", 0);
     expect(v.contentDOM.querySelector("table.cm-md-table td strong")?.textContent).toBe("x");
     expect(v.contentDOM.querySelector("table.cm-md-table td code")?.textContent).toBe("y");
+  });
+});
+
+describe("[REQ-TBLED-7] arrow keys enter a rendered table", () => {
+  const DOC2 = "intro\n\n| a | b |\n| - | :-: |\n| 1 | 2 |";
+  const at = (v: EditorView, lineNum: number) => {
+    v.dispatch({ selection: { anchor: v.state.doc.line(lineNum).from } });
+    return v;
+  };
+  const run = (v: EditorView, cmd: StateCommand) =>
+    cmd({ state: v.state, dispatch: (tr) => v.dispatch(tr) });
+
+  it("ArrowDown from the line above enters the table (reveals its source)", () => {
+    const v = at(build(DOC2, "clean", 0), 2); // the blank line directly above the table
+    expect(run(v, enterTableDown)).toBe(true);
+    expect(v.state.selection.main.head).toBe(v.state.doc.line(3).from); // first table line
+    expect(count(v, "table.cm-md-table")).toBe(0); // revealed
+  });
+
+  it("ArrowUp from the line below enters the table", () => {
+    const v = at(build("| a | b |\n| - | - |\n| 1 | 2 |\n\nend", "clean", 0), 4); // blank below
+    expect(run(v, enterTableUp)).toBe(true);
+    expect(v.state.selection.main.head).toBe(v.state.doc.line(3).from); // last table line
+  });
+
+  it("returns false off a table edge (normal nav)", () => {
+    expect(run(at(build(DOC2, "clean", 0), 1), enterTableDown)).toBe(false); // intro line
+  });
+
+  it("returns false at the document edge (no line above)", () => {
+    expect(run(at(build(DOC2, "clean", 0), 1), enterTableUp)).toBe(false);
+  });
+
+  it("returns false in non-Clean mode (raw text nav)", () => {
+    expect(run(at(build(DOC2, "markers-syntax", 0), 2), enterTableDown)).toBe(false);
+  });
+
+  it("returns false when the caret is already inside the table", () => {
+    expect(run(at(build(DOC2, "clean", 0), 3), enterTableDown)).toBe(false);
   });
 });
 

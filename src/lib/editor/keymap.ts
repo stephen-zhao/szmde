@@ -5,6 +5,7 @@ import { indentLess, indentMore, insertNewlineAndIndent } from "@codemirror/comm
 import { getIndentUnit, indentString, syntaxTree } from "@codemirror/language";
 import { deleteMarkupBackward, insertNewlineContinueMarkup } from "@codemirror/lang-markdown";
 import { cycleRenderMode } from "./render-mode";
+import { enterTableDown, enterTableUp } from "./table-commands";
 
 /** True if `pos` is inside inline or fenced code (where B/I should be inert). */
 function inCode(state: Parameters<StateCommand>[0]["state"], pos: number): boolean {
@@ -298,5 +299,9 @@ export const editingKeymap: Extension = Prec.high(
     { key: "Mod-i", run: toggleItalic, preventDefault: true },
     { key: "Mod-Shift-m", run: cycleRenderMode, preventDefault: true },
     { key: "Tab", run: insertSoftTab, shift: indentLess },
+    // Enter a rendered table the caret is moving into (else CM skips the atomic
+    // block). Both return false off a table edge, so normal nav is unaffected.
+    { key: "ArrowDown", run: enterTableDown },
+    { key: "ArrowUp", run: enterTableUp },
   ]),
 );
