@@ -134,16 +134,30 @@ keydown, assert resulting doc + caret cell. Edge tests (the off-by-one lesson): 
 delete header-adjacent row, insert into a header-only table. **WF:** handle buttons fire at the right
 position; physical keys reach the commands.
 
-### S3b — Edit affordances: right-click menu ✅ + hover gizmos ⬜  (`REQ-TBLED-3`/`-5`/`-6`)
-**Right-click context menu (done, `table-menu.ts`):** in Formatted mode, right-clicking any rendered
-cell opens `showTableMenu` — every structural op for that cell's row + column (insert/delete row,
+### S3b — Edit affordances: right-click menu ✅ + Formatted hover gizmos ✅  (`REQ-TBLED-3`/`-5`/`-6`)
+**Right-click context menu (`table-menu.ts`):** in Formatted mode, right-clicking any rendered cell
+opens `showTableMenu` — every structural op for that cell's row + column (insert/delete row,
 insert/delete column, move row/column, per-column alignment). Each op is a whole-table replace via the
 pure model; the caret is NOT moved, so it stays outside the block and the `<table>` updates in place (no
-reveal flicker). Dismisses on outside-click/Escape; viewport-clamped (live-only, v8-ignored). 16 DOM
-tests; the menu is appended into `view.dom` so the `EditorView.theme` rules reach it.
-**Remaining — hover "+" insert gizmos (⬜):** Formatted mode — a `+` affordance on cell/row/column
-edges to insert a row/column there. Source/Syntax mode — the same insert gizmos over the edge `|` chars
-(insert column) and the inter-line gaps (insert row). Insert-only; delete/move/align stay menu/keymap.
+reveal flicker). Dismisses on outside-click/Escape; viewport-clamped (live-only, v8-ignored). The menu is
+appended into `view.dom` so the `EditorView.theme` rules reach it.
+**Formatted hover "+" gizmos (`tables.ts`):** column-insert handles on the header strip (right edge of
+each header cell + a leading-column handle on the first), row-insert handles in the left gutter (bottom
+edge of each first-column cell; the header's adds the first body row). Absolutely-positioned buttons,
+hidden + `pointer-events:none` until cell hover; the "+" is a CSS `::before` (out of cell textContent);
+`tabindex -1`. Same in-place whole-table replace.
+**Review note:** two adversarial reviews ran; the **right-click must not move the caret** (a right-click's
+mousedown fires before contextmenu) and the **gizmo mousedown must ignore non-primary buttons** were both
+caught + fixed (`if (e.button !== 0) return;`), with regression tests.
+
+### S3c — Source/Syntax-mode insert gizmos ✅  (`REQ-TBLED-3`)
+`table-source-gizmos.ts` — a `ViewPlugin` (gated to non-Clean modes) providing widget decorations over
+the raw pipe text: **column** handles on the header row's pipe chars (leading pipe → col 0; each
+subsequent pipe → that boundary), **row** handles at each table line's right edge (header → first body
+row; body row → below; delimiter skipped). Zero-width anchor (no text shift) + absolute "+" button;
+primary-mousedown re-resolves the `Table` at click time (robust to intervening edits) → one whole-table
+replace via the pure ops. The same edits are already keymap-reachable in every mode; these are the mouse
+affordances. 10 DOM tests (incl. re-resolve-after-edit); verified live in Source mode.
 
 ### S4 — Per-column alignment UI + tidy command ⬜  (`REQ-TBLED-6` UI half — alignment now also in the S3b menu)
 `setColAlign`/`tidy` pure (S1). Alignment control in the column handle cycling `:--`/`:-:`/`--:`
