@@ -58,6 +58,16 @@ describe("[REQ-TABLE-1] Tables — Clean (Formatted) mode renders a real table",
     expect(th[1].style.textAlign).toBe("center"); // `:-:` → center
   });
 
+  it("[REQ-TBLED-6] maps an EMPTY body cell to its correct column (alignment + count)", () => {
+    // lezer drops the empty middle cell (emits no TableCell node); the model
+    // reconstructs it from pipe geometry, so the 3 columns stay aligned and the
+    // right-aligned col 'c' keeps its alignment instead of shifting onto '3'.
+    const v = build("intro\n\n| a | b | c |\n| - | - | --: |\n| 1 |  | 3 |", "clean", 0);
+    expect(cells(v, "tbody tr td")).toEqual(["1", "", "3"]); // the empty slot is kept
+    const td = v.contentDOM.querySelectorAll<HTMLTableCellElement>("tbody td");
+    expect(td[2].style.textAlign).toBe("right"); // '3' is col 2 (--:), not mis-mapped to col 1
+  });
+
   it("renders a header-only table without crashing (0 body rows)", () => {
     const v = build("intro\n\n| a |\n| - |", "clean", 0);
     expect(count(v, "table.cm-md-table")).toBe(1);

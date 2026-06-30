@@ -10,6 +10,7 @@ import {
 } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import { renderMode } from "./render-mode";
+import { parseTable, type Align, type Cell } from "./table-model";
 
 /**
  * Render a cell's inline markdown (bold / italic / strikethrough / inline code /
@@ -55,14 +56,11 @@ function tag(name: string, text: string): HTMLElement {
  * ViewPlugin (the editor needs them before computing vertical layout), so unlike
  * the other M2 constructs this is built from a **StateField** and provided via
  * `EditorView.decorations.from`.
+ *
+ * The cell map (text + source offsets + alignment) comes from the pure
+ * `table-model.ts` (`parseTable`); this module is the CodeMirror adapter — locate
+ * the `Table` block, render the model as a `<table>`, reveal source on caret-in.
  */
-type Align = "left" | "center" | "right" | null;
-
-/** A rendered cell + its source span start, so a click can map back to source. */
-interface Cell {
-  text: string;
-  from: number;
-}
 
 /* v8 ignore start -- caretPositionFromPoint/caretRangeFromPoint need real layout,
    which happy-dom doesn't provide; the plain-cell char mapping runs in the WebView. */
@@ -149,20 +147,6 @@ class TableWidget extends WidgetType {
   /* v8 ignore stop */
 }
 
-const cellText = (state: EditorState, from: number, to: number) =>
-  state.doc.sliceString(from, to).trim();
-
-/** Parse per-column alignment from a separator row like `| :-- | :-: | --: |`. */
-function parseAligns(sep: string): Align[] {
-  const inner = sep.trim().replace(/^\|/, "").replace(/\|$/, "");
-  return inner.split("|").map((s) => {
-    const t = s.trim();
-    const l = t.startsWith(":");
-    const r = t.endsWith(":");
-    return l && r ? "center" : r ? "right" : l ? "left" : null;
-  });
-}
-
 interface TableDecos {
   deco: DecorationSet;
   hidden: RangeSet<Decoration>;
@@ -184,18 +168,12 @@ function computeTableDecos(state: EditorState): TableDecos {
       // Reveal-to-source when the caret/selection touches the table.
       if (sel.some((r) => r.to >= from && r.from <= to)) return false;
 
-      const tn = node.node;
-      const toCell = (c: { from: number; to: number }): Cell => ({
-        text: cellText(state, c.from, c.to),
-        from: c.from,
-      });
-      const header = tn.getChild("TableHeader");
-      const headers = header ? header.getChildren("TableCell").map(toCell) : [];
-      const sepNode = tn.getChildren("TableDelimiter")[0];
-      const aligns = sepNode ? parseAligns(state.doc.sliceString(sepNode.from, sepNode.to)) : [];
-      const rows = tn
-        .getChildren("TableRow")
-        .map((r) => r.getChildren("TableCell").map(toCell));
+      // M5 S1: build the cell map from the pure table-model, which parses columns
+      // from PIPE GEOMETRY — so an empty cell isn't dropped (the lezer grammar emits
+      // no TableCell node for it, and the old getChildren("TableCell") indexing then
+      // mis-assigned alignment + click targets for any table with a blank cell).
+      // lezer is used only to locate the Table block [from, to].
+      const { header: headers, rows, aligns } = parseTable(state.doc.sliceString(from, to), from);
 
       const key = JSON.stringify([headers, rows, aligns]);
       decos.push(
