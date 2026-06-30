@@ -31,13 +31,12 @@ export function closeTableMenu(): void {
 export function showTableMenu(
   view: EditorView,
   m: TableModel,
-  cell: HTMLElement,
+  row: number, // -1 = header/delimiter, 0+ = body row
+  col: number,
   x: number,
   y: number,
 ): void {
   closeTableMenu();
-  const row = Number(cell.dataset.row); // -1 = header, 0+ = body row
-  const col = Number(cell.dataset.col);
   const isHeader = row < 0;
 
   const menu = document.createElement("div");

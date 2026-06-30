@@ -1,9 +1,11 @@
 import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
-import { RangeSetBuilder, type EditorState } from "@codemirror/state";
+import { RangeSetBuilder, type EditorState, type Extension } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import { renderMode } from "./render-mode";
 import { parseTable, serialize, insertRow, insertCol, type TableModel } from "./table-model";
+import { showTableMenu } from "./table-menu";
+import { locate } from "./table-commands";
 
 /**
  * Source / Syntax-mode table edit gizmos (M5 S3c). In the non-Clean modes a GFM
@@ -153,7 +155,7 @@ function buildSrcGizmos(state: EditorState): DecorationSet {
   return builder.finish();
 }
 
-export const tableSourceGizmos = ViewPlugin.fromClass(
+const sourceGizmoPlugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
     constructor(view: EditorView) {
@@ -171,3 +173,37 @@ export const tableSourceGizmos = ViewPlugin.fromClass(
   },
   { decorations: (v) => v.decorations },
 );
+
+/**
+ * Open the table edit menu for the table at doc offset `pos` (Source/Syntax mode —
+ * REQ-TBLED-3/-5), so delete/move/insert/align are mouse-reachable on raw pipe text
+ * too. Returns true when a table was found (so the caller suppresses the native menu).
+ * The `pos`→menu mapping is pure (no layout), so it's directly unit-tested; the
+ * contextmenu→coords plumbing around it is the thin v8-ignored handler below.
+ */
+export function openSourceTableMenuAt(view: EditorView, pos: number, x: number, y: number): boolean {
+  const tbl = resolveTable(view.state, pos);
+  if (!tbl) return false;
+  const m = parseTable(view.state.doc.sliceString(tbl.from, tbl.to), tbl.from);
+  const { row, col } = locate(view.state, tbl.from, pos);
+  showTableMenu(view, m, row, col, x, y);
+  return true;
+}
+
+const sourceTableMenu = EditorView.domEventHandlers({
+  /* v8 ignore start -- needs posAtCoords (real layout); the pos→menu core
+     (openSourceTableMenuAt) is unit-tested directly. */
+  contextmenu(e, view) {
+    if (view.state.facet(renderMode) === "clean") return false; // the widget handles it
+    const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
+    if (pos == null) return false;
+    if (openSourceTableMenuAt(view, pos, e.clientX, e.clientY)) {
+      e.preventDefault();
+      return true;
+    }
+    return false;
+  },
+  /* v8 ignore stop */
+});
+
+export const tableSourceGizmos: Extension = [sourceGizmoPlugin, sourceTableMenu];

@@ -263,7 +263,7 @@ class TableWidget extends WidgetType {
       if (!cell) return;
       e.preventDefault();
       e.stopPropagation();
-      showTableMenu(view, m, cell, e.clientX, e.clientY);
+      showTableMenu(view, m, Number(cell.dataset.row), Number(cell.dataset.col), e.clientX, e.clientY);
     });
     return table;
   }

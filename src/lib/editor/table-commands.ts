@@ -70,8 +70,8 @@ interface Loc {
   col: number;
 }
 
-/** The caret's row + column within a table block. */
-function locate(state: Parameters<StateCommand>[0]["state"], tblFrom: number, pos: number): Loc {
+/** The caret's row + column within a table block (`row` -1 = header/delimiter line). */
+export function locate(state: Parameters<StateCommand>[0]["state"], tblFrom: number, pos: number): Loc {
   const startLine = state.doc.lineAt(tblFrom).number;
   const lineIdx = state.doc.lineAt(pos).number - startLine; // 0=header,1=delimiter,2+=body
   const line = state.doc.lineAt(pos);

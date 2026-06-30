@@ -3,6 +3,8 @@ import { EditorView } from "@codemirror/view";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { forceParsing } from "@codemirror/language";
 import { editorExtensions } from "./setup";
+import { openSourceTableMenuAt } from "./table-source-gizmos";
+import { closeTableMenu } from "./table-menu";
 import type { RenderMode } from "./render-mode";
 
 // DOM tests for the Source / Syntax-mode table edit gizmos (M5 S3c). In the non-Clean
@@ -11,6 +13,7 @@ import type { RenderMode } from "./render-mode";
 // widget decorations + can dispatch their mousedown; hover/opacity is CSS (live-only).
 let view: EditorView | undefined;
 afterEach(() => {
+  closeTableMenu(); // drop any open source-mode context menu + its listeners
   view?.destroy();
   view = undefined;
 });
@@ -98,5 +101,53 @@ describe("[REQ-TBLED-3] Source/Syntax-mode table insert gizmos", () => {
     forceParsing(v, v.state.doc.length, 5000);
     mdown(giz(v, ".cm-tbl-src-colstart"));
     expect(doc(v)).toBe("XYZ intro\n\n|  | a | b |\n| --- | --- | --- |\n|  | 1 | 2 |");
+  });
+});
+
+describe("[REQ-TBLED-3][REQ-TBLED-5] Source/Syntax-mode right-click table menu", () => {
+  // The full edit menu (incl. delete + move, which have no source-mode gizmos) is
+  // reachable on raw pipe text via right-click. `openSourceTableMenuAt` is the pure
+  // pos→menu core; the contextmenu→coords plumbing around it is live-only (v8-ignored).
+  const item = (v: EditorView, label: string) =>
+    [...v.dom.querySelectorAll<HTMLButtonElement>(".cm-md-table-menu-item")].find(
+      (b) => b.textContent === label,
+    )!;
+  const click = (b: HTMLButtonElement) =>
+    b.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+
+  it("opens the menu for a position inside a table; Delete row works", () => {
+    const v = build(DOC, "markers-rendered", 0);
+    const pos = doc(v).indexOf("1"); // body row 0, col 0
+    expect(openSourceTableMenuAt(v, pos, 5, 5)).toBe(true);
+    expect(v.dom.querySelector(".cm-md-table-menu")).not.toBeNull();
+    expect(item(v, "Delete row").disabled).toBe(false);
+    click(item(v, "Delete row"));
+    expect(doc(v)).toBe("intro\n\n| a | b |\n| --- | --- |"); // the only body row removed
+  });
+
+  it("targets the clicked column for Delete column", () => {
+    const v = build(DOC, "markers-rendered", 0);
+    openSourceTableMenuAt(v, doc(v).indexOf("b"), 5, 5); // header col 1
+    click(item(v, "Delete column"));
+    expect(doc(v)).toBe("intro\n\n| a |\n| --- |\n| 1 |"); // column 'b' removed
+  });
+
+  it("reorders a column via Move column right (mouse reorder in source mode)", () => {
+    const v = build("intro\n\n| a | b | c |\n| - | - | - |\n| 1 | 2 | 3 |", "markers-rendered", 0);
+    openSourceTableMenuAt(v, doc(v).indexOf("a"), 5, 5); // header col 0
+    click(item(v, "Move column right"));
+    expect(doc(v)).toBe("intro\n\n| b | a | c |\n| --- | --- | --- |\n| 2 | 1 | 3 |");
+  });
+
+  it("returns false (no menu) when the position is not in a table", () => {
+    const v = build(DOC, "markers-rendered", 0);
+    expect(openSourceTableMenuAt(v, 0, 5, 5)).toBe(false); // pos 0 = 'intro'
+    expect(v.dom.querySelector(".cm-md-table-menu")).toBeNull();
+  });
+
+  it("also works in Syntax mode", () => {
+    const v = build(DOC, "markers-syntax", 0);
+    expect(openSourceTableMenuAt(v, doc(v).indexOf("1"), 5, 5)).toBe(true);
+    expect(v.dom.querySelector(".cm-md-table-menu")).not.toBeNull();
   });
 });
