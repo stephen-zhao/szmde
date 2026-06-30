@@ -138,6 +138,17 @@ describe("[REQ-TABLE-2] Tables — reveal-to-source and other modes", () => {
     expect(v.state.doc.sliceString(from, from + 1)).toBe("1");
   });
 
+  it("[REQ-TBLED-7] clicking a glyph in a FORMATTED cell maps to that source char", () => {
+    // The M2 deferral: a click inside `**x**` used to land at the cell start. Now each
+    // segment carries data-seg-from, so it maps to the exact source char.
+    const v = build("intro\n\n| a | b |\n| - | - |\n| **x** | y |", "clean", 0);
+    const seg = v.contentDOM.querySelector<HTMLElement>("table.cm-md-table td strong")!;
+    const segFrom = Number(seg.dataset.segFrom);
+    expect(v.state.doc.sliceString(segFrom, segFrom + 1)).toBe("x"); // points at 'x' in **x**
+    seg.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    expect(v.state.selection.main.head).toBe(segFrom); // caret on the 'x' source char
+  });
+
   it("renders inline markdown inside cells (bold/italic/code)", () => {
     const v = build("intro\n\n| a | b |\n| - | - |\n| **x** | `y` |", "clean", 0);
     expect(v.contentDOM.querySelector("table.cm-md-table td strong")?.textContent).toBe("x");
@@ -161,7 +172,9 @@ describe("[REQ-TABLE-1] renderInlineMarkdown — cell inline tokens", () => {
     expect(a?.textContent).toBe("t");
     expect(a?.getAttribute("href")).toBe("http://x");
   });
-  it("leaves plain text as a text node", () => {
-    expect(render("just text").textContent).toBe("just text");
+  it("wraps plain text in a segment span (carries data-seg-from)", () => {
+    const d = render("just text");
+    expect(d.textContent).toBe("just text");
+    expect(d.querySelector("[data-seg-from]")?.getAttribute("data-seg-from")).toBe("0");
   });
 });

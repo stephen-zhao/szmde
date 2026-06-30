@@ -281,3 +281,59 @@ export function makeTable(rows: number, cols: number): TableModel {
     colCount: c,
   };
 }
+
+// --- Inline tokenization (shared by the cell renderer + click→source mapping) ----
+// A small, non-nested inline tokenizer for cell content. Shared by tables.ts's
+// renderInlineMarkdown (DOM) and renderedOffsetToSource (click mapping) so the two
+// never drift — and pure, so the source-offset math is 100%-unit-testable.
+
+const INLINE_RE =
+  /\*\*([^*]+)\*\*|~~([^~]+)~~|`([^`]+)`|\*([^*]+)\*|_([^_]+)_|\[([^\]]+)\]\(([^)]+)\)/;
+
+/** One inline segment of a cell: a run of RENDERED text and the source offset its
+ *  first char comes from (chars within `text` are 1:1 with source from `from`). */
+export interface InlineToken {
+  kind: "text" | "strong" | "em" | "del" | "code" | "link";
+  text: string;
+  from: number;
+  href?: string;
+}
+
+/** Tokenize a cell's source into inline segments. `from` offsets are relative to
+ *  `src`. Unknown / nested markup falls back to literal text (as the renderer does). */
+export function tokenizeInline(src: string): InlineToken[] {
+  const tokens: InlineToken[] = [];
+  let rest = src;
+  let base = 0;
+  for (let m = INLINE_RE.exec(rest); m; m = INLINE_RE.exec(rest)) {
+    if (m.index > 0) tokens.push({ kind: "text", text: rest.slice(0, m.index), from: base });
+    let kind: InlineToken["kind"];
+    let inner: string;
+    let innerStart: number;
+    let href: string | undefined;
+    if (m[1] !== undefined) [kind, inner, innerStart] = ["strong", m[1], 2];
+    else if (m[2] !== undefined) [kind, inner, innerStart] = ["del", m[2], 2];
+    else if (m[3] !== undefined) [kind, inner, innerStart] = ["code", m[3], 1];
+    else if (m[4] !== undefined) [kind, inner, innerStart] = ["em", m[4], 1];
+    else if (m[5] !== undefined) [kind, inner, innerStart] = ["em", m[5], 1];
+    else [kind, inner, innerStart, href] = ["link", m[6], 1, m[7]];
+    tokens.push({ kind, text: inner, from: base + m.index + innerStart, href });
+    base += m.index + m[0].length;
+    rest = rest.slice(m.index + m[0].length);
+  }
+  if (rest) tokens.push({ kind: "text", text: rest, from: base });
+  return tokens;
+}
+
+/** Map a RENDERED character offset within a cell back to the SOURCE offset (relative
+ *  to the cell's source), so a click on a rendered glyph inside a formatted cell
+ *  (`**b**`, `[t](u)`, …) lands the caret on the matching source char. Past the end
+ *  → the source length. */
+export function renderedOffsetToSource(src: string, renderedOffset: number): number {
+  let rendered = 0;
+  for (const t of tokenizeInline(src)) {
+    if (renderedOffset < rendered + t.text.length) return t.from + (renderedOffset - rendered);
+    rendered += t.text.length;
+  }
+  return src.length;
+}

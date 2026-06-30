@@ -13,6 +13,8 @@ import {
   setColAlign,
   toggleHeader,
   makeTable,
+  tokenizeInline,
+  renderedOffsetToSource,
   type TableModel,
 } from "./table-model";
 
@@ -228,5 +230,41 @@ describe("[REQ-TBLED-1] makeTable", () => {
   });
   it("clamps rows/cols to a minimum of 1", () => {
     expect(serialize(makeTable(0, 0))).toBe("|  |\n| --- |");
+  });
+});
+
+describe("[REQ-TBLED-7] inline tokenizer + click→source mapping", () => {
+  const tup = (s: string) => tokenizeInline(s).map((t) => [t.kind, t.text, t.from]);
+
+  it("tokenizes plain text + a bold construct with source offsets", () => {
+    expect(tup("a **b** c")).toEqual([
+      ["text", "a ", 0],
+      ["strong", "b", 4],
+      ["text", " c", 7],
+    ]);
+  });
+
+  it("covers del / code / em(*) / em(_) / link", () => {
+    expect(tup("~~s~~")).toEqual([["del", "s", 2]]);
+    expect(tup("`c`")).toEqual([["code", "c", 1]]);
+    expect(tup("*i*")).toEqual([["em", "i", 1]]);
+    expect(tup("_u_")).toEqual([["em", "u", 1]]);
+    const link = tokenizeInline("[t](http://x)")[0];
+    expect([link.kind, link.text, link.from, link.href]).toEqual(["link", "t", 1, "http://x"]);
+  });
+
+  it("plain text is a single token", () => {
+    expect(tup("plain")).toEqual([["text", "plain", 0]]);
+  });
+
+  it("maps a rendered offset inside a formatted cell to the source char", () => {
+    // rendered "a b c"; the 'b' is rendered index 2 → source index 4 (inside **b**).
+    expect(renderedOffsetToSource("a **b** c", 0)).toBe(0); // 'a'
+    expect(renderedOffsetToSource("a **b** c", 2)).toBe(4); // 'b'
+    expect(renderedOffsetToSource("a **b** c", 4)).toBe(8); // 'c'
+  });
+
+  it("a rendered offset past the end maps to the source end", () => {
+    expect(renderedOffsetToSource("ab", 9)).toBe(2);
   });
 });

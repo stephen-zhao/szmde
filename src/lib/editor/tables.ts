@@ -10,39 +10,37 @@ import {
 } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import { renderMode } from "./render-mode";
-import { parseTable, type Align, type Cell } from "./table-model";
+import { parseTable, tokenizeInline, type Align, type Cell } from "./table-model";
 
 /**
  * Render a cell's inline markdown (bold / italic / strikethrough / inline code /
- * link) into `parent`. A small, non-nested tokenizer — the table widget can't
- * reuse the editor's decoration pipeline (it's static DOM), and full CommonMark
- * inline parsing would be overkill here. Unknown / nested-inside-nested markup
- * falls back to literal text.
+ * link) into `parent`, via the shared `tokenizeInline` (so the rendered DOM and the
+ * click→source mapping never drift). Each segment is an element carrying
+ * `data-seg-from` = its ABSOLUTE source offset (`baseOffset` + the segment's offset
+ * within the cell), so a click on a rendered glyph maps to the exact source char —
+ * including inside a formatted cell (REQ-TBLED-7, the M2 deferral). The editor's own
+ * decoration pipeline can't be reused here (the widget is static DOM).
  */
-const INLINE_RE =
-  /\*\*([^*]+)\*\*|~~([^~]+)~~|`([^`]+)`|\*([^*]+)\*|_([^_]+)_|\[([^\]]+)\]\(([^)]+)\)/;
-export function renderInlineMarkdown(parent: HTMLElement, text: string): void {
-  let rest = text;
-  for (let m = INLINE_RE.exec(rest); m; m = INLINE_RE.exec(rest)) {
-    if (m.index > 0) parent.appendChild(document.createTextNode(rest.slice(0, m.index)));
-    if (m[1] !== undefined) parent.appendChild(tag("strong", m[1]));
-    else if (m[2] !== undefined) parent.appendChild(tag("del", m[2]));
-    else if (m[3] !== undefined) parent.appendChild(tag("code", m[3]));
-    else if (m[4] !== undefined) parent.appendChild(tag("em", m[4]));
-    else if (m[5] !== undefined) parent.appendChild(tag("em", m[5]));
-    else {
-      const a = tag("a", m[6]) as HTMLAnchorElement;
-      a.setAttribute("href", m[7]);
-      parent.appendChild(a);
-    }
-    rest = rest.slice(m.index + m[0].length);
+export function renderInlineMarkdown(parent: HTMLElement, text: string, baseOffset = 0): void {
+  for (const t of tokenizeInline(text)) {
+    const name =
+      t.kind === "strong"
+        ? "strong"
+        : t.kind === "del"
+          ? "del"
+          : t.kind === "code"
+            ? "code"
+            : t.kind === "link"
+              ? "a"
+              : t.kind === "em"
+                ? "em"
+                : "span";
+    const el = document.createElement(name);
+    el.textContent = t.text;
+    el.dataset.segFrom = String(baseOffset + t.from);
+    if (t.kind === "link") el.setAttribute("href", t.href!);
+    parent.appendChild(el);
   }
-  if (rest) parent.appendChild(document.createTextNode(rest));
-}
-function tag(name: string, text: string): HTMLElement {
-  const el = document.createElement(name);
-  el.textContent = text;
-  return el;
 }
 
 /**
@@ -76,19 +74,22 @@ function caretOffsetIn(cell: HTMLElement, x: number, y: number): number | null {
 }
 /* v8 ignore stop */
 
-/** Source position for a click on the table: the clicked cell's source start,
- *  plus the in-cell character offset for plain cells (rendered === source). Falls
- *  back to the table start when the click isn't on a cell. */
+/** Source position for a click on the table: the clicked inline SEGMENT's source
+ *  start plus the in-segment character offset (segments carry `data-seg-from`, so it
+ *  works inside formatted cells too — REQ-TBLED-7); else the clicked cell's start;
+ *  else the table start (click not on a cell). */
 function cellPosAt(e: MouseEvent, fallback: number): number {
-  const cell = (e.target as HTMLElement | null)?.closest?.("[data-cell-from]") as HTMLElement | null;
-  if (!cell) return fallback;
-  const from = Number(cell.dataset.cellFrom);
-  /* v8 ignore start -- char-offset mapping is the real-DOM path (see caretOffsetIn). */
-  const len = Number(cell.dataset.cellLen);
-  const off = caretOffsetIn(cell, e.clientX, e.clientY);
-  if (off != null && (cell.textContent?.length ?? -1) === len) return from + Math.min(off, len);
-  /* v8 ignore stop */
-  return from;
+  const target = e.target as HTMLElement | null;
+  const seg = target?.closest?.("[data-seg-from]") as HTMLElement | null;
+  if (seg) {
+    const segFrom = Number(seg.dataset.segFrom);
+    /* v8 ignore start -- caretPositionFromPoint is live-only; happy-dom returns null → +0. */
+    const off = caretOffsetIn(seg, e.clientX, e.clientY);
+    /* v8 ignore stop */
+    return segFrom + (off ?? 0);
+  }
+  const cell = target?.closest?.("[data-cell-from]") as HTMLElement | null;
+  return cell ? Number(cell.dataset.cellFrom) : fallback;
 }
 
 class TableWidget extends WidgetType {
@@ -111,9 +112,8 @@ class TableWidget extends WidgetType {
     const align = (i: number): Align => this.aligns[i] ?? null;
 
     const fill = (el: HTMLTableCellElement, c: Cell, i: number) => {
-      renderInlineMarkdown(el, c.text);
+      renderInlineMarkdown(el, c.text, c.from); // segments carry absolute data-seg-from
       el.dataset.cellFrom = String(c.from);
-      el.dataset.cellLen = String(c.text.length);
       if (align(i)) el.style.textAlign = align(i)!;
     };
 
