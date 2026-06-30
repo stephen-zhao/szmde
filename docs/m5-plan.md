@@ -172,7 +172,14 @@ alignment affordance mutates `state.doc`'s delimiter row + the rendered `th/td` 
 updates (reuses the proven `parseAligns`→`textAlign` path). **WF:** alignment toggle + monospace tidy
 look right (column widths are layout — happy-dom can't judge).
 
-### S5 — Drag to reorder rows/columns ⬜  (`REQ-TBLED-4`)
+### S5 — Drag to reorder rows/columns ✅  (`REQ-TBLED-4`)
+**Shipped (`table-drag.ts` + `tables.ts`):** dotted drag grips on hover — top of each header cell
+(column), left of each body row's first cell (row). A primary-button drag pointer-captures, hit-tests the
+row/column under the pointer via the pure `indexAt`, tints the drop target (`.cm-tbl-drop`), and on
+release calls `applyMove` → `moveRow`/`moveCol` → one whole-table replace (caret outside → in-place). The
+pure `indexAt`/`applyMove` are unit-tested (7 tests); the pointer gesture is `v8 ignore` (layout-only) and
+verified LIVE (row + column drags reorder with the drop highlight; `setPointerCapture` wrapped so a
+synthetic/no-active-pointer drag still tracks). Original plan ⬇:
 `moveRow`/`moveCol` pure (S1). Pointer-based grips in `TableWidget.toDOM`: `pointerdown`
 (preventDefault, `setPointerCapture`, record source index) → `pointermove` (hit-test other grips →
 drop index + indicator) → `pointerup` (dispatch the move; caret OUTSIDE the block so the table stays
