@@ -1,6 +1,5 @@
 import type { EditorView } from "@codemirror/view";
 import {
-  serialize,
   insertRow,
   deleteRow,
   insertCol,
@@ -11,6 +10,7 @@ import {
   type Align,
   type TableModel,
 } from "./table-model";
+import { replaceTable } from "./table-ops";
 
 // The right-click context menu for a rendered table cell (Formatted mode, M5 S3b —
 // REQ-TBLED-3/-5/-6). Every structural op for the clicked cell's row + column,
@@ -43,12 +43,16 @@ export function showTableMenu(
   menu.className = "cm-md-table-menu";
   menu.setAttribute("contenteditable", "false");
 
-  const apply = (m2: TableModel) => {
-    if (m2 !== m) view.dispatch({ changes: { from: m.from, to: m.to, insert: serialize(m2) } });
+  // Each op runs through replaceTable: it commits an open inline cell editor and
+  // re-parses the table from the live doc FIRST, so a mid-edit edit isn't lost and
+  // the op never lands on stale offsets (adversarial-review fix). `m.from` (the table
+  // start) is stable across a cell edit, so it's a safe re-resolve anchor.
+  const run = (fn: (model: TableModel) => TableModel) => {
+    replaceTable(view, m.from, fn);
     closeTableMenu();
     view.focus();
   };
-  const item = (label: string, fn: (() => TableModel) | null) => {
+  const item = (label: string, fn: ((model: TableModel) => TableModel) | null) => {
     const b = document.createElement("button");
     b.className = "cm-md-table-menu-item";
     b.textContent = label;
@@ -56,7 +60,7 @@ export function showTableMenu(
       b.addEventListener("mousedown", (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
-        apply(fn());
+        run(fn);
       });
     } else {
       b.disabled = true;
@@ -68,23 +72,23 @@ export function showTableMenu(
     s.className = "cm-md-table-menu-sep";
     menu.appendChild(s);
   };
-  const setA = (a: Align) => () => setColAlign(m, col, a);
+  const setA = (a: Align) => (md: TableModel) => setColAlign(md, col, a);
 
   // On a header cell (row = -1) there is no row "above" it (the header must stay
   // first), so disable that; "below" still means "add the first body row" → insert
   // at index 0. On a body row, above/below are the obvious row ± 1.
-  item("Insert row above", isHeader ? null : () => insertRow(m, row));
-  item("Insert row below", () => insertRow(m, row + 1)); // header: row+1 = 0
-  item("Delete row", isHeader ? null : () => deleteRow(m, row));
+  item("Insert row above", isHeader ? null : (md) => insertRow(md, row));
+  item("Insert row below", (md) => insertRow(md, row + 1)); // header: row+1 = 0
+  item("Delete row", isHeader ? null : (md) => deleteRow(md, row));
   sep();
-  item("Insert column left", () => insertCol(m, col));
-  item("Insert column right", () => insertCol(m, col + 1));
-  item("Delete column", () => deleteCol(m, col));
+  item("Insert column left", (md) => insertCol(md, col));
+  item("Insert column right", (md) => insertCol(md, col + 1));
+  item("Delete column", (md) => deleteCol(md, col));
   sep();
-  item("Move row up", isHeader ? null : () => moveRow(m, row, row - 1));
-  item("Move row down", isHeader ? null : () => moveRow(m, row, row + 1));
-  item("Move column left", () => moveCol(m, col, col - 1));
-  item("Move column right", () => moveCol(m, col, col + 1));
+  item("Move row up", isHeader ? null : (md) => moveRow(md, row, row - 1));
+  item("Move row down", isHeader ? null : (md) => moveRow(md, row, row + 1));
+  item("Move column left", (md) => moveCol(md, col, col - 1));
+  item("Move column right", (md) => moveCol(md, col, col + 1));
   sep();
   item("Align left", setA("left"));
   item("Align center", setA("center"));

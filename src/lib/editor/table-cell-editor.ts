@@ -137,8 +137,8 @@ export function editCellAt(view: EditorView, tableFrom: number, row: number, col
     if (e.key === "Escape") {
       e.preventDefault();
       a.finish(false);
-    } else if (e.key === "Enter" && !e.shiftKey) {
-      move("down");
+    } else if (e.key === "Enter") {
+      move("down"); // any Enter (incl. Shift) commits + moves down — cells are single-line
     } else if (e.key === "Tab") {
       move(e.shiftKey ? "prev" : "next");
     }

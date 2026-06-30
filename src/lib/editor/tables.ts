@@ -11,17 +11,19 @@ import { syntaxTree } from "@codemirror/language";
 import { renderMode } from "./render-mode";
 import {
   parseTable,
-  serialize,
   insertRow,
   insertCol,
+  moveRow,
+  moveCol,
   tokenizeInline,
   type Align,
   type Cell,
   type TableModel,
 } from "./table-model";
 import { showTableMenu, closeTableMenu } from "./table-menu";
-import { indexAt, applyMove, type DragKind } from "./table-drag";
-import { editCellAt, commitCellEditor } from "./table-cell-editor";
+import { indexAt, type DragKind } from "./table-drag";
+import { editCellAt, cancelCellEditor } from "./table-cell-editor";
+import { replaceTable } from "./table-ops";
 
 /**
  * Render a cell's inline markdown (bold / italic / strikethrough / inline code /
@@ -94,7 +96,12 @@ class TableWidget extends WidgetType {
     // rendered table updates in place. The "+" glyph is a CSS ::before (not DOM text)
     // so it never leaks into a cell's textContent. tabindex -1: it's a hover-only
     // mouse affordance — the keyboard paths are the keymap + the right-click menu.
-    const addGizmo = (cell: HTMLElement, cls: string, title: string, op: () => TableModel) => {
+    const addGizmo = (
+      cell: HTMLElement,
+      cls: string,
+      title: string,
+      op: (model: TableModel) => TableModel,
+    ) => {
       const g = document.createElement("button");
       g.className = `cm-tbl-gizmo ${cls}`;
       g.type = "button";
@@ -106,8 +113,8 @@ class TableWidget extends WidgetType {
         // don't stopPropagation) so it reaches the contextmenu handler for the menu.
         if (e.button !== 0) return;
         e.preventDefault();
-        e.stopPropagation(); // beat the table's reveal-on-mousedown
-        view.dispatch({ changes: { from: m.from, to: m.to, insert: serialize(op()) } });
+        e.stopPropagation();
+        replaceTable(view, m.from, op); // commits an open cell editor + re-parses first
         view.focus();
       });
       cell.appendChild(g);
@@ -167,7 +174,10 @@ class TableWidget extends WidgetType {
           g.removeEventListener("pointermove", onMove);
           g.removeEventListener("pointerup", onUp);
           clearDrop();
-          applyMove(view, m, kind, index, target);
+          if (index !== target)
+            replaceTable(view, m.from, (model) =>
+              kind === "row" ? moveRow(model, index, target) : moveCol(model, index, target),
+            );
           view.focus();
         };
         g.addEventListener("pointermove", onMove);
@@ -189,12 +199,12 @@ class TableWidget extends WidgetType {
       // gets a leading-column handle on its left edge). Left gutter (col 0) → a
       // row-insert handle on each cell's bottom edge (the header's adds body row 0).
       if (row === -1) {
-        addGizmo(el, "cm-tbl-gizmo-col", "Insert column right", () => insertCol(m, col + 1));
-        if (col === 0) addGizmo(el, "cm-tbl-gizmo-colstart", "Insert column left", () => insertCol(m, 0));
+        addGizmo(el, "cm-tbl-gizmo-col", "Insert column right", (md) => insertCol(md, col + 1));
+        if (col === 0) addGizmo(el, "cm-tbl-gizmo-colstart", "Insert column left", (md) => insertCol(md, 0));
         addDragGrip(el, "col", col); // drag the header cell to reorder its column
       }
       if (col === 0) {
-        addGizmo(el, "cm-tbl-gizmo-row", "Insert row below", () => insertRow(m, row + 1));
+        addGizmo(el, "cm-tbl-gizmo-row", "Insert row below", (md) => insertRow(md, row + 1));
         if (row >= 0) addDragGrip(el, "row", row); // drag a body row's first cell to reorder it
       }
     };
@@ -235,7 +245,11 @@ class TableWidget extends WidgetType {
   }
   destroy() {
     closeTableMenu(); // table removed (re-render / scroll-away) → drop a stray menu
-    commitCellEditor(); // …and flush an open inline cell editor (keep the edit)
+    // …and DISCARD an orphaned cell editor. We must NOT commit here: by the time a
+    // structural op (or an external undo) rebuilds the widget, the editor's offsets
+    // are stale, so committing would write to the wrong range. The structural ops
+    // commit the editor THEMSELVES first (replaceTable), so a live edit isn't lost.
+    cancelCellEditor();
   }
   /* v8 ignore start -- event plumbing; widget events aren't dispatched in happy-dom. */
   ignoreEvent(e: Event) {
