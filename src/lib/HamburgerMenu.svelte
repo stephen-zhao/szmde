@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { WrapState } from "$lib/editor/setup";
   import { MODE_ORDER, MODE_LABELS, type RenderMode } from "$lib/editor/render-mode";
+  import TableSizePicker from "$lib/TableSizePicker.svelte";
 
   // The only persistent chrome in szmde (SPEC §7 / §9): a top-left hamburger.
   let {
@@ -17,6 +18,7 @@
     ontogglewrap,
     renderMode,
     onsetrendermode,
+    oninserttable,
   }: {
     onnew: () => void;
     onopen: () => void;
@@ -31,13 +33,20 @@
     ontogglewrap: () => void;
     renderMode: RenderMode;
     onsetrendermode: (mode: RenderMode) => void;
+    oninserttable: (rows: number, cols: number) => void;
   } = $props();
 
   let open = $state(false);
+  let tablePickerOpen = $state(false);
 
   function run(fn: () => void) {
     open = false;
     fn();
+  }
+
+  function closeMenu() {
+    open = false;
+    tablePickerOpen = false;
   }
 </script>
 
@@ -63,7 +72,7 @@
     <button
       class="backdrop"
       aria-label="Close menu"
-      onclick={() => (open = false)}
+      onclick={closeMenu}
     ></button>
 
     <div class="dropdown" role="menu">
@@ -99,6 +108,23 @@
           <span class="check">{renderMode === mode ? "✓" : ""}</span>
         </button>
       {/each}
+      <hr />
+      <div class="section-label">Insert</div>
+      <button
+        role="menuitem"
+        aria-expanded={tablePickerOpen}
+        onclick={() => (tablePickerOpen = !tablePickerOpen)}
+      >
+        Table… <span class="check">{tablePickerOpen ? "▾" : "▸"}</span>
+      </button>
+      {#if tablePickerOpen}
+        <TableSizePicker
+          oninsert={(rows, cols) => {
+            closeMenu();
+            oninserttable(rows, cols);
+          }}
+        />
+      {/if}
       <hr />
       <button
         role="menuitemcheckbox"

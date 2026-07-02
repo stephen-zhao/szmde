@@ -5,6 +5,15 @@ import { indentLess, indentMore, insertNewlineAndIndent } from "@codemirror/comm
 import { getIndentUnit, indentString, syntaxTree } from "@codemirror/language";
 import { deleteMarkupBackward, insertNewlineContinueMarkup } from "@codemirror/lang-markdown";
 import { cycleRenderMode } from "./render-mode";
+import {
+  insertRowBelow,
+  insertRowAbove,
+  moveRowDown,
+  moveRowUp,
+  moveColLeft,
+  moveColRight,
+  tidyTable,
+} from "./table-commands";
 
 /** True if `pos` is inside inline or fenced code (where B/I should be inert). */
 function inCode(state: Parameters<StateCommand>[0]["state"], pos: number): boolean {
@@ -298,5 +307,16 @@ export const editingKeymap: Extension = Prec.high(
     { key: "Mod-i", run: toggleItalic, preventDefault: true },
     { key: "Mod-Shift-m", run: cycleRenderMode, preventDefault: true },
     { key: "Tab", run: insertSoftTab, shift: indentLess },
+    // Cursor-context table edits (REQ-TBLED-5) — all return false outside a table,
+    // so the chords are inert elsewhere. Insert/delete via gizmos + menu too (S3).
+    // (A rendered table is atomic, so arrows skip past it; cells are edited by click.)
+    { key: "Mod-Enter", run: insertRowBelow },
+    { key: "Mod-Shift-Enter", run: insertRowAbove },
+    { key: "Alt-Shift-ArrowDown", run: moveRowDown },
+    { key: "Alt-Shift-ArrowUp", run: moveRowUp },
+    { key: "Alt-Shift-ArrowLeft", run: moveColLeft },
+    { key: "Alt-Shift-ArrowRight", run: moveColRight },
+    // Re-tidy a hand-typed messy table to canonical GFM (inert outside a table).
+    { key: "Mod-Alt-t", run: tidyTable, preventDefault: true },
   ]),
 );

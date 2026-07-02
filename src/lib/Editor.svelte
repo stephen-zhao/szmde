@@ -23,6 +23,8 @@
     setEmoji(on: boolean): void;
     /** Convert all existing leading whitespace to the current indent style. */
     convertIndentation(): void;
+    /** Insert a fresh `rows`×`cols` GFM table at the caret (REQ-TBLED-1). */
+    insertTable(rows: number, cols: number): void;
   }
 </script>
 
@@ -33,6 +35,7 @@
   import { editorExtensions, setGlobalWrap, wrapStateOf } from "./editor/setup";
   import { countText } from "./editor/count"; // TextCount type comes from the module script above
   import { setEmoji as applyEmoji } from "./editor/emoji";
+  import { insertTable as insertTableCmd } from "./editor/table-commands";
   import { renderModeOf, setRenderMode as applyRenderMode } from "./editor/render-mode";
   import {
     convertIndentation as applyConvertIndent,
@@ -178,6 +181,12 @@
     if (view) applyEmoji(view, on);
   }
 
+  function insertTable(rows: number, cols: number) {
+    if (!view) return;
+    insertTableCmd(rows, cols)({ state: view.state, dispatch: (tr) => view!.dispatch(tr) });
+    view.focus();
+  }
+
   onMount(() => {
     view = new EditorView({ state: buildState(""), parent: container });
     view.focus();
@@ -195,6 +204,7 @@
       getIndent,
       convertIndentation,
       setEmoji,
+      insertTable,
     });
     onwrapstate?.(wrapStateOf(view.state));
     onrendermode?.(renderModeOf(view.state));

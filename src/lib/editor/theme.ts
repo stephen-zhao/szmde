@@ -240,11 +240,175 @@ export const baseTheme = EditorView.theme(
       border: "1px solid var(--border)",
       padding: "5px 12px",
       textAlign: "left",
+      position: "relative", // anchor for the hover gizmos + the inline cell editor
+    },
+    // Inline cell editor (REQ-TBLED-7): a textarea filling the clicked cell so the
+    // table stays rendered while you edit that cell's markdown source. Padding matches
+    // the cell; an accent border marks it active.
+    ".cm-md-cell-editor": {
+      position: "absolute",
+      inset: "0",
+      width: "100%",
+      height: "100%",
+      margin: "0",
+      padding: "4px 11px",
+      border: "1px solid var(--accent)",
+      borderRadius: "2px",
+      background: "var(--bg)",
+      color: "var(--text)",
+      font: "inherit",
+      lineHeight: "inherit",
+      textAlign: "inherit",
+      resize: "none",
+      boxSizing: "border-box",
+      overflow: "hidden",
+      outline: "none",
+      zIndex: "7",
     },
     ".cm-md-table th": {
       backgroundColor: "var(--code-header-bg)",
       fontWeight: "700",
     },
+    // Right-click structural-edit menu (M5 S3b). Floats over the table (position:
+    // fixed = viewport coords from the click), appended into the editor wrapper so
+    // these rules reach it. A flat button list with separators.
+    ".cm-md-table-menu": {
+      position: "fixed",
+      zIndex: "30",
+      minWidth: "184px",
+      padding: "4px",
+      background: "var(--bg-raised)",
+      color: "var(--text)",
+      border: "1px solid var(--border)",
+      borderRadius: "8px",
+      boxShadow: "0 6px 22px rgba(0, 0, 0, 0.28)",
+      fontSize: "calc(var(--editor-font-size, 16px) * 0.82)",
+      userSelect: "none",
+    },
+    ".cm-md-table-menu-item": {
+      display: "block",
+      width: "100%",
+      textAlign: "left",
+      padding: "5px 11px",
+      border: "none",
+      borderRadius: "5px",
+      background: "transparent",
+      color: "inherit",
+      font: "inherit",
+      cursor: "pointer",
+    },
+    ".cm-md-table-menu-item:hover:not(:disabled)": { background: "var(--selection)" },
+    ".cm-md-table-menu-item:disabled": { opacity: "0.38", cursor: "default" },
+    ".cm-md-table-menu-sep": {
+      height: "1px",
+      margin: "4px 7px",
+      background: "var(--border)",
+    },
+    // Hover-insert "+" gizmos (M5 S3b). A small circular button straddling a cell
+    // edge; hidden (and non-interactive) until the cell — or the gizmo — is hovered,
+    // so it never intercepts a click meant for the cell. Column handles sit on the
+    // header strip, row handles in the left gutter. Glyph is a ::before (kept out of
+    // the cell's textContent).
+    ".cm-tbl-gizmo": {
+      position: "absolute",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: "16px",
+      height: "16px",
+      padding: "0",
+      lineHeight: "1",
+      fontSize: "13px",
+      border: "1px solid var(--border)",
+      borderRadius: "50%",
+      background: "var(--bg-raised)",
+      color: "var(--accent)",
+      cursor: "pointer",
+      opacity: "0",
+      pointerEvents: "none",
+      transition: "opacity 0.08s ease",
+      zIndex: "6",
+    },
+    ".cm-tbl-gizmo::before": { content: '"+"' },
+    ".cm-md-table th:hover .cm-tbl-gizmo, .cm-md-table td:hover .cm-tbl-gizmo": {
+      opacity: "1",
+      pointerEvents: "auto",
+    },
+    ".cm-tbl-gizmo:hover": { background: "var(--accent)", color: "var(--bg)" },
+    ".cm-tbl-gizmo-col": { right: "-9px", top: "50%", transform: "translateY(-50%)" },
+    ".cm-tbl-gizmo-colstart": { left: "-9px", top: "50%", transform: "translateY(-50%)" },
+    ".cm-tbl-gizmo-row": { bottom: "-9px", left: "50%", transform: "translateX(-50%)" },
+    // Drag-to-reorder grips (M5 S5): a dotted handle at the top of each header cell
+    // (column) / the left of each body row's first cell (row). Hover-revealed; grab
+    // cursor. The drop target row/column tints while dragging.
+    ".cm-tbl-drag": {
+      position: "absolute",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "var(--muted)",
+      fontSize: "11px",
+      lineHeight: "1",
+      opacity: "0",
+      pointerEvents: "none",
+      cursor: "grab",
+      userSelect: "none",
+      transition: "opacity 0.08s ease",
+      zIndex: "6",
+    },
+    ".cm-tbl-drag::before": { content: '"⠿"' },
+    ".cm-md-table th:hover .cm-tbl-drag, .cm-md-table td:hover .cm-tbl-drag": {
+      opacity: "0.65",
+      pointerEvents: "auto",
+    },
+    ".cm-tbl-drag:hover": { opacity: "1" },
+    ".cm-tbl-drag:active": { cursor: "grabbing" },
+    ".cm-tbl-drag-col": { top: "0", left: "50%", transform: "translateX(-50%)", width: "18px", height: "9px" },
+    ".cm-tbl-drag-row": { left: "0", top: "50%", transform: "translateY(-50%)", width: "9px", height: "18px" },
+    ".cm-md-table tr.cm-tbl-drop td, .cm-md-table th.cm-tbl-drop": {
+      background: "color-mix(in srgb, var(--accent) 22%, transparent)",
+    },
+    // Source / Syntax-mode table gizmos (M5 S3c). A zero-width anchor sits in the
+    // pipe text (no shift); the "+" floats off it — above the header pipes (columns)
+    // or at each table line's right edge (rows). Revealed on line hover.
+    ".cm-tbl-src-anchor": {
+      position: "relative",
+      display: "inline-block",
+      width: "0",
+      height: "0",
+      verticalAlign: "baseline",
+    },
+    ".cm-tbl-src-gizmo": {
+      position: "absolute",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: "15px",
+      height: "15px",
+      padding: "0",
+      lineHeight: "1",
+      fontSize: "12px",
+      border: "1px solid var(--border)",
+      borderRadius: "50%",
+      background: "var(--bg-raised)",
+      color: "var(--accent)",
+      cursor: "pointer",
+      opacity: "0",
+      pointerEvents: "none",
+      transition: "opacity 0.08s ease",
+      zIndex: "6",
+    },
+    ".cm-tbl-src-gizmo::before": { content: '"+"' },
+    ".cm-line:hover .cm-tbl-src-gizmo": { opacity: "1", pointerEvents: "auto" },
+    ".cm-tbl-src-gizmo:hover": { background: "var(--accent)", color: "var(--bg)" },
+    ".cm-tbl-src-col, .cm-tbl-src-colstart": {
+      top: "-1.2em", // float above the header pipes
+      left: "0",
+      transform: "translateX(-50%)",
+    },
+    // Sits just RIGHT of the line's end (the anchor is at line.to) — offset out into
+    // the margin so it clears the trailing pipe — and lifted to ride on the line.
+    ".cm-tbl-src-row": { top: "-0.35em", left: "0.5em" },
     // Inline image (Clean mode): replaces `![alt](src)`. Constrain to the reading
     // column width and keep aspect ratio; rounded to match the code-card style.
     ".cm-md-image": {

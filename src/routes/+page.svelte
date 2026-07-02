@@ -495,6 +495,7 @@
     ontogglewrap={toggleCodeWrap}
     {renderMode}
     onsetrendermode={setRenderMode}
+    oninserttable={(rows, cols) => editor?.insertTable(rows, cols)}
   />
 
   <Editor
