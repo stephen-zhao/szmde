@@ -34,7 +34,12 @@ export async function cloudRequest(
     throw new StorageError("offline", e instanceof Error ? e.message : String(e));
   }
   if (!r.ok) {
-    throw new StorageError(mapStatus(r.status), `${init?.method ?? "GET"} ${url} → ${r.status}`);
+    // Surface the provider's error body (Drive/OneDrive put the real reason there —
+    // e.g. "File not found: <id>" for an out-of-scope file, or "Only files with binary
+    // content can be downloaded" for a native Google Doc), so failures are diagnosable.
+    const body = await r.text().catch(() => "");
+    const detail = body ? `: ${body.trim().slice(0, 300)}` : "";
+    throw new StorageError(mapStatus(r.status), `${init?.method ?? "GET"} ${url} → ${r.status}${detail}`);
   }
   return r;
 }
