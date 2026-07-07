@@ -20,8 +20,14 @@ export const GDRIVE_ACCOUNT = "gdrive:default";
 
 const AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
-// Least-privilege scope: only files the app creates/opens (not the whole Drive).
-const DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.file"];
+// Full Drive read/write. Needed to OPEN pre-existing files by URL/id: the narrower
+// `drive.file` scope only covers files THIS app created (or that were picked via the
+// Google Picker), so opening a user's own existing `.md` returns 404. The Picker would
+// preserve least-privilege but isn't reliable in a bundled Tauri app (its origin check
+// rejects the custom-scheme WebView origin), so we take the broad scope. `drive` is a
+// Google "restricted" scope — the consent screen shows an unverified-app warning until
+// the app is verified; fine for personal use (add yourself as a test user).
+const DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"];
 
 interface GdriveClientConfig {
   client_id: string;

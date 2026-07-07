@@ -94,19 +94,23 @@ client and copy its Client ID.
 
 6. **Declare the Drive scope (Data Access).** Go to **Google Auth platform → Data Access**
    and click **Add or remove scopes**. Add:
-   - **`https://www.googleapis.com/auth/drive.file`** — *preferred.* This grants access only
-     to files the app itself creates or that you explicitly open with it. It is the least-
-     privilege option and the one szmde is built around.
+   - **`https://www.googleapis.com/auth/drive`** — full read/write access to your Drive.
 
-   If you ever need szmde to see/manage **all** files in your Drive (broader, not
-   recommended for normal use), the alternative is the full **`.../auth/drive`** scope. For
-   M3, stick with `drive.file`.
+   **Why the broad scope?** szmde opens files by pasted URL/id. The narrower
+   `drive.file` scope only covers files the app *itself* created (or that you pick via the
+   Google Picker), so opening one of your **existing** `.md` files under `drive.file`
+   returns 404. The Google Picker would let us keep `drive.file`, but it isn't reliable in a
+   bundled Tauri app (its origin check rejects the desktop WebView's custom-scheme origin).
+   So szmde uses `drive`. You're granting it to *your own* app, and you can revoke it
+   anytime at [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
 
-   > **Gotcha:** In the scope picker you can either tick `drive.file` from the filtered list
-   > or paste the full scope URL into the **"manually add scopes"** box at the bottom and
-   > click **Add to table**. Either works — just make sure the scope ends up in the
-   > "Your sensitive scopes" / selected table before you save. `drive.file` is classified as
-   > a **sensitive** scope, which is normal; it does not block you while in Testing.
+   > **Gotcha:** In the scope picker, paste `https://www.googleapis.com/auth/drive` into the
+   > **"manually add scopes"** box and click **Add to table**, then confirm it's in the
+   > selected table before saving. `drive` is classified as a **restricted** scope (stricter
+   > than "sensitive"): fully verifying it for a *published* app requires a security
+   > assessment, but while your app stays in **Testing** with you as a test user it works
+   > fine — you just click through the "unverified app → Advanced → Go to szmde" warning on
+   > first consent.
 
 7. **Create the OAuth client (Desktop app).** Go to **APIs & Services → Credentials** (or
    **Google Auth platform → Clients**) and click **Create credentials → OAuth client ID**.
