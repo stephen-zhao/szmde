@@ -1,12 +1,17 @@
 # M4 feedback triage
 
+> **📦 Archived — historical planning artifact.** This milestone has shipped; the plan below is
+> preserved as **provenance** (why the code is shaped the way it is), **not** current-state tracking.
+> For current status see [roadmap.md](../roadmap.md) · [requirements.md](../requirements.md) ·
+> [bugs.md](../bugs.md); per-doc "what changed since" notes are in [this folder's README](README.md).
+
 Every comment from the M4 review pass, classified per the process rule:
 
 - **Bug** — behavior that clearly violates an *existing, documented* requirement.
   Fix the behavior; no new requirement needed.
 - **New requirement** — desired behavior that wasn't well documented by an existing
   requirement (i.e. a "bug" caused by under-specification). Catalogue a new REQ in
-  [requirements.md](requirements.md), then implement it.
+  [requirements.md](../requirements.md), then implement it.
 
 Each row links the originating render mode where relevant. "Mode names": Formatted =
 `clean`, Source = `markers-rendered`, Syntax = `markers-syntax`.

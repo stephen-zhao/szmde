@@ -17,17 +17,31 @@ spec + milestone + requirement so it can be scheduled without inventing scope._
 | Milestone | Scope | SPEC | Plan | Status |
 |-----------|-------|------|------|--------|
 | M0 — Skeleton | Tauri+Svelte+CM6 boot, blank canvas, hamburger, local open/save (+WSL UNC), CLI launcher, dark theme | §10.1, §2.1, §6.1 | — | ✅ |
-| M1 — Core WYSIWYG | render modes 1–3, markdown shortcuts, bold/italic/strike/headings/quote/lists/code/links, EOL+indent+status widgets, perf | §4, §10.2 | [m1-plan.md](m1-plan.md) | ✅ |
+| M1 — Core WYSIWYG | render modes 1–3, markdown shortcuts, bold/italic/strike/headings/quote/lists/code/links, EOL+indent+status widgets, perf | §4, §10.2 | [m1-plan.md](archive/m1-plan.md) | ✅ |
 | Testing gate | 100% unit coverage (ratcheted), integration tests, requirement↔test traceability | §10.3 | [testing-strategy.md](testing-strategy.md) | ✅ |
-| M2 — Remaining v1 blocks + settings | HR, task lists, images, GFM alerts, tables (render), nested lists, two-tier settings | §5.1, §8, §10.4 | [m2-plan.md](m2-plan.md) | ✅ |
+| M2 — Remaining v1 blocks + settings | HR, task lists, images, GFM alerts, tables (render), nested lists, two-tier settings | §5.1, §8, §10.4 | [m2-plan.md](archive/m2-plan.md) | ✅ |
 | CI/CD + branch workflow | GitHub Actions: CI gate (typecheck/build/test/coverage/traceability + Rust fmt/clippy/test) on push+PR; tag-triggered Windows release (unsigned); switch to branch/PR development | — | [ci-cd.md](ci-cd.md) | ✅ |
 
 This completes the **§5.1 v1 markdown feature set** + the settings system. Everything below is post-v1.
 
-## Scheduled milestones
+## What's left
+
+Everything through **M5 is shipped and merged**. What's actually in flight or immediately next:
+
+| Item | REQ | State |
+|------|-----|-------|
+| Toggle the table header row on/off | REQ-TBLED-2 | 🔜 next (M5 **S7** — the one unshipped M5 slice) |
+| OneDrive live wiring (a connect orchestration + UI entry, mirroring `gdrive-connect.ts`) | REQ-CLOUD-2 | ⬜ backend + unit tests done; **not live-wired** |
+| **M6 — Android** (next full milestone) | REQ-MOBILE-* | ⬜ planned |
+
+_Parked (specced-lite, unscheduled):_ keyboard entry into the inline table-cell editor; Google Docs →
+markdown export (native Google Docs return `403` on `alt=media`, so only true `.md` / binary Drive
+files open today).
+
+## Post-v1 milestone slots
 
 > **Milestones are fixed, in-order slots** — M3, M4, M5, … always ascending = execution order
-> (M3 is next). You schedule by **moving requirements between slots** (and in/out of the unslotted
+> (**M3–M5 are shipped; M6 is next**). You schedule by **moving requirements between slots** (and in/out of the unslotted
 > pools below); a slot's **title just reflects whatever requirements it currently holds** and is
 > retitled as they flow. The stable handles are the requirement IDs (`REQ-*`) — refer to those, not
 > milestone numbers, since a milestone's contents and title are fluid. Order is yours to set (§11).
@@ -37,26 +51,30 @@ This completes the **§5.1 v1 markdown feature set** + the settings system. Ever
 > two slots' requirements were swapped; numbers stay ascending). Earlier the same day: both sets
 > were pulled ahead of Android, shifting Android/network/workspace down a slot each._
 
-### M3 — Cloud storage 🔜  (SPEC §6, §8)
-_In progress ([m3-plan.md](m3-plan.md)). Shipped: the `StorageProvider` seam +
-`LocalProvider` (S1); the resilience layer — conflict (S2) / autosave (S3) / offline
-queue (S4); the `SecureStore` seam + token model (S5); and the OAuth 2.0 + PKCE flow
-logic (S6). Remaining: the cloud provider slices (S7–S8) — their live wiring needs the
-user's OAuth client registrations + the OS-keyring / redirect-capture Tauri commands._
+### M3 — Cloud storage ✅  (SPEC §6, §8)
+_Shipped ([m3-plan.md](archive/m3-plan.md)). The `StorageProvider` seam + `LocalProvider` (S1); the
+resilience layer — conflict (S2) / autosave (S3) / offline queue (S4); the `SecureStore` seam +
+token model (S5); the OAuth 2.0 + PKCE flow (S6); and both cloud backends (S7–S8)._
+_**Google Drive is live-wired** (L1 OS keyring + L2 loopback redirect-capture + plugin-http
+transport) with the open→edit→save round-trip user-verified. It uses the **full
+`https://www.googleapis.com/auth/drive` scope** — required to open pre-existing files; the narrower
+`drive.file` only sees app-created files (see [m3-cloud-setup.md](m3-cloud-setup.md)). **OneDrive is
+backend-only** (provider + unit tests); its live wiring (an `onedrive-connect` orchestration + UI
+entry) is still pending — see [What's left](#whats-left)._
 | REQ | Requirement | SPEC | Status |
 |-----|-------------|------|--------|
 | REQ-SAVE-1 | Save conflict detection (etag/mtime) + overwrite/save-copy/reload | §6 | ✅ S2 |
 | REQ-SAVE-2 | **Autosave** + interval (wires the reserved `editor.autosave`/`autosaveIntervalMs` settings) | §8 | ✅ S3 |
-| REQ-SAVE-3 | Offline local-draft cache + queued writes until reconnect | §6 | ✅ S4 (logic; activates with cloud) |
-| REQ-SEC-1 | OAuth tokens in the OS secure store (Credential Manager / Keychain / Keystore) | §6 | ✅ S5 (seam+model; OS keyring = tail) |
-| _(seam)_ | OAuth 2.0 + PKCE + token refresh (provider-agnostic) | §6 | ✅ S6 (logic; redirect capture = tail) |
-| REQ-CLOUD-1 | Google Drive backend (OAuth + Drive REST) behind the StorageProvider interface | §6 | ⬜ S7 |
-| REQ-CLOUD-2 | OneDrive backend (OAuth + Microsoft Graph) | §6 | ⬜ S8 |
+| REQ-SAVE-3 | Offline local-draft cache + queued writes until reconnect | §6 | ✅ S4 (logic; live with Drive) |
+| REQ-SEC-1 | OAuth tokens in the OS secure store (Credential Manager / Keychain / Keystore) | §6 | ✅ S5 + L1 (Windows Credential Manager) |
+| _(seam)_ | OAuth 2.0 + PKCE + token refresh (provider-agnostic) | §6 | ✅ S6 + L2 (loopback redirect capture) |
+| REQ-CLOUD-1 | Google Drive backend (OAuth + Drive REST) behind the StorageProvider interface | §6 | ✅ S7 + **live** (full `drive` scope) |
+| REQ-CLOUD-2 | OneDrive backend (OAuth + Microsoft Graph) | §6 | ✅ S8 backend — **not live-wired** |
 
 ### M4 — Authoring essentials ✅  (SPEC §5.4, §7.3, §4.1)
 Daily-authoring + reading-experience power-features for the target user (Stephen).
 Pulled ahead of table editing on 2026-06-27. **Shipped 2026-06-28 (S1–S6,
-[m4-plan.md](m4-plan.md)); all six REQs catalogued in [requirements.md](requirements.md).**
+[m4-plan.md](archive/m4-plan.md)); all six REQs catalogued in [requirements.md](requirements.md).**
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
 | REQ-EMOJI-1 | Emoji shortcodes `:smile:` → rendered emoji | §5.4 |
@@ -67,17 +85,19 @@ Pulled ahead of table editing on 2026-06-27. **Shipped 2026-06-28 (S1–S6,
 | REQ-ZOOM-2 | Shift+scroll → page width (persists to `appearance.lineWidth`; the `--reading-width` var already exists) | §7.3 |
 | REQ-RENDER-9 | **Syntax mode:** block markers (heading `#`/`##`…, blockquote `>`) hang in the LEFT margin as an overhanging indent, right-aligned to the content margin, so text stays flush (the §4.1 deferred refinement) | §4.1 |
 
-### M5 — Rich table editing ⬜  (SPEC §7.4)
-Absorbs the M2 table deferrals. On-disk stays portable GFM pipe tables.
-| REQ | Requirement | SPEC |
-|-----|-------------|------|
-| REQ-TBLED-1 | Insert an N×M table from scratch (grid picker / command, not hand-typed) | §7.4 |
-| REQ-TBLED-2 | Toggle the header row on/off | §7.4 |
-| REQ-TBLED-3 | Insert/delete rows & columns at any position (before/after/between) | §7.4 |
-| REQ-TBLED-4 | Drag to reorder columns/rows | §7.4 |
-| REQ-TBLED-5 | Cursor-context shortcuts (move/insert/delete current row/col) | §7.4 |
-| REQ-TBLED-6 | Auto-tidy source + per-column alignment UI (`:--`/`:-:`/`--:`) | §7.4 |
-| REQ-TBLED-7 | Edit-in-place: caret lands at the clicked char inside any cell; up/down arrows enter the table _(deferred from M2 — render-only click lands at cell start today)_ | §7.4, §5.1 |
+### M5 — Rich table editing ✅  (SPEC §7.4)
+Absorbs the M2 table deferrals. On-disk stays portable GFM pipe tables. **Shipped S1–S6 (PR #4,
+[m5-plan.md](archive/m5-plan.md)); S7 (REQ-TBLED-2, toggle header) is the one remaining slice — see
+[What's left](#whats-left).** Reachable via a right-click menu, hover gizmos, and keybindings.
+| REQ | Requirement | SPEC | Status |
+|-----|-------------|------|--------|
+| REQ-TBLED-1 | Insert an N×M table from scratch (grid picker / command, not hand-typed) | §7.4 | ✅ S6 |
+| REQ-TBLED-2 | Toggle the header row on/off | §7.4 | 🔜 S7 (only unshipped slice) |
+| REQ-TBLED-3 | Insert/delete rows & columns at any position (before/after/between) | §7.4 | ✅ S3 |
+| REQ-TBLED-4 | Drag to reorder columns/rows | §7.4 | ✅ S5 |
+| REQ-TBLED-5 | Cursor-context shortcuts (move/insert/delete current row/col) | §7.4 | ✅ S3 |
+| REQ-TBLED-6 | Auto-tidy source + per-column alignment UI (`:--`/`:-:`/`--:`) | §7.4 | ✅ S4 |
+| REQ-TBLED-7 | Edit-in-place: the **table stays rendered** while you edit a cell — a rendered table is atomic (arrows skip past it); clicking a cell opens an **inline editor** (a `<textarea>` over that cell showing its markdown source; Enter/Tab commit + move, Esc cancels, blur commits). Raw pipe source shows in **Source mode** only _(supersedes the earlier "caret lands at the clicked char / arrows enter the table" design)_ | §7.4, §5.1 | ✅ S2 |
 
 ### M6 — Android ⬜  (SPEC §2)
 | REQ | Requirement | SPEC |

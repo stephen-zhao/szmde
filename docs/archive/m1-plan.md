@@ -1,6 +1,11 @@
 # M1 — WYSIWYG Live-Preview Engine (implementation plan)
 
-_Implementation plan for milestone **M1** (see [SPEC.md](../SPEC.md) §10 for the
+> **📦 Archived — historical planning artifact.** This milestone has shipped; the plan below is
+> preserved as **provenance** (why the code is shaped the way it is), **not** current-state tracking.
+> For current status see [roadmap.md](../roadmap.md) · [requirements.md](../requirements.md) ·
+> [bugs.md](../bugs.md); per-doc "what changed since" notes are in [this folder's README](README.md).
+
+_Implementation plan for milestone **M1** (see [SPEC.md](../../SPEC.md) §10 for the
 milestone definition and §4 for the behavior). SPEC.md is the "what"; this doc is the
 "how" — the architecture and the staged build sequence (the `S1…S6` slices)._
 
@@ -124,7 +129,7 @@ Tab style. 35 tests pass; `npm run check` clean.
 
 ---
 
-**M1 is complete (S1–S6).** Next: the **testing gate** ([testing-strategy.md](testing-strategy.md))
+**M1 is complete (S1–S6).** Next: the **testing gate** ([testing-strategy.md](../testing-strategy.md))
 before M2.
 
 ## New / changed files

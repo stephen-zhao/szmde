@@ -1,7 +1,12 @@
 # M4 — Authoring essentials (implementation plan)
 
-_Implementation plan for milestone **M4** (see [roadmap.md](roadmap.md) "M4" for the
-requirement slotting and [SPEC.md](../SPEC.md) §5.4 / §7.1 / §7.3 / §4.1 for the behavior).
+> **📦 Archived — historical planning artifact.** This milestone has shipped; the plan below is
+> preserved as **provenance** (why the code is shaped the way it is), **not** current-state tracking.
+> For current status see [roadmap.md](../roadmap.md) · [requirements.md](../requirements.md) ·
+> [bugs.md](../bugs.md); per-doc "what changed since" notes are in [this folder's README](README.md).
+
+_Implementation plan for milestone **M4** (see [roadmap.md](../roadmap.md) "M4" for the
+requirement slotting and [SPEC.md](../../SPEC.md) §5.4 / §7.1 / §7.3 / §4.1 for the behavior).
 SPEC.md is the "what"; this doc is the "how" — architecture + staged `S1…S6` slices. Same
 shape as [m1-plan.md](m1-plan.md) / [m2-plan.md](m2-plan.md) / [m3-plan.md](m3-plan.md).
 Grounded by a 6-agent parallel design scout (2026-06-27)._
@@ -57,7 +62,7 @@ The editor stays framework-agnostic: new state flows out via callbacks (like
 ## Staged build sequence
 
 > Each slice: **failing test(s) first** (TDD, T4), then implementation, `npm run test` +
-> `npm run check` green, update [requirements.md](requirements.md) with the new `REQ-*` and tag
+> `npm run check` green, update [requirements.md](../requirements.md) with the new `REQ-*` and tag
 > the tests, then commit. Per the standing preference, run an adversarial review over a
 > substantial slice before moving on; live-only behavior gets an `llm-workflow-tests.md` entry.
 
@@ -116,8 +121,8 @@ enum clamp. Live scroll feel + persistence → workflow.
 > **Superseded across M4 feedback rounds.** The original plan (a `position:absolute;
 > right:100%` `.cm-md-mark-hang`) top-floated the marker (B1) and, in later attempts, a
 > negative `margin-left` stranded the native caret at the margin in WebView2. The SHIPPED
-> design is a per-LINE `text-indent` (see [requirements.md](requirements.md) REQ-RENDER-9
-> and [bugs.md](bugs.md) BUG-CARET-MARGIN), inside a 3-column layout (REQ-RENDER-12).
+> design is a per-LINE `text-indent` (see [requirements.md](../requirements.md) REQ-RENDER-9
+> and [bugs.md](../bugs.md) BUG-CARET-MARGIN), inside a 3-column layout (REQ-RENDER-12).
 
 In `markers.ts`, `handleShownBlockLine` (shared by Syntax mode + Formatted reveal) greys the
 whole leading block-marker prefix (`#…`/`>`(s) + spaces, matched by `BLOCK_PREFIX`) with one

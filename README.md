@@ -7,10 +7,17 @@ See [SPEC.md](SPEC.md) for the full specification.
 
 ## Status
 
-**M0 — Skeleton.** Tauri + Svelte + CodeMirror 6 booting to a blank dark canvas with a
-hamburger menu, local file open/save (incl. WSL UNC paths on Windows), and a `szmde` CLI
-launcher with single-instance forwarding. The WYSIWYG live-preview engine (render modes,
-hidden markers, block widgets) and EOL/indentation widgets arrive in M1.
+**Shipped: M0–M5.** The full WYSIWYG live-preview engine (three render modes, reveal-on-cursor
+hidden markers, block widgets), the v1 GFM feature set (headings, lists, tables, task lists, images,
+code, GFM alerts, horizontal rules, nested lists), EOL/indentation widgets, a two-tier settings
+system, CI/CD, cloud storage (**Google Drive live**; OneDrive backend-only), authoring essentials
+(find & replace, emoji shortcodes, foldable sections, word count, scroll-zoom / page-width), and
+**rich inline table editing** — all on a `szmde` CLI launcher with single-instance forwarding and
+local open/save (incl. WSL UNC paths on Windows).
+
+Next up: M5 **S7** (toggle the table header row) and **M6 (Android)**. See
+[docs/roadmap.md](docs/roadmap.md) for the authoritative status tracker and
+[docs/m3-cloud-setup.md](docs/m3-cloud-setup.md) for cloud setup.
 
 ## Development
 
