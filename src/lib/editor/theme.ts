@@ -35,11 +35,30 @@ export const baseTheme = EditorView.theme(
     ".cm-content": {
       caretColor: "var(--accent)",
       fontSize: "var(--editor-font-size)",
+      // REQ-RENDER-12 / REQ-ZOOM-4 — three columns: [fold chevron][marker gutter]
+      // [content]. The left two are reserved as padding so the chevron and the
+      // Syntax-mode hung markers live in their OWN lanes (no more overlap) and stay
+      // inside the reading column (never clipped off the left edge, even when the
+      // page width is maxed to the window). Sized off --editor-font-size so they
+      // scale with zoom; the gutter fits up to `######`'s small-grey prefix.
+      "--fold-col": "calc(var(--editor-font-size) * 1.7)",
+      "--marker-gutter": "calc(var(--editor-font-size) * 3.2)",
       // Reading-column width is driven by appearance.lineWidth (settings §8) via
-      // --reading-width; falls back to 740px before settings load / on the web.
+      // --reading-width (px); falls back to 740px before settings load / on the
+      // web. This is a max-width on an auto-width, margin-auto-centered block under
+      // the global `box-sizing: border-box` (app.css), so the column already does
+      // exactly REQ-ZOOM-3: it grows up to --reading-width and centers; when the
+      // window shrinks below that, auto width fills the container so the column
+      // CLINGS to the window width (padding included, no overflow), then grows back
+      // out as the window widens. border-box counts ALL the padding (incl. the two
+      // reserved columns) inside --reading-width, so the max page width (window
+      // width) keeps all three columns on-screen (REQ-ZOOM-4).
       maxWidth: "var(--reading-width, 740px)",
       margin: "0 auto",
-      padding: "72px 28px 40vh",
+      paddingTop: "72px",
+      paddingRight: "28px",
+      paddingBottom: "40vh",
+      paddingLeft: "calc(28px + var(--fold-col) + var(--marker-gutter))",
     },
     "&.cm-focused": { outline: "none" },
     ".cm-content ::selection": { backgroundColor: "var(--selection)" },
@@ -132,13 +151,26 @@ export const baseTheme = EditorView.theme(
     // paragraph font) so a heading's marker is the SAME small size as a
     // paragraph's, not enlarged by the inherited heading font-size. Explicit
     // weight/style override inherited bold/italic so it reads as a syntax token.
+    // This also styles the gutter-hung block-marker PREFIX (`#…`/`>`(s) + spaces),
+    // which is shifted into the marker-gutter column by the line's text-indent
+    // (RENDER-9/10/12, set in markers.ts) — the caret follows because text-indent
+    // moves the line's inline origin, not just the glyph. `white-space:pre` keeps
+    // the prefix's spaces (the measured gap that text flushes against).
     ".cm-md-mark-syntax": {
       color: "var(--faint)",
       fontWeight: "normal",
       fontStyle: "normal",
       fontSize: "calc(var(--editor-font-size) * 0.75)",
       verticalAlign: "baseline",
+      whiteSpace: "pre",
     },
+    // Clean mode, block marker OFF the caret line: same hung prefix as cm-md-mark-
+    // syntax (so the slot/width is identical) but painted transparent, so revealing
+    // it (drop this class → grey) changes only colour and the content never reflows.
+    ".cm-md-mark-invisible": { color: "transparent" },
+    // markers-syntax: a list marker (bullet dash / ordered number) is content, not
+    // pure syntax, so it shows its literal in normal text style — not small-grey.
+    ".cm-md-list-marker": { color: "var(--text)" },
     // markers-rendered: marker styled identically to the text it formats.
     ".cm-mk-strong": { fontWeight: "700" },
     ".cm-mk-em": { fontStyle: "italic" },
@@ -155,6 +187,10 @@ export const baseTheme = EditorView.theme(
     // --- Block constructs (headings / blockquote) ---------------------------
     // Heading size/weight come from the highlight tag; these add vertical
     // breathing room. Padding (measured by CM), never margin (cursor alignment).
+    // A foldable heading line (cm-foldhead, set by fold.ts on ATX AND setext lines)
+    // is position:relative so it's the containing block for its absolutely-positioned
+    // fold chevron (column A) — without it the chevron would anchor to the scroller.
+    ".cm-foldhead": { position: "relative" },
     ".cm-h1, .cm-h2": { paddingTop: "0.45em" },
     ".cm-h3, .cm-h4, .cm-h5, .cm-h6": { paddingTop: "0.3em" },
     // Blockquote: a left bar; consecutive quote lines stack into one continuous
@@ -204,11 +240,175 @@ export const baseTheme = EditorView.theme(
       border: "1px solid var(--border)",
       padding: "5px 12px",
       textAlign: "left",
+      position: "relative", // anchor for the hover gizmos + the inline cell editor
+    },
+    // Inline cell editor (REQ-TBLED-7): a textarea filling the clicked cell so the
+    // table stays rendered while you edit that cell's markdown source. Padding matches
+    // the cell; an accent border marks it active.
+    ".cm-md-cell-editor": {
+      position: "absolute",
+      inset: "0",
+      width: "100%",
+      height: "100%",
+      margin: "0",
+      padding: "4px 11px",
+      border: "1px solid var(--accent)",
+      borderRadius: "2px",
+      background: "var(--bg)",
+      color: "var(--text)",
+      font: "inherit",
+      lineHeight: "inherit",
+      textAlign: "inherit",
+      resize: "none",
+      boxSizing: "border-box",
+      overflow: "hidden",
+      outline: "none",
+      zIndex: "7",
     },
     ".cm-md-table th": {
       backgroundColor: "var(--code-header-bg)",
       fontWeight: "700",
     },
+    // Right-click structural-edit menu (M5 S3b). Floats over the table (position:
+    // fixed = viewport coords from the click), appended into the editor wrapper so
+    // these rules reach it. A flat button list with separators.
+    ".cm-md-table-menu": {
+      position: "fixed",
+      zIndex: "30",
+      minWidth: "184px",
+      padding: "4px",
+      background: "var(--bg-raised)",
+      color: "var(--text)",
+      border: "1px solid var(--border)",
+      borderRadius: "8px",
+      boxShadow: "0 6px 22px rgba(0, 0, 0, 0.28)",
+      fontSize: "calc(var(--editor-font-size, 16px) * 0.82)",
+      userSelect: "none",
+    },
+    ".cm-md-table-menu-item": {
+      display: "block",
+      width: "100%",
+      textAlign: "left",
+      padding: "5px 11px",
+      border: "none",
+      borderRadius: "5px",
+      background: "transparent",
+      color: "inherit",
+      font: "inherit",
+      cursor: "pointer",
+    },
+    ".cm-md-table-menu-item:hover:not(:disabled)": { background: "var(--selection)" },
+    ".cm-md-table-menu-item:disabled": { opacity: "0.38", cursor: "default" },
+    ".cm-md-table-menu-sep": {
+      height: "1px",
+      margin: "4px 7px",
+      background: "var(--border)",
+    },
+    // Hover-insert "+" gizmos (M5 S3b). A small circular button straddling a cell
+    // edge; hidden (and non-interactive) until the cell — or the gizmo — is hovered,
+    // so it never intercepts a click meant for the cell. Column handles sit on the
+    // header strip, row handles in the left gutter. Glyph is a ::before (kept out of
+    // the cell's textContent).
+    ".cm-tbl-gizmo": {
+      position: "absolute",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: "16px",
+      height: "16px",
+      padding: "0",
+      lineHeight: "1",
+      fontSize: "13px",
+      border: "1px solid var(--border)",
+      borderRadius: "50%",
+      background: "var(--bg-raised)",
+      color: "var(--accent)",
+      cursor: "pointer",
+      opacity: "0",
+      pointerEvents: "none",
+      transition: "opacity 0.08s ease",
+      zIndex: "6",
+    },
+    ".cm-tbl-gizmo::before": { content: '"+"' },
+    ".cm-md-table th:hover .cm-tbl-gizmo, .cm-md-table td:hover .cm-tbl-gizmo": {
+      opacity: "1",
+      pointerEvents: "auto",
+    },
+    ".cm-tbl-gizmo:hover": { background: "var(--accent)", color: "var(--bg)" },
+    ".cm-tbl-gizmo-col": { right: "-9px", top: "50%", transform: "translateY(-50%)" },
+    ".cm-tbl-gizmo-colstart": { left: "-9px", top: "50%", transform: "translateY(-50%)" },
+    ".cm-tbl-gizmo-row": { bottom: "-9px", left: "50%", transform: "translateX(-50%)" },
+    // Drag-to-reorder grips (M5 S5): a dotted handle at the top of each header cell
+    // (column) / the left of each body row's first cell (row). Hover-revealed; grab
+    // cursor. The drop target row/column tints while dragging.
+    ".cm-tbl-drag": {
+      position: "absolute",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "var(--muted)",
+      fontSize: "11px",
+      lineHeight: "1",
+      opacity: "0",
+      pointerEvents: "none",
+      cursor: "grab",
+      userSelect: "none",
+      transition: "opacity 0.08s ease",
+      zIndex: "6",
+    },
+    ".cm-tbl-drag::before": { content: '"⠿"' },
+    ".cm-md-table th:hover .cm-tbl-drag, .cm-md-table td:hover .cm-tbl-drag": {
+      opacity: "0.65",
+      pointerEvents: "auto",
+    },
+    ".cm-tbl-drag:hover": { opacity: "1" },
+    ".cm-tbl-drag:active": { cursor: "grabbing" },
+    ".cm-tbl-drag-col": { top: "0", left: "50%", transform: "translateX(-50%)", width: "18px", height: "9px" },
+    ".cm-tbl-drag-row": { left: "0", top: "50%", transform: "translateY(-50%)", width: "9px", height: "18px" },
+    ".cm-md-table tr.cm-tbl-drop td, .cm-md-table th.cm-tbl-drop": {
+      background: "color-mix(in srgb, var(--accent) 22%, transparent)",
+    },
+    // Source / Syntax-mode table gizmos (M5 S3c). A zero-width anchor sits in the
+    // pipe text (no shift); the "+" floats off it — above the header pipes (columns)
+    // or at each table line's right edge (rows). Revealed on line hover.
+    ".cm-tbl-src-anchor": {
+      position: "relative",
+      display: "inline-block",
+      width: "0",
+      height: "0",
+      verticalAlign: "baseline",
+    },
+    ".cm-tbl-src-gizmo": {
+      position: "absolute",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: "15px",
+      height: "15px",
+      padding: "0",
+      lineHeight: "1",
+      fontSize: "12px",
+      border: "1px solid var(--border)",
+      borderRadius: "50%",
+      background: "var(--bg-raised)",
+      color: "var(--accent)",
+      cursor: "pointer",
+      opacity: "0",
+      pointerEvents: "none",
+      transition: "opacity 0.08s ease",
+      zIndex: "6",
+    },
+    ".cm-tbl-src-gizmo::before": { content: '"+"' },
+    ".cm-line:hover .cm-tbl-src-gizmo": { opacity: "1", pointerEvents: "auto" },
+    ".cm-tbl-src-gizmo:hover": { background: "var(--accent)", color: "var(--bg)" },
+    ".cm-tbl-src-col, .cm-tbl-src-colstart": {
+      top: "-1.2em", // float above the header pipes
+      left: "0",
+      transform: "translateX(-50%)",
+    },
+    // Sits just RIGHT of the line's end (the anchor is at line.to) — offset out into
+    // the margin so it clears the trailing pipe — and lifted to ride on the line.
+    ".cm-tbl-src-row": { top: "-0.35em", left: "0.5em" },
     // Inline image (Clean mode): replaces `![alt](src)`. Constrain to the reading
     // column width and keep aspect ratio; rounded to match the code-card style.
     ".cm-md-image": {
@@ -218,6 +418,19 @@ export const baseTheme = EditorView.theme(
       borderRadius: "6px",
       verticalAlign: "bottom",
     },
+    // Emoji shortcode glyph (Clean mode): replaces `:smile:`. Normal weight/style
+    // so it isn't italicized/bolded inside emphasis; sits on the text baseline.
+    ".cm-md-emoji": {
+      fontStyle: "normal",
+      fontWeight: "normal",
+      lineHeight: "1",
+    },
+    // An emoji widget sits OUTSIDE the heading-size highlight mark, so scale it to
+    // the enclosing heading (mirrors the markdownHighlight heading sizes) — else
+    // it renders tiny next to big heading text.
+    ".cm-h1 .cm-md-emoji": { fontSize: "1.9em" },
+    ".cm-h2 .cm-md-emoji": { fontSize: "1.55em" },
+    ".cm-h3 .cm-md-emoji": { fontSize: "1.3em" },
     // Task-list checkbox (Clean mode): replaces the `[ ]`/`[x]` marker. Accent
     // color matches the editor accent; sits on the text baseline.
     ".cm-md-task": {
@@ -241,6 +454,114 @@ export const baseTheme = EditorView.theme(
       content: '""',
       flex: "1",
       borderTop: "2px solid var(--border)",
+    },
+
+    // --- Find & replace panel (@codemirror/search, REQ-FR-1) ----------------
+    ".cm-panels": { backgroundColor: "var(--bg-raised)", color: "var(--text)" },
+    ".cm-panels.cm-panels-top": { borderBottom: "1px solid var(--border)" },
+    // REQ-FR-3: every text element in the panel shares ONE size — pinned to ~0.85
+    // of the editor font so it tracks zoom and never reads as tiny next to
+    // scaled-up body text. CM creates its search inputs as `<input
+    // class="cm-textfield">` with NO `type` attribute, so an `input[type=text]`
+    // selector MISSES them and they keep CM's default `.cm-textfield`
+    // `font-size:70%` (the bug: inputs smaller than buttons smaller-than... ). We
+    // therefore target the real classes and force inputs + buttons + checkbox
+    // labels + the close button all to `inherit`, so all three read identically.
+    ".cm-search": {
+      display: "flex",
+      flexWrap: "wrap",
+      alignItems: "center",
+      gap: "7px",
+      padding: "9px 11px",
+      fontSize: "calc(var(--editor-font-size, 16px) * 0.85)",
+    },
+    ".cm-search .cm-textfield, .cm-search .cm-button, .cm-search button": {
+      fontSize: "inherit",
+    },
+    // CM's search baseTheme sets `& label { font-size: 80% }`, which shrinks the
+    // checkbox labels below everything else. The panel div carries BOTH .cm-search
+    // and .cm-panel, so this two-class selector out-ranks it → labels match.
+    ".cm-search.cm-panel label": { fontSize: "inherit" },
+    ".cm-search .cm-textfield": {
+      background: "var(--bg)",
+      color: "var(--text)",
+      border: "1px solid var(--border)",
+      borderRadius: "6px",
+      padding: "4px 9px",
+      minWidth: "18ch",
+    },
+    ".cm-search .cm-textfield:focus": { outline: "none", borderColor: "var(--accent)" },
+    ".cm-search .cm-button": {
+      backgroundImage: "none",
+      background: "var(--bg-raised)",
+      color: "var(--muted)",
+      border: "1px solid var(--border)",
+      borderRadius: "6px",
+      padding: "4px 10px",
+      cursor: "pointer",
+    },
+    ".cm-search .cm-button:hover": { color: "var(--text)", borderColor: "var(--accent)" },
+    ".cm-search label": {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "4px",
+      color: "var(--muted)",
+    },
+    ".cm-search [name=close]": { color: "var(--muted)", cursor: "pointer", padding: "0 4px" },
+    ".cm-searchMatch": { backgroundColor: "color-mix(in srgb, var(--accent) 25%, transparent)" },
+    ".cm-searchMatch-selected": {
+      backgroundColor: "color-mix(in srgb, var(--accent) 55%, transparent)",
+    },
+
+    // --- Folding (REQ-FOLD-1) -----------------------------------------------
+    // A foldable heading's fold control, rendered as a real button chip (border +
+    // raised fill) so it's clearly clickable and prominent in every render mode
+    // (no CM gutter → the centered reading column is preserved). REQ-RENDER-12: it
+    // lives in its OWN column (A), absolutely positioned just left of the marker
+    // gutter (B). Being out of the inline flow, it is NOT moved by the heading
+    // line's text-indent (which hangs the markers), so its lane is fixed regardless
+    // of heading depth — it never collides with a deep heading's `######` (the old
+    // negative-margin chevron did). The heading line is position:relative (below)
+    // so `left` is measured from the content edge; `left` reaches back across the
+    // gutter into column A. Font-size pinned to the body size (NOT the heading em).
+    ".cm-fold-chevron": {
+      position: "absolute",
+      left: "calc(-1 * (var(--marker-gutter) + var(--fold-col)))",
+      top: "0.55em",
+      // text-indent is inherited; the heading line carries a negative text-indent
+      // (the gutter hang, RENDER-9), which would otherwise drag the arrow GLYPH left
+      // out of the button (the absolutely-positioned box ignores it, the inline glyph
+      // doesn't). Reset it so the glyph centres in the chip at every heading depth.
+      textIndent: "0",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      boxSizing: "border-box",
+      width: "1.45em",
+      height: "1.45em",
+      border: "1px solid var(--border)",
+      borderRadius: "5px",
+      color: "var(--muted)",
+      backgroundColor: "var(--bg-raised)",
+      cursor: "pointer",
+      userSelect: "none",
+      fontSize: "calc(var(--editor-font-size) * 0.82)",
+      lineHeight: "1",
+    },
+    ".cm-fold-chevron:hover": {
+      color: "var(--text)",
+      borderColor: "var(--accent)",
+      backgroundColor: "var(--bg)",
+    },
+    // The "⋯" shown in place of a folded section.
+    ".cm-foldPlaceholder": {
+      margin: "0 0.4em",
+      padding: "0 0.4em",
+      border: "1px solid var(--border)",
+      borderRadius: "5px",
+      color: "var(--muted)",
+      backgroundColor: "var(--bg-raised)",
+      cursor: "pointer",
     },
   },
   { dark: true },

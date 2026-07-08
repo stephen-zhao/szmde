@@ -1,6 +1,6 @@
 import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
-import { RangeSet, type Range } from "@codemirror/state";
+import { RangeSet, StateEffect, type EditorState, type Range } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
 import { syntaxTree } from "@codemirror/language";
 import { renderMode } from "./render-mode";
@@ -124,6 +124,150 @@ function orderedNumberDeco(label: string): Decoration {
 
 const hide = Decoration.replace({});
 const syntaxMark = Decoration.mark({ class: "cm-md-mark-syntax" });
+// Clean mode, block marker OFF the caret line: the SAME gutter-hung prefix as the
+// grey revealed marker, but painted transparent. The marker keeps its slot in the
+// reserved gutter column, so revealing it (→ grey) only changes COLOUR — the
+// heading/quote content never reflows, killing the sub-pixel jitter that came from
+// adding the marker + text-indent on reveal vs removing them when hidden. Shares
+// cm-md-mark-syntax sizing so the transparent and grey prefixes are pixel-identical.
+const invisibleMark = Decoration.mark({ class: "cm-md-mark-syntax cm-md-mark-invisible" });
+
+// RENDER-9/10/12 (Syntax mode + Formatted reveal): a block marker (#…, >) + its
+// trailing space hangs in the LEFT "marker gutter" column so the heading/quote text
+// stays flush with body text — while staying real, editable, selectable text (a
+// mark, never a replace widget) so the caret glides through it (B2/B6).
+//
+// MECHANISM: a per-LINE `text-indent: -<prefix width>` (NOT a per-marker negative
+// margin). This is the crux of the WebView2 caret fix: a negative margin moves the
+// marker GLYPH but not the line's inline content ORIGIN, so the native caret for
+// "before #" rendered at the margin, not the gutter — engine-dependent (correct in
+// some Chromium builds, wrong in WebView2; CM's own RectangleMarker cursor got it
+// wrong too). `text-indent` moves the inline origin itself, so the caret follows
+// the glyph into the gutter in EVERY engine. The indent equals the rendered width
+// of the whole leading marker prefix (`#…`/`>`(s) + spaces), measured with a canvas
+// at the marker font; the prefix is small-greyed so its measured width matches what
+// renders. Both are baked into DECORATIONS (an inline `style` on a line deco + a
+// mark), so CM re-applies them on every render — never a post-layout plugin, which
+// CM would drop on each line re-render, flicking the marker/caret between gutter and
+// margin (the old "cursor in the wrong place" bug). Re-measured on font load / size
+// change (see `remeasureOnFontChange`).
+const lineIndentCache = new Map<number, Decoration>();
+/** A line decoration that pulls its first line left by `widthPx` (the measured
+ *  width of the line's leading marker prefix) via `text-indent`, hanging the
+ *  markers in the gutter while the content stays flush — the caret included. */
+function lineIndent(widthPx: number): Decoration {
+  let d = lineIndentCache.get(widthPx);
+  if (!d) {
+    lineIndentCache.set(
+      widthPx,
+      (d = Decoration.line({ attributes: { style: `text-indent:-${widthPx}px` } })),
+    );
+  }
+  return d;
+}
+
+// Canvas text measurement (cached by font+text). Used to size the hang offset at
+// decoration-build time — synchronous, no DOM layout, no reflow.
+let measureCanvas: HTMLCanvasElement | undefined;
+const widthCache = new Map<string, number>();
+function measureTextWidth(text: string, font: string): number {
+  const key = font + " " + text;
+  const cached = widthCache.get(key);
+  if (cached !== undefined) return cached;
+  /* v8 ignore start -- the 2d-canvas measurement is browser-only (happy-dom has no
+     2d context, so DOM tests take the `!ctx → 0` fallback = no hang); verified live
+     and by the WF-24 layout assertions. */
+  measureCanvas ??= document.createElement("canvas");
+  const ctx = measureCanvas.getContext("2d");
+  if (!ctx) return 0;
+  ctx.font = font;
+  const w = ctx.measureText(text).width;
+  widthCache.set(key, w);
+  return w;
+  /* v8 ignore stop */
+}
+
+/** The CSS `font` shorthand for the small-grey marker (0.75 × the editor font), so
+ *  the canvas measures the marker glyphs at the size they actually render. */
+function markerFont(view: EditorView): string {
+  const cs = getComputedStyle(view.contentDOM);
+  const size = (parseFloat(cs.fontSize) || 16) * 0.75;
+  return `${size}px ${cs.fontFamily || "sans-serif"}`;
+}
+
+// A list marker (bullet dash / ordered number) shown in Syntax mode. List markers
+// are CONTENT (they render as •/1.), not pure syntax, so they keep normal text
+// styling — never the small-grey syntax-token look (matches the task checkbox).
+const listMarkerNormal = Decoration.mark({ class: "cm-md-list-marker" });
+
+/** The leading block-marker prefix on a line, up to the first content char — its
+ *  rendered width is the `text-indent` that hangs the markers in the gutter.
+ *  Mirrors lezer's block-marker boundaries: an optional CommonMark indent (≤3
+ *  spaces — 4+ is a code block, never a block marker, so lezer never calls us
+ *  there), the blockquote `>` nesting, then an optional ATX `#…` run that REQUIRES
+ *  a following space or EOL. The trailing-space requirement is what keeps a content
+ *  `#` out of the prefix — the 2nd `#` in `# # x`, or `> #tag` — which a naive
+ *  `[>#]+` would wrongly grey + over-indent. Leading whitespace is included so an
+ *  indented `   # h` / `  > q` still hangs (the old `^`-anchored regex missed it). */
+const BLOCK_PREFIX = /^[ \t]*(?:>[ \t]*)*(?:#{1,6}(?:[ \t]+|$))?/;
+
+/**
+ * Render a SHOWN block-marker line (Syntax mode, or Formatted-mode reveal-on-cursor)
+ * as a gutter-hung prefix — done ONCE per line, even when the line carries several
+ * block markers (nested `> >`, a quoted heading `> #`): the whole leading prefix is
+ * small-greyed and the line is `text-indent`-ed by the prefix's measured width, so
+ * every marker hangs in the gutter, the content stays flush, and the caret glides
+ * through (see the lineIndent note above).
+ */
+function handleShownBlockLine(
+  state: EditorState,
+  decos: Range<Decoration>[],
+  lineFrom: number,
+  lineNumber: number,
+  handled: Set<number>,
+  font: string,
+  mark: Decoration, // syntaxMark (grey) or invisibleMark (transparent, Clean off-line)
+): void {
+  if (handled.has(lineNumber)) return;
+  handled.add(lineNumber);
+  const text = state.doc.line(lineNumber).text;
+  // BLOCK_PREFIX always matches (all parts optional), but for a real leading block
+  // marker the prefix is non-empty; bail on the (defensive, unreachable) empty case.
+  const prefixLen = BLOCK_PREFIX.exec(text)?.[0].length ?? 0;
+  if (prefixLen === 0) return;
+  decos.push(mark.range(lineFrom, lineFrom + prefixLen)); // markers + spaces (grey or transparent)
+  // text-indent = the prefix's rendered width (0 in happy-dom — no canvas 2d — so the
+  // pixel shift is verified live; the deco is still emitted so its presence is tested).
+  const w = Math.round(measureTextWidth(text.slice(0, prefixLen), font));
+  decos.push(lineIndent(w).range(lineFrom));
+}
+
+/**
+ * Emit GREY "syntax-token" styling for a SHOWN managed marker — Syntax mode, and
+ * Clean-mode inline reveal-on-cursor (so a revealed marker looks like Syntax mode,
+ * never a raw Source literal — RENDER #7):
+ * - block marks (heading `#…` / quote `>`): a per-line gutter hang (text-indent +
+ *   grey prefix), keeping the marker editable/selectable text;
+ * - inline marks (`**`, `*`, `~~`, `` ` ``): a grey syntax token in place.
+ * (Clean mode renders block markers via handleShownBlockLine directly, choosing grey
+ * vs transparent per the caret line — see the mode branch below.)
+ */
+function pushShownMark(
+  state: EditorState,
+  decos: Range<Decoration>[],
+  from: number,
+  to: number,
+  isBlockMark: boolean,
+  handled: Set<number>,
+  font: string,
+): void {
+  if (isBlockMark) {
+    const line = state.doc.lineAt(from);
+    handleShownBlockLine(state, decos, line.from, line.number, handled, font, syntaxMark);
+  } else {
+    decos.push(syntaxMark.range(from, to));
+  }
+}
 const renderedMarks: Record<string, Decoration> = {
   "cm-mk-strong": Decoration.mark({ class: "cm-mk-strong" }),
   "cm-mk-em": Decoration.mark({ class: "cm-mk-em" }),
@@ -233,6 +377,14 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
   const hiddenRanges: Range<Decoration>[] = [];
   const { state } = view;
   const mode = state.facet(renderMode);
+  // The marker font (for measuring the gutter overhang width) only matters when a
+  // block marker is actually hung — i.e. not in Source mode. Compute it lazily so
+  // a getComputedStyle read happens at most once per build, and never in Source.
+  let font: string | null = null;
+  const getFont = () => (font ??= markerFont(view));
+  // A line may carry several block markers (nested `> >`, a quoted heading `> #`);
+  // its gutter hang (text-indent + prefix mark) is emitted only once.
+  const handledBlockLines = new Set<number>();
 
   // Reveal-on-cursor (Formatted mode only): block marks reveal on the caret's
   // line; inline marks reveal when a caret is within their construct.
@@ -258,7 +410,6 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
         const parent = node.node.parent;
         const parentName = parent?.name;
         let rendered: string | null | undefined; // undefined = unmanaged
-        let isBullet = false;
         let isBlockMark = false; // heading/quote marker — reveals per line
         switch (node.name) {
           case "EmphasisMark":
@@ -276,56 +427,84 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
             rendered = parentName === "InlineCode" ? "cm-mk-code" : undefined; // skip fenced
             break;
           case "HeaderMark":
+            rendered = null;
+            // Only the LEADING ATX marker (`#…` at the line start) hangs/flushes.
+            // A setext underline (`====`/`----`) and an optional ATX closing `#`
+            // are ALSO HeaderMarks but must NOT be treated as the block marker —
+            // they fall through to ordinary hidden (Clean) / small-grey (Syntax).
+            isBlockMark =
+              parentName !== undefined &&
+              /^ATXHeading[1-6]$/.test(parentName) &&
+              parent !== null &&
+              node.from === parent.from;
+            break;
           case "QuoteMark":
             rendered = null;
             isBlockMark = true;
             break;
-          case "ListMark":
-            if (parent?.parent?.name === "OrderedList") {
-              // Replace the literal `1.` with the computed ordinal (depth-styled,
-              // position-based so nested lists restart). Like bullets, it's
-              // always-shown content (edit the literal in Source/Syntax mode).
-              if (mode === "clean")
+          case "ListMark": {
+            // A list marker is CONTENT, not pure syntax: it renders as a • / ordinal
+            // in Formatted mode and, per the marker-vs-widget rule, shows its literal
+            // in NORMAL text style (never small-grey) in Syntax mode.
+            const ordered = parent?.parent?.name === "OrderedList";
+            // A task item (`- [ ] ` or `1. [ ] `) renders a checkbox (tasks.ts) over
+            // its whole prefix, so markers.ts must NOT also draw a bullet/number —
+            // that would double-decorate the marker. Applies to BOTH list kinds.
+            const isTask = node.node.parent?.getChild("Task") != null;
+            if (mode === "clean") {
+              if (isTask) {
+                // defer entirely to tasks.ts (the checkbox)
+              } else if (ordered) {
+                // Replace `1.` with the computed ordinal (depth-styled, position-
+                // based so nested lists restart). Edit the literal in Source/Syntax.
                 decos.push(orderedNumberDeco(orderedMarkLabel(state, node.node)).range(node.from, node.to));
-              return;
+              } else {
+                // Depth-varied glyph (•/◦/▪) so nesting reads clearly.
+                decos.push(bulletDeco(bulletGlyph(node.node)).range(node.from, node.to));
+              }
+            } else if (mode === "markers-syntax") {
+              decos.push(listMarkerNormal.range(node.from, node.to)); // #4 normal style
             }
-            rendered = null;
-            isBullet = true;
-            break;
+            // Source mode: literal marker, default styling, no decoration.
+            return;
+          }
           default:
             rendered = undefined;
         }
-        if (rendered === undefined && !isBullet) return;
+        if (rendered === undefined) return;
 
         if (mode === "clean") {
-          if (isBullet) {
-            // Task items render a checkbox (tasks.ts), not a •; suppress the bullet.
-            if (node.node.parent?.getChild("Task")) return;
-            // Depth-varied glyph (•/◦/▪) so nesting reads clearly.
-            decos.push(bulletDeco(bulletGlyph(node.node)).range(node.from, node.to));
-            return;
-          }
-          const revealed = isBlockMark
-            ? caretLines.has(state.doc.lineAt(node.from).number)
-            : caretPos.some(
-                (p) => p >= (parent ? parent.from : node.from) && p <= (parent ? parent.to : node.to),
-              );
-          if (!revealed) {
-            let to = node.to;
-            if (isBlockMark) {
-              // A fully-hidden block marker's trailing space(s) are syntax too —
-              // hide them so the content sits flush (no leading space) in Clean
-              // mode. Applies to headings (`# `) and blockquotes (`> `). (Bullets
-              // and ordered numbers keep their space — they show a glyph there.)
-              const line = state.doc.lineAt(node.from);
-              to += /^[ \t]+/.exec(line.text.slice(node.to - line.from))?.[0].length ?? 0;
+          if (isBlockMark) {
+            // Block markers (heading `#…` / quote `>`) ALWAYS hang in the gutter
+            // (text-indent) in flow; revealing only flips colour grey↔transparent, so
+            // the heading/quote content NEVER reflows when the caret lands on the line
+            // — killing the sub-pixel jitter of add-marker+indent vs remove. They sit
+            // in the reserved gutter column, so an off-cursor transparent marker is
+            // invisible at zero layout cost. In flow ⇒ NOT atomic in Clean mode: the
+            // caret glides through them exactly as in Syntax mode (the cursor-glide
+            // contract), instead of skipping a removed marker.
+            const line = state.doc.lineAt(node.from);
+            const revealed = caretLines.has(line.number);
+            handleShownBlockLine(
+              state, decos, line.from, line.number, handledBlockLines, getFont(),
+              revealed ? syntaxMark : invisibleMark,
+            );
+          } else {
+            // Inline markers are IN the text, so reserving their slot would leave
+            // visible gaps — keep them hidden (removed, atomic) off-cursor and shown
+            // (grey, RENDER #7) when a caret is within their construct.
+            const revealed = caretPos.some(
+              (p) => p >= (parent ? parent.from : node.from) && p <= (parent ? parent.to : node.to),
+            );
+            if (!revealed) {
+              decos.push(hide.range(node.from, node.to));
+              hiddenRanges.push(hide.range(node.from, node.to));
+            } else {
+              decos.push(syntaxMark.range(node.from, node.to));
             }
-            decos.push(hide.range(node.from, to));
-            hiddenRanges.push(hide.range(node.from, to));
           }
-          // revealed → emit nothing: the literal marker shows as editable text.
         } else if (mode === "markers-syntax") {
-          decos.push(syntaxMark.range(node.from, node.to));
+          pushShownMark(state, decos, node.from, node.to, isBlockMark, handledBlockLines, getFont());
         } else if (rendered) {
           decos.push(renderedMarks[rendered].range(node.from, node.to));
         }
@@ -337,6 +516,10 @@ function buildMarkerDecos(view: EditorView): MarkerDecos {
     hidden: RangeSet.of(hiddenRanges, true),
   };
 }
+
+/** Dispatched when the editor font (size / family / async web-font load) changes,
+ *  so the cached marker-prefix widths are recomputed and the gutter realigns. */
+export const remeasureMarkers = StateEffect.define<null>();
 
 export const markerDecorations = ViewPlugin.fromClass(
   class {
@@ -354,6 +537,7 @@ export const markerDecorations = ViewPlugin.fromClass(
         u.viewportChanged ||
         u.startState.facet(renderMode) !== u.state.facet(renderMode) ||
         (cleanNow && u.selectionSet) || // reveal-on-cursor rebuild (Formatted mode only)
+        u.transactions.some((tr) => tr.effects.some((e) => e.is(remeasureMarkers))) ||
         syntaxTree(u.startState) !== syntaxTree(u.state)
       ) {
         const r = buildMarkerDecos(u.view);
@@ -363,6 +547,58 @@ export const markerDecorations = ViewPlugin.fromClass(
     }
   },
   { decorations: (v) => v.decorations },
+);
+
+/**
+ * Keep the gutter hang aligned when the editor font changes. The text-indent that
+ * hangs block markers is a px width measured at the marker font, so it must be
+ * recomputed when that font changes — but a font change arrives as a CSS-variable
+ * write on documentElement (settings) or an async web-font load, NEITHER of which
+ * produces a CM transaction. This watcher bridges that gap: it clears the width
+ * cache and dispatches `remeasureMarkers` so the decorations rebuild at the new
+ * metrics. Addresses the "what if the font family is customizable?" robustness
+ * concern — the measurement adapts to whatever font actually renders.
+ */
+export const remeasureOnFontChange = ViewPlugin.fromClass(
+  class {
+    /* v8 ignore start -- DOM font plumbing (MutationObserver / document.fonts /
+       getComputedStyle); happy-dom has no fonts API or real layout, and the
+       rebuild path is covered by the docChanged branch above. */
+    obs: MutationObserver | undefined;
+    destroyed = false;
+    constructor(view: EditorView) {
+      let lastFont = markerFont(view);
+      const rebuild = () => {
+        // The plugin is recreated on every setState (document open); guard against a
+        // late fonts.ready callback dispatching into a destroyed view.
+        if (this.destroyed) return;
+        widthCache.clear();
+        view.dispatch({ effects: remeasureMarkers.of(null) });
+      };
+      // Web font STILL loading: the family string won't change but the glyph metrics
+      // will, so rebuild once when it resolves. If fonts are already loaded (the
+      // common case on later document opens), the build measured correctly — skip the
+      // redundant rebuild rather than firing one per file open.
+      if (document.fonts && document.fonts.status !== "loaded") {
+        document.fonts.ready.then(rebuild).catch(() => {});
+      }
+      // Font size / family settings write to CSS vars on documentElement; only
+      // rebuild when the resolved marker font actually changed (ignore unrelated
+      // var writes like accent color or reading width on every Shift-scroll tick).
+      this.obs = new MutationObserver(() => {
+        const f = markerFont(view);
+        if (f === lastFont) return;
+        lastFont = f;
+        rebuild();
+      });
+      this.obs.observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });
+    }
+    destroy() {
+      this.destroyed = true;
+      this.obs?.disconnect();
+    }
+    /* v8 ignore stop */
+  },
 );
 
 /** Make Formatted-mode hidden markers atomic: arrow keys skip over them and a

@@ -20,6 +20,13 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
+# Native HTTP (reqwest) for cloud egress that bypasses the webview CORS wall
+# (M3 L2, Google token + Drive endpoints), and the system-browser opener for the
+# OAuth consent page. Scoped by capabilities to only the googleapis hosts.
+tauri-plugin-http = "2"
+tauri-plugin-opener = "2"
+# spawn_blocking for the loopback accept (runs inside Tauri's tokio runtime).
+tokio = { version = "1", features = ["rt"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # OS secure store for OAuth tokens (REQ-SEC-1): Windows Credential Manager +

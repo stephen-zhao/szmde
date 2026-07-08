@@ -12,20 +12,33 @@
   import type { WrapState } from "$lib/editor/setup";
   import { MODE_LABELS, MODE_ORDER, type RenderMode } from "$lib/editor/render-mode";
   import type { IndentConfig } from "$lib/editor/indent";
+  import type { TextCount } from "$lib/editor/count";
   import { detectEol, fromLf, toLf, type Eol } from "$lib/editor/eol";
   import HamburgerMenu from "$lib/HamburgerMenu.svelte";
   import { settings, initSettings, setSetting, updateSettings } from "$lib/settings/store.svelte";
   import { LocalProvider } from "$lib/storage/local";
-  import { ProviderRegistry } from "$lib/storage/registry";
-  import { StorageError, type Revision } from "$lib/storage/provider";
+  import { StorageError, type Revision, type StorageProvider } from "$lib/storage/provider";
   import { copyPathFor, type ConflictChoice } from "$lib/storage/conflict";
   import { AutosaveScheduler } from "$lib/storage/autosave";
+  import {
+    connectGoogleDrive,
+    disconnectGoogleDrive,
+    isGoogleDriveConnected,
+    makeGoogleDriveProvider,
+  } from "$lib/storage/gdrive-connect";
+  import { parseDriveId } from "$lib/storage/drive-id";
+  import { stepFontSize, stepLineWidth } from "$lib/editor/zoom";
 
-  // File I/O goes through the StorageProvider seam (SPEC §6) rather than raw
-  // `invoke`. All v1 files are local; cloud providers + account-driven selection
-  // register here in a later M3 slice — `get("local")` is always safe.
-  const providers = new ProviderRegistry([new LocalProvider()]);
-  const storage = providers.get("local");
+  // File I/O goes through the StorageProvider seam (SPEC §6). The active provider
+  // is the open document's: local, or Google Drive once connected (M3 L2).
+  const local = new LocalProvider();
+  let driveProvider = $state<StorageProvider | null>(null);
+  let driveConnected = $state(false);
+  let providerId = $state("local");
+  function providerFor(id: string): StorageProvider {
+    return id === "gdrive" && driveProvider ? driveProvider : local;
+  }
+  const storage = $derived(providerFor(providerId));
 
   // Debounced autosave (REQ-SAVE-2). Disabled until effective settings load
   // (initSettings below seeds enabled/interval). Only autosaves a file that has a
@@ -49,6 +62,7 @@
   let eol = $state<Eol>("lf");
   let indent = $state<IndentConfig>({ style: "spaces", width: 2 });
   let indentMenuOpen = $state(false);
+  let wordCount = $state<TextCount>({ words: 0, chars: 0 });
 
   // Editor-wide toggle: forces all blocks (clearing per-block overrides).
   // 'off' or 'partial' → turn wrap on for all; 'on' → turn it off for all.
@@ -69,10 +83,19 @@
     const e = settings.value.editor;
     editor.setRenderMode(e.renderMode);
     editor.setIndent({ style: e.indentStyle, width: e.indentWidth });
+    editor.setEmoji(settings.value.markdown.emoji);
   }
 
   function cycleRenderMode() {
     editor?.setRenderMode(MODE_ORDER[(MODE_ORDER.indexOf(renderMode) + 1) % MODE_ORDER.length]);
+  }
+  // The chip lives in the toolbar, so clicking it blurs the editor — restore focus
+  // so editor shortcuts keep working. The keyboard fallback does NOT do this: it
+  // must not yank focus out of a legitimately-focused control (e.g. the Find panel
+  // input), which would lose the user's place there.
+  function cycleRenderModeFromChip() {
+    cycleRenderMode();
+    editor?.focus();
   }
 
   // EOL is write-time metadata (the buffer is always LF); toggling marks the
@@ -165,12 +188,15 @@
   }
 
   // --- File operations --------------------------------------------------------
-  async function openPath(path: string) {
+  async function openPath(path: string, pid = "local") {
     try {
-      const { content: raw, rev } = await storage.read(path);
+      const { content: raw, rev } = await providerFor(pid).read(path);
       const detected = detectEol(raw);
       eol = detected === "mixed" ? "lf" : detected; // mixed normalizes to LF on save
       editor?.setContent(toLf(raw)); // the editor buffer is always LF
+      // Switch the active provider only AFTER a successful read, so a failed open
+      // (auth/offline/bad id) leaves the currently-open document untouched.
+      providerId = pid;
       filePath = path;
       baseRev = rev; // conflict baseline (REQ-SAVE-1)
       dirty = false;
@@ -188,6 +214,7 @@
     editor?.setContent("");
     filePath = null;
     baseRev = null;
+    providerId = "local"; // new docs are local until saved elsewhere
     dirty = false;
     eol = settings.value.editor.defaultEol; // new docs use the persisted default (SPEC §4.4)
     editor?.focus();
@@ -212,6 +239,7 @@
       defaultPath: filePath ?? "Untitled.md",
     });
     if (!path) return false;
+    providerId = "local"; // a chosen filesystem path is local, even from a Drive doc
     return writeTo(path, null); // a user-chosen new path → unconditional write
   }
 
@@ -288,8 +316,80 @@
     await getCurrentWindow().destroy();
   }
 
+  // --- Google Drive (M3 L2) ---------------------------------------------------
+  let driveConnecting = false; // re-entrancy guard — one handshake at a time
+  async function doConnectDrive() {
+    if (driveConnecting) return; // a connect flow is already in progress
+    driveConnecting = true;
+    try {
+      await connectGoogleDrive(); // opens the system browser; user signs in
+      driveProvider = await makeGoogleDriveProvider();
+      driveConnected = driveProvider !== null;
+      await message("Google Drive connected.", { title: "Google Drive" });
+    } catch (e) {
+      await message(`Couldn't connect Google Drive:\n${e}`, {
+        title: "Connect failed",
+        kind: "error",
+      });
+    } finally {
+      driveConnecting = false;
+    }
+  }
+
+  async function doDisconnectDrive() {
+    await disconnectGoogleDrive();
+    driveProvider = null;
+    driveConnected = false;
+    if (providerId === "gdrive") {
+      // The open doc lived on Drive — detach it to an unsaved local buffer so a
+      // save can't route a Drive id to the local disk; the next save is a Save As.
+      providerId = "local";
+      filePath = null;
+      baseRev = null;
+      dirty = true;
+    }
+  }
+
+  async function doOpenDrive() {
+    if (!(await guardUnsaved())) return;
+    if (!driveConnected) {
+      await doConnectDrive();
+      if (!driveConnected) return;
+    }
+    const input = await askDriveId();
+    if (!input) return;
+    await openPath(parseDriveId(input), "gdrive");
+  }
+
+  // Open-from-Drive input modal. Unlike the other modals it has a text field, so
+  // it does NOT trap/suppress keys — the input owns its Enter/Escape.
+  let driveInputOpen = $state(false);
+  let driveInputValue = $state("");
+  let driveInputResolve: ((v: string | null) => void) | null = null;
+  function askDriveId(): Promise<string | null> {
+    if (driveInputResolve) return Promise.resolve(null);
+    driveInputValue = "";
+    driveInputOpen = true;
+    return new Promise<string | null>((resolve) => {
+      driveInputResolve = resolve;
+    });
+  }
+  function resolveDriveInput(v: string | null) {
+    driveInputOpen = false;
+    driveInputResolve?.(v);
+    driveInputResolve = null;
+    editor?.focus();
+  }
+
   // --- Shortcuts --------------------------------------------------------------
   function onKeydown(e: KeyboardEvent) {
+    // The Drive-id modal has a text input that owns its own keys (Enter/Escape).
+    // Trap Tab so focus can't escape to the editor behind it; let other keys reach
+    // the input. (App shortcuts stay disabled while it's open.)
+    if (driveInputOpen) {
+      if (e.key === "Tab") e.preventDefault();
+      return;
+    }
     // While a modal is open, swallow EVERY key (not just its shortcuts) so nothing
     // leaks into the editor behind it. Focus is also trapped into the modal (see
     // use:trapFocus), so CM never receives the keystroke in the first place; this
@@ -306,6 +406,9 @@
       return;
     }
     if (!(e.ctrlKey || e.metaKey)) return;
+    // When the editor is focused, CodeMirror's own keymap handles its shortcuts
+    // and marks the event handled — skip those here so we never double-fire.
+    if (e.defaultPrevented) return;
     const k = e.key.toLowerCase();
     if (k === "s") {
       e.preventDefault();
@@ -316,6 +419,13 @@
     } else if (k === "n") {
       e.preventDefault();
       doNew();
+    } else if (k === "m" && e.shiftKey) {
+      // Render-mode cycle (Ctrl+Shift+M). Also handled by CM when the editor has
+      // focus; this app-level fallback keeps the shortcut working after focus has
+      // drifted to a toolbar control (else clicking the mode chip, then pressing
+      // the shortcut, would silently do nothing — the "stuck toggle" bug).
+      e.preventDefault();
+      cycleRenderMode();
     }
   }
 
@@ -339,6 +449,14 @@
     // File passed on the command line: `szmde notes.md` (SPEC §2.1).
     invoke<string | null>("get_launch_file").then((launch) => {
       if (launch) openPath(launch);
+    });
+
+    // Re-establish a previously connected Google Drive account (M3 L2).
+    isGoogleDriveConnected().then(async (connected) => {
+      if (connected) {
+        driveProvider = await makeGoogleDriveProvider();
+        driveConnected = driveProvider !== null;
+      }
     });
 
     // Load persisted settings (§8), then seed the editor + new-doc EOL from them.
@@ -369,10 +487,15 @@
     onsave={doSave}
     onsaveas={doSaveAs}
     onexit={doExit}
+    onopendrive={doOpenDrive}
+    onconnectdrive={doConnectDrive}
+    ondisconnectdrive={doDisconnectDrive}
+    {driveConnected}
     {wrapState}
     ontogglewrap={toggleCodeWrap}
     {renderMode}
     onsetrendermode={setRenderMode}
+    oninserttable={(rows, cols) => editor?.insertTable(rows, cols)}
   />
 
   <Editor
@@ -393,6 +516,16 @@
       indent = c;
       updateSettings({ editor: { indentStyle: c.style, indentWidth: c.width } });
     }}
+    oncount={(c) => (wordCount = c)}
+    onzoomfont={(s) =>
+      setSetting("appearance.fontSize", stepFontSize(settings.value.appearance.fontSize, s))}
+    onzoomwidth={(s) =>
+      setSetting(
+        "appearance.lineWidth",
+        // Cap the column at the current window width so it can grow "as wide as the
+        // window" but no wider (REQ-ZOOM-3); the CSS min() handles clinging on shrink.
+        stepLineWidth(settings.value.appearance.lineWidth, s, window.innerWidth),
+      )}
   />
 
   <!-- Bottom-right status bar (§7.1): filename + click-to-edit chips. Tiny and
@@ -401,7 +534,12 @@
   {#if settings.value.appearance.showStatusWidgets}
   <div class="statusbar">
     <span class="status-name">{fileName}{dirty ? " •" : ""}</span>
-    <button class="chip" title="Render mode (Ctrl+Shift+M)" onclick={cycleRenderMode}>
+    {#if settings.value.appearance.showWordCount}
+      <span class="chip chip-readonly" title="{wordCount.chars.toLocaleString()} characters">
+        {wordCount.words.toLocaleString()} words
+      </span>
+    {/if}
+    <button class="chip" title="Render mode (Ctrl+Shift+M)" onclick={cycleRenderModeFromChip}>
       {MODE_LABELS[renderMode]}
     </button>
     <button class="chip" title="Line endings — click to toggle" onclick={toggleEol}>
@@ -460,6 +598,31 @@
       </div>
     </div>
   {/if}
+
+  {#if driveInputOpen}
+    <div class="modal-backdrop" role="presentation">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="drive-title">
+        <h2 id="drive-title">Open from Google Drive</h2>
+        <p>Paste a Google Drive file link or ID:</p>
+        <!-- svelte-ignore a11y_autofocus -->
+        <input
+          class="drive-input"
+          type="text"
+          autofocus
+          placeholder="https://drive.google.com/file/d/…/view"
+          bind:value={driveInputValue}
+          onkeydown={(e) => {
+            if (e.key === "Enter") resolveDriveInput(driveInputValue);
+            else if (e.key === "Escape") resolveDriveInput(null);
+          }}
+        />
+        <div class="modal-actions">
+          <button class="btn-primary" onclick={() => resolveDriveInput(driveInputValue)}>Open</button>
+          <button onclick={() => resolveDriveInput(null)}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -500,6 +663,14 @@
   .chip:hover {
     color: var(--text);
     border-color: var(--accent);
+  }
+  /* read-only status (e.g. word count): same look, not clickable */
+  .chip-readonly {
+    cursor: default;
+  }
+  .chip-readonly:hover {
+    color: var(--muted);
+    border-color: var(--border);
   }
   .chip-wrap {
     position: relative;
@@ -580,6 +751,21 @@
     line-height: 1.5;
     word-break: break-word;
   }
+  .drive-input {
+    width: 100%;
+    margin: 0 0 16px;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-input, var(--bg));
+    color: var(--text);
+    font-size: 13px;
+  }
+  .drive-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
   .modal-actions {
     display: flex;
     justify-content: flex-end;

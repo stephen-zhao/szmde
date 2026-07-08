@@ -2,12 +2,15 @@
   import type { WrapState } from "./editor/setup";
   import type { RenderMode } from "./editor/render-mode";
   import type { IndentConfig } from "./editor/indent";
+  import type { TextCount } from "./editor/count";
 
   /** Imperative handle the page uses to drive the editor. */
   export interface EditorApi {
     setContent(text: string): void;
     getContent(): string;
     focus(): void;
+    /** Current word/character count of the document (REQ-COUNT-1). */
+    getCount(): TextCount;
     /** Set the editor-wide wrap default and clear per-block overrides. */
     setCodeWrap(wrap: boolean): void;
     /** Set the WYSIWYG render mode (clean / markers-rendered / markers-syntax). */
@@ -16,8 +19,12 @@
     /** Set the indentation style/width (Spaces ⇄ Tab, width). */
     setIndent(config: IndentConfig): void;
     getIndent(): IndentConfig;
+    /** Enable/disable emoji-shortcode rendering (settings markdown.emoji). */
+    setEmoji(on: boolean): void;
     /** Convert all existing leading whitespace to the current indent style. */
     convertIndentation(): void;
+    /** Insert a fresh `rows`×`cols` GFM table at the caret (REQ-TBLED-1). */
+    insertTable(rows: number, cols: number): void;
   }
 </script>
 
@@ -26,6 +33,9 @@
   import { EditorState } from "@codemirror/state";
   import { EditorView } from "@codemirror/view";
   import { editorExtensions, setGlobalWrap, wrapStateOf } from "./editor/setup";
+  import { countText } from "./editor/count"; // TextCount type comes from the module script above
+  import { setEmoji as applyEmoji } from "./editor/emoji";
+  import { insertTable as insertTableCmd } from "./editor/table-commands";
   import { renderModeOf, setRenderMode as applyRenderMode } from "./editor/render-mode";
   import {
     convertIndentation as applyConvertIndent,
@@ -39,12 +49,18 @@
     onwrapstate,
     onrendermode,
     onindentstate,
+    oncount,
+    onzoomfont,
+    onzoomwidth,
   }: {
     onchange?: (value: string) => void;
     onready?: (api: EditorApi) => void;
     onwrapstate?: (state: WrapState) => void;
     onrendermode?: (mode: RenderMode) => void;
     onindentstate?: (config: IndentConfig) => void;
+    oncount?: (count: TextCount) => void;
+    onzoomfont?: (steps: number) => void;
+    onzoomwidth?: (steps: number) => void;
   } = $props();
 
   let container: HTMLDivElement;
@@ -52,9 +68,11 @@
   let codeWrap = true; // editor-wide default; preserved across document loads
   let renderMode: RenderMode = "clean"; // editor-wide; preserved across loads
   let indent: IndentConfig = { style: "spaces", width: 2 }; // editor-wide
+  let emoji = true; // editor-wide; preserved across document loads
   let lastWrapState: WrapState | "" = "";
   let lastRenderMode: RenderMode | "" = "";
   let lastIndentKey = "";
+  let lastCountKey = "";
 
   const indentKey = (c: IndentConfig) => `${c.style}:${c.width}`;
 
@@ -62,11 +80,24 @@
     return EditorState.create({
       doc,
       extensions: [
-        ...editorExtensions(codeWrap, renderMode, indent),
+        ...editorExtensions(codeWrap, renderMode, indent, emoji, {
+          onZoomFont: (s) => onzoomfont?.(s),
+          onZoomWidth: (s) => onzoomwidth?.(s),
+        }),
         EditorView.updateListener.of((u) => {
           // Only real user transactions mark the document dirty; a setState
           // document load produces no transactions.
           if (u.docChanged && u.transactions.length) onchange?.(u.state.doc.toString());
+          // Recompute the count only when the document changed (selection-only
+          // updates skip it — the cheapness lever), and only fire on a real change.
+          if (u.docChanged) {
+            const c = countText(u.state.doc.toString());
+            const key = `${c.words}:${c.chars}`;
+            if (key !== lastCountKey) {
+              lastCountKey = key;
+              oncount?.(c);
+            }
+          }
           const ws = wrapStateOf(u.state);
           if (ws !== lastWrapState) {
             lastWrapState = ws;
@@ -98,14 +129,20 @@
     lastWrapState = "";
     lastRenderMode = "";
     lastIndentKey = "";
+    lastCountKey = "";
     onwrapstate?.(wrapStateOf(view.state));
     onrendermode?.(renderModeOf(view.state));
     onindentstate?.(indentConfigOf(view.state));
+    oncount?.(countText(view.state.doc.toString()));
     view.focus();
   }
 
   function getContent(): string {
     return view ? view.state.doc.toString() : "";
+  }
+
+  function getCount(): TextCount {
+    return view ? countText(view.state.doc.toString()) : { words: 0, chars: 0 };
   }
 
   function focus() {
@@ -139,6 +176,17 @@
     if (view) applyConvertIndent(view);
   }
 
+  function setEmoji(on: boolean) {
+    emoji = on;
+    if (view) applyEmoji(view, on);
+  }
+
+  function insertTable(rows: number, cols: number) {
+    if (!view) return;
+    insertTableCmd(rows, cols)({ state: view.state, dispatch: (tr) => view!.dispatch(tr) });
+    view.focus();
+  }
+
   onMount(() => {
     view = new EditorView({ state: buildState(""), parent: container });
     view.focus();
@@ -147,6 +195,7 @@
     onready?.({
       setContent,
       getContent,
+      getCount,
       focus,
       setCodeWrap,
       setRenderMode,
@@ -154,10 +203,13 @@
       setIndent,
       getIndent,
       convertIndentation,
+      setEmoji,
+      insertTable,
     });
     onwrapstate?.(wrapStateOf(view.state));
     onrendermode?.(renderModeOf(view.state));
     onindentstate?.(indentConfigOf(view.state));
+    oncount?.(countText(view.state.doc.toString()));
   });
 
   onDestroy(() => view?.destroy());

@@ -7,6 +7,14 @@
     "core:default",
     "core:event:default",
     "core:window:allow-destroy",
-    "dialog:default"
+    "dialog:default",
+    "opener:allow-open-url",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://oauth2.googleapis.com/*" },
+        { "url": "https://www.googleapis.com/*" }
+      ]
+    }
   ]
 }

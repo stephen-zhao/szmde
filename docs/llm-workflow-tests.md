@@ -122,16 +122,24 @@ body line so the label renders).
   `[` of `[!WARNING]`.
 **Notes:** the rendered name maps 1:1 onto the source name after `[!`.
 
-### WF-3 · Table cell click → caret in that cell · `REQ-TABLE-2`
-**Bug:** "table only editable by gliding the caret in; click does nothing."
-**Setup:** `__T.setDoc("intro\n\n| a | b |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |")`
+### WF-3 · Table cell click → inline cell editor (table stays rendered) · `REQ-TBLED-7`
+**Behavior (M5):** a rendered table is **atomic**; clicking a cell opens an inline
+`<textarea>` over just that cell — the table does **not** un-render. Enter/Tab commit +
+move (down/next), Esc cancels, blur commits. Raw pipe source shows in **Source mode** only.
+**Setup:** `__T.setDoc("intro\n\n| a | b |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |")` (Formatted mode)
 **Steps:**
 - Click the body cell containing `2`: `__T.click("table.cm-md-table tbody td", 0.5, 0.5, 1)`
-  → Expected: source revealed (`count("table.cm-md-table")===0`) and the caret is
-  inside that cell's source (`caret().char === "2"`).
-**Notes / deferred (SPEC §7.4):** up/down arrows skipping the whole table, and
-exact char offset inside *markdown-formatted* cells, are out of scope until the
-rich table-editing milestone — do not fail this workflow for them.
+  → Expected: the table **stays rendered** (`count("table.cm-md-table") === 1`) and a cell
+  editor textarea appears over that cell (`count("textarea.cm-md-cell-editor") === 1`), seeded
+  with the cell's source (`2`).
+- Type `20`, press Enter → Expected: the editor commits and moves down; `doc()` now has `20`
+  in that cell and the table re-renders as valid GFM. A typed `|` / newline is sanitized so the
+  table can't break.
+- Reset; put the caret before the table and press ↓/→ → Expected: the caret **skips past** the
+  whole rendered table (atomic), landing after it — it does not enter cell-by-cell.
+**Notes:** this supersedes the old "click reveals raw pipes / caret lands at the clicked char /
+arrows enter the table" design. REQ-TABLE-2 (render + Source-mode literal pipes) is covered
+structurally by `table.dom.test.ts`, not here.
 
 ### WF-4 · Ordered-list nesting via Tab → depth styling · `REQ-NEST-1`
 **Bug:** "ordered nesting doesn't work — everything stays decimal, numbering
@@ -248,26 +256,155 @@ on-disk revision changes; make an edit in szmde so it's dirty; press Ctrl+S.
 but the live OAuth handshake, real network, and Drive's actual ETag/If-Match
 semantics can only be exercised end-to-end. **Needs the Tauri dev app + a Google
 OAuth client ([m3-cloud-setup.md](m3-cloud-setup.md)).**
-**Setup:** connect a Google account (hamburger → Storage accounts → Google Drive);
-have a `.md` file in that Drive.
+**Status:** ✅ **live** — the open→edit→save round-trip is user-verified (2026-07).
+**Setup:** connect Google Drive (hamburger → Storage → **Connect Google Drive…**), approve consent
+in the browser; then **Open from Google Drive…** and paste a Drive link or file ID for a `.md` file.
+Uses the **full `drive` scope** — needed to open pre-existing files (`drive.file` would 404); the
+consent screen shows an unverified-app warning until verified, so add yourself as a test user (see
+[m3-cloud-setup.md](m3-cloud-setup.md)).
 **Steps:**
 - Open the Drive file → Expected: its content loads; editing + Ctrl+S writes back
   (verify the change in Drive's web UI).
 - Change the file in Drive's web UI, then save again in szmde → Expected: the
   conflict modal (WF-15) appears (If-Match precondition failed → conflict).
-- Disconnect network mid-save → Expected: the write is queued offline (WF, S4
-  REQ-SAVE-3) and flushes on reconnect; no data loss.
+- Disconnect network mid-save → Expected: the write is queued offline (REQ-SAVE-3,
+  M3 S4) and flushes on reconnect; no data loss.
 - Let the access token expire (or revoke it) → Expected: a transparent refresh, or
   a re-auth prompt if the refresh token is gone (no silent failure).
 
-### WF-18 · OneDrive open/save round-trip · `REQ-CLOUD-2`
-**Why:** same rationale as WF-17, against Microsoft Graph. **Needs the Tauri dev
+### WF-18 · OneDrive open/save round-trip · `REQ-CLOUD-2` — ⛔ BLOCKED (not yet runnable)
+**Blocked:** OneDrive is **backend-only** (`onedrive.ts` + unit tests). There is no
+`onedrive-connect` orchestration and no "Connect OneDrive" UI entry yet, so there is nothing to
+drive live. Un-block when the OneDrive live wiring lands (mirror `gdrive-connect.ts`).
+**Why (once unblocked):** same rationale as WF-17, against Microsoft Graph. **Needs the Tauri dev
 app + an Azure app registration ([m3-cloud-setup.md](m3-cloud-setup.md)).**
-**Setup:** connect a Microsoft account (hamburger → Storage accounts → OneDrive);
+**Setup:** connect a Microsoft account (hamburger → Storage → Connect OneDrive…);
 have a `.md` file in that OneDrive.
 **Steps:** mirror WF-17 — open loads content; Ctrl+S writes back (verify in
 OneDrive web); an out-of-band change → conflict modal on next save; offline →
 queued + flush on reconnect; token expiry → refresh / re-auth.
+
+### WF-19 · Word-count chip updates live, off by default · `REQ-COUNT-1`
+**Why:** the count math is unit-tested (`count.test.ts`); the chip visibility, live
+update, and no-lag are `.svelte`/layout — live-only.
+**Setup:** default settings (chip hidden); then set `appearance.showWordCount=true`.
+**Steps:**
+- Default: no word-count chip in the status bar. With the setting on, a read-only
+  `N words` chip appears (and the char count in its tooltip).
+- Type/delete → the count updates within a keystroke; holding a key in a large doc
+  shows no typing lag (the recompute is gated on docChanged).
+- Cycle render modes (Formatted/Source/Syntax) → the number is unchanged (counts
+  the raw buffer, not the rendered view).
+
+### WF-20 · Find & replace panel · `REQ-FR-1` / `REQ-FR-2` / `REQ-FR-3`
+**Why:** the search/replace commands + the capture-group transform are dom-tested;
+the real keystroke routing, panel focus/theme, input legibility, and match-highlight
+visibility are live-only.
+**Setup:** a doc with repeated words + a heading + a line like `2026-06-28`.
+**Steps:** `Ctrl+F` opens the themed top panel (matches the dark UI); **the find/
+replace input boxes are comfortably large and ALL panel text is the same, legible
+size** (REQ-FR-3), and they scale up when the editor is zoomed (Ctrl+scroll); type a
+query → matches highlight; Enter / next/prev cycles; toggle regex `.*` and search
+`c.t`; Replace / Replace-all mutate the text; **with regex on, replacing
+`(\d{4})-(\d{2})-(\d{2})` with `\3/\2/\1` reorders to `28/06/2026` — the backslash
+capture-group form works, as does `$1`** (REQ-FR-2); a match inside a hidden
+Clean-mode marker reveals it; pressing `Ctrl+Shift+M` while the find input is
+focused cycles the render mode WITHOUT stealing focus from the find box; `Escape`
+closes and returns focus to the editor; no typing lag.
+
+### WF-21 · Emoji shortcodes render · `REQ-EMOJI-1`
+**Why:** decoration structure is dom-tested; the actual glyph rendering/baseline
+alignment + font fallback are live-only.
+**Setup:** `:rocket: ships :heart: today` in Clean mode.
+**Steps:** the shortcodes show as glyphs (🚀, ❤️) with the literal hidden; clicking
+into a shortcode reveals `:rocket:` for editing; `:notarealemoji:` stays literal;
+a shortcode in `` `:code:` `` / a fenced block stays literal; in Source/Syntax the
+literal `:rocket:` is shown; setting `markdown.emoji=false` disables rendering.
+
+### WF-22 · Foldable heading sections · `REQ-FOLD-1` / `REQ-FOLD-2`
+**Why:** the fold mechanics + button attrs are dom-tested; the chevron hit-area,
+prominence, click-vs-caret disambiguation, and no-column-jump are live-only.
+**Setup:** a doc with `#`/`##`/`######` headings and bodies.
+**Steps:** a ▾ chevron shows on each heading line (not body lines) **rendered as a
+prominent, clearly-clickable BUTTON chip (border + raised fill, hover highlight) —
+not a faint tiny glyph** (REQ-FOLD-2), the SAME comfortable size on an h1 as an h6
+(it doesn't balloon with heading size) and it doesn't clip the left gutter or shift
+the heading text; clicking it folds the section to a `⋯` placeholder with the
+heading still visible; clicking the chevron (now ▸) or the `⋯` unfolds; `Mod-.`
+toggles at the cursor; `Ctrl+Shift+[` / `]` fold/unfold; the centered column doesn't
+shift; the button looks/works the same in all three render modes; a plain click on
+heading text still places the caret.
+
+### WF-23 · Scroll-zoom text size + page width · `REQ-ZOOM-1` / `REQ-ZOOM-2` / `REQ-ZOOM-3`
+**Why:** the step math + wheel routing + window-cap clamp are unit-tested; the real
+wheel gesture, live re-layout, window-resize tracking, and persistence are live-only.
+**Steps:** Ctrl/Cmd+scroll over the canvas grows/shrinks all text (headings, code,
+markers scale together) while the column width stays constant (text wraps sooner);
+Shift+scroll widens/narrows the reading column **continuously (±40px/step), and can
+grow it all the way out to the window width — no longer capped at a small "wide"
+preset** (REQ-ZOOM-3); **shrinking the OS window below the chosen width makes the
+column cling to the window width, and widening the window grows it back out to the
+chosen width**; on a wider window the gesture can reach a larger max; a plain scroll
+still scrolls normally; both values persist across an app reload; Ctrl+wheel doesn't
+trigger the WebView's native page-zoom.
+
+### WF-24 · Syntax-mode marker gutter + 3-column layout · `REQ-RENDER-9` / `REQ-RENDER-10` / `REQ-RENDER-12` / `REQ-ZOOM-4`
+**Why:** decoration structure + in-flow proof (no widget-buffer, zero atomic) are
+dom-tested; the actual gutter hang, baseline, flush text, the caret landing in the
+gutter, the 3 columns, and no-clipping need real layout — and the native-caret
+position is engine-dependent, so this is also the **WebView2** confirmation that the
+text-indent fix lands the caret in the gutter (where some Chromium builds masked the
+bug).
+**Setup:** Syntax mode, a doc with `#`..`######` headings (each with a body so they
+fold) + a `>` quote + `> >` nested quote + paragraphs.
+**Steps:**
+- **Columns (REQ-RENDER-12):** three lanes left-to-right — fold-chevron, marker
+  gutter, content. The chevron sits in its OWN column at the SAME x for every
+  heading level (`#` through `######`); the small-grey marker prefix hangs in the
+  gutter; heading/quote text is flush with paragraph text. The `######` markers must
+  NOT touch the chevron (there's a clear gap) — the old deep-heading/chevron overlap
+  is gone. The marker sits on the SAME baseline as the heading text (REQ-RENDER-10).
+  The arrow glyph (▾/▸) is CENTRED inside the chevron button at every depth — the
+  heading line's inherited `text-indent` is reset on the chevron so the glyph isn't
+  dragged out of the button (worse for deeper headings).
+- **Caret in the gutter (the core fix, REQ-RENDER-9):** put the caret at the END of
+  the line BEFORE a heading and press →; the caret lands in the GUTTER, just left of
+  the first `#` (NOT at the margin, NOT past the hashes). This is the WebView2 bug —
+  confirm it's now correct there. Keep pressing → : it steps through each `#`, the
+  space, then the heading text — one position at a time, no jumps. Move the caret
+  on/off the heading repeatedly and scroll: the `#` stays put and the caret tracks
+  it every time. Same for a `>` quote.
+- **Page width (REQ-ZOOM-4):** Shift+scroll the page width out to the window max —
+  the chevron + markers stay fully visible (never clip off the left edge), no
+  horizontal scrollbar appears.
+- It all holds when `--editor-font-size` changes (Ctrl+scroll) and with a custom
+  font family — the gutter re-measures so text stays flush.
+_Residual cosmetic limit: an extreme combined prefix (`> ###### `, or 4+ nested
+quotes) can reach a few px into the chevron column._
+
+### WF-25 · Formatted-mode reveal renders Syntax-style markers · `REQ-RENDER-11`
+**Why:** the decoration choice is dom-tested; the live look/feel of a revealed
+marker (and that the text doesn't jump) needs real layout.
+**Setup:** Formatted (Clean) mode; a doc with `## Heading`, `> quote`, and
+`a **bold** word`.
+**Steps:** with the caret OFF the heading line the `##` is hidden; moving the caret
+onto it reveals the `##` as a **small-grey marker hung in the left gutter (exactly
+like Syntax mode), NOT a full-size raw `## ` literal**, and the heading text does
+**not** shift right as it appears; same for `>` on a quote line; clicking inside
+`**bold**` reveals small-grey `**` tokens (not the bold-styled Source markers); the
+revealed markers are editable (arrow/click into them) and re-hide when the caret
+leaves.
+
+### WF-26 · Render-mode toggle survives focus drift · `REQ-RENDER-7`
+**Why:** the cycle command is unit-tested; the focus/keystroke routing that made it
+"stick" is live-only.
+**Setup:** any doc; a blockquote present.
+**Steps:** click the render-mode status chip a few times → it cycles
+Formatted→Source→Syntax and focus returns to the editor; now click the chip once
+(focus on the button) and press `Ctrl+Shift+M` → it **still cycles** (the app-level
+fallback handles it even though the editor lost focus); pressing `Ctrl+Shift+M` with
+the caret inside a blockquote in Formatted mode keeps toggling normally (no stuck
+state).
 
 ### WF-16 · Autosave fires after the interval · `REQ-SAVE-2`
 **Why:** the debounce/coalesce logic is unit-tested, but the editor→scheduler→
@@ -291,7 +428,8 @@ save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.
 |-----|---------------------------------|--------------------------|
 | REQ-HR-1 | structure (`hr.dom.test.ts`) | WF-1 (click→end) |
 | REQ-ALERT-2 | structure (`alerts.dom.test.ts`) | WF-2 (click→char) |
-| REQ-TABLE-2 | structure (`table.dom.test.ts`) | WF-3 (cell click) |
+| REQ-TABLE-2 | structure (`table.dom.test.ts`) | — (render + Source-mode literal pipes; structural only) |
+| REQ-TBLED-7 | structure (`table-cell-editor.dom.test.ts`, `table.dom.test.ts`) | WF-3 (inline cell editor; table stays rendered, atomic-skip) |
 | REQ-NEST-1 | structure (`nested.dom.test.ts`) | WF-4 (Tab nest + styling) |
 | REQ-LIST-3 | doc model (`editing.test.ts`) | WF-5 (task Enter) |
 | REQ-TASK-2 | doc model (`tasklist.dom.test.ts`) | WF-6 (toggle) |
@@ -304,9 +442,24 @@ save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.
 | REQ-PERF-1 | — (gap) | WF-14 (lag) |
 | REQ-SAVE-1 | logic (`storage/local.test.ts`, `storage/conflict.test.ts`, cargo) | WF-15 (conflict modal) |
 | REQ-SAVE-2 | logic (`storage/autosave.test.ts`) | WF-16 (autosave fires) |
-| REQ-CLOUD-1 | logic (`storage/gdrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-17 (Drive round-trip) |
-| REQ-CLOUD-2 | logic (`storage/onedrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-18 (OneDrive round-trip) |
+| REQ-CLOUD-1 | logic (`storage/gdrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-17 (Drive round-trip — ✅ live, verified) |
+| REQ-CLOUD-2 | logic (`storage/onedrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-18 (OneDrive round-trip — ⛔ blocked, backend-only) |
+| REQ-COUNT-1 | logic (`editor/count.test.ts`) | WF-19 (chip live/off-by-default) |
+| REQ-FR-1 | structure (`editor/search.dom.test.ts`) | WF-20 (find panel) |
+| REQ-FR-2 | unit+structure (`editor/replace-groups.test.ts`, `search-replace.dom.test.ts`) | WF-20 (`\1` capture group) |
+| REQ-FR-3 | — (visual gap) | WF-20 (input legibility/size) |
+| REQ-EMOJI-1 | map+structure (`editor/emoji.test.ts`, `emoji.dom.test.ts`) | WF-21 (glyph render) |
+| REQ-FOLD-1 | structure (`editor/fold.dom.test.ts`) | WF-22 (fold affordance) |
+| REQ-FOLD-2 | structure (`editor/fold.dom.test.ts`) | WF-22 (button prominence) |
+| REQ-ZOOM-1/2 | logic (`editor/zoom.test.ts`) | WF-23 (scroll zoom/width) |
+| REQ-ZOOM-3 | logic (`editor/zoom.test.ts`) | WF-23 (window-relative width) |
+| REQ-ZOOM-4 | — (visual gap) | WF-24 (columns stay visible at max width) |
+| REQ-RENDER-9 | structure (`editor/markers.dom.test.ts`) | WF-24 (gutter hang, in-flow, caret-in-gutter) |
+| REQ-RENDER-10 | — (visual gap) | WF-24 (baseline alignment) |
+| REQ-RENDER-12 | structure (`markers.dom.test.ts`, `fold.dom.test.ts`) | WF-24 (3-column layout, no overlap) |
+| REQ-RENDER-11 | structure (`editor/markers.dom.test.ts`) | WF-25 (reveal = syntax style) |
+| REQ-RENDER-7 | unit (`render-mode.test.ts`, `render-mode-cycle.test.ts`) | WF-26 (toggle survives focus drift) |
 
-The three former [traceability.md](traceability.md) gaps with no automated test
+The three former [requirements.md](requirements.md) gaps with no automated test
 (REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest
 gain a live-behavior layer on top of their structural unit tests.

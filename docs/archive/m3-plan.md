@@ -1,7 +1,12 @@
 # M3 — Cloud storage (implementation plan)
 
-_Implementation plan for milestone **M3** (see [roadmap.md](roadmap.md) "M3" for the
-requirement slotting and [SPEC.md](../SPEC.md) §6 / §8 for the behavior). SPEC.md is the
+> **📦 Archived — historical planning artifact.** This milestone has shipped; the plan below is
+> preserved as **provenance** (why the code is shaped the way it is), **not** current-state tracking.
+> For current status see [roadmap.md](../roadmap.md) · [requirements.md](../requirements.md) ·
+> [bugs.md](../bugs.md).
+
+_Implementation plan for milestone **M3** (see [roadmap.md](../roadmap.md) "M3" for the
+requirement slotting and [SPEC.md](../../SPEC.md) §6 / §8 for the behavior). SPEC.md is the
 "what"; this doc is the "how" — the architecture and the staged `S1…S8` build slices. Same
 shape as [m1-plan.md](m1-plan.md) / [m2-plan.md](m2-plan.md)._
 
@@ -51,15 +56,15 @@ that line, exactly mirroring how `REQ-CLI-3` (`wsl_to_unc` shells to `wsl.exe`) 
 - **Live integration tail (tracked as gaps + LLM workflows, needs the user):** real OAuth
   client IDs in config; the actual redirect/loopback capture in the Tauri shell; the Rust
   Credential-Manager / Keychain / Keystore command; and real network round-trips. These get
-  catalogued in [traceability.md](traceability.md) "no automated test" + a workflow in
-  [llm-workflow-tests.md](llm-workflow-tests.md), not faked into the unit gate.
+  catalogued in [requirements.md](../requirements.md) "no automated test" + a workflow in
+  [llm-workflow-tests.md](../llm-workflow-tests.md), not faked into the unit gate.
 
 > **User action with lead time:** S7/S8 live wiring needs an OAuth **client ID** for each
 > service (Google Cloud Console → OAuth 2.0 Client; Azure Portal → App registration, Graph
 > `Files.ReadWrite` scope), each configured with a desktop **loopback redirect**
 > (`http://127.0.0.1:<port>`). Claude cannot create these. They are only needed when S7/S8
 > live wiring lands — S1–S6 do not block on them, so registration can proceed in parallel.
-> **Step-by-step walkthrough: [m3-cloud-setup.md](m3-cloud-setup.md).**
+> **Step-by-step walkthrough: [m3-cloud-setup.md](../m3-cloud-setup.md).**
 
 ## Architecture (the seam the whole milestone hangs on)
 
@@ -118,9 +123,9 @@ changes; this is service + shell-wiring work. Viewport/decoration layers are unt
 ## Staged build sequence
 
 > Each slice: **failing test(s) first** (TDD, T4), then implementation, then `npm run test` +
-> `npm run check` green, update [traceability.md](traceability.md) with the new `REQ-*` IDs and
+> `npm run check` green, update [requirements.md](../requirements.md) with the new `REQ-*` IDs and
 > tag the tests, then commit. Live-behavior aspects (real OAuth/network/secure-store) get a
-> workflow in [llm-workflow-tests.md](llm-workflow-tests.md), not a unit test.
+> workflow in [llm-workflow-tests.md](../llm-workflow-tests.md), not a unit test.
 
 ### S1 — `StorageProvider` seam + `LocalProvider` refactor ✅  _(seam; no behavior change)_
 Define `provider.ts` (interface + types + `StorageError`). Add `local.ts` (`LocalProvider`
@@ -203,7 +208,7 @@ helpers factored out of S7 so the two backends differ only in endpoints/auth.
 
 S1–S8 leave the storage logic fully built + unit-tested; these slices connect it to the OS
 and the live cloud. They are integration-level (Rust + OS APIs + UI), so most are verified by
-the WF-15…18 workflows + the user's OAuth registration ([m3-cloud-setup.md](m3-cloud-setup.md))
+the WF-15…18 workflows + the user's OAuth registration ([m3-cloud-setup.md](../m3-cloud-setup.md))
 rather than the unit gate.
 
 ### L1 — Secure store (OS keyring) ✅  (`REQ-SEC-1` live)
@@ -212,21 +217,52 @@ crate → Windows Credential Manager / macOS Keychain), namespaced under `com.zh
 Verifiable in isolation (no OAuth): TS wrapper `vi.mock`-tested; a cargo test round-trips
 through the real OS store. Mobile keystore is M6.
 
-### L2 — OAuth loopback + real transport ⬜
-Rust: open the system browser to the auth URL and capture the loopback redirect
-(`127.0.0.1:<port>`) → the `code`; a real `TokenPoster` (token endpoint) and `AuthedFetch`
-(bearer from `OAuthClient.getAccessToken`). Wires S6 end-to-end. Needs the user's client IDs to
-verify (→ WF-17/18).
+#### Chosen architecture — **Approach B (Minimal Rust)** (judge panel, 2026-06-27)
+A 3-design / 3-judge panel chose **B unanimously** (security 22 / simplicity 22 / maintainability
+23 of 25), with one graft all judges independently demanded:
+
+- **Transport = `@tauri-apps/plugin-http` (reqwest), NOT `window.fetch`.** Verified fact: Google's
+  token endpoint never sends CORS headers, and Drive REST only sends them to *registered JS
+  origins* — which a Tauri custom-origin webview can't be. reqwest is a native client, exempt from
+  the webview CORS wall. So inject a **plugin-http-backed `AuthedFetch`** into the existing
+  `GoogleDriveProvider` and a plugin-http-backed `TokenPoster` into `OAuthClient` — **the built +
+  tested S6/S7 seams stay on the live path unchanged** (this is why B beat A's all-Rust rewrite).
+- **Graft: do the token POST/refresh in a tiny Rust command** that reads `client_secret` from the
+  gitignored config and forwards the form — so the secret (and refresh token) never enter JS. Only
+  the short-lived access token transits the webview.
+- **Eliminated:** Approach C rested on "Drive returns permissive CORS to any origin" — factually
+  false; it would break on the first live Drive call.
+
+> **⚠ Build order is non-negotiable (judges' CRITICAL risk):** an **L2 spike must PROVE
+> plugin-http egress defeats CORS for BOTH the token endpoint and a real Drive `alt=media` read +
+> upload PATCH — with the user's real client_id/secret — BEFORE building L3/L4 on it.** And the app
+> currently ships `csp:null`; B's in-JS access token is only acceptable **with a strict CSP +** an
+> `http:` capability **scoped to exactly `oauth2.googleapis.com` + `www.googleapis.com`** + the
+> `opener` capability — shipped in the **same slice** as plugin-http, not later. Loopback hardening
+> (bind `127.0.0.1:0` only, OS-ephemeral port read via `local_addr()`, one-shot accept, ~120s
+> timeout, **validate `state` before `completeAuth`**) is mandatory; the request-line parser is a
+> pure cargo-tested fn (parse_cli/compose_rev style).
+
+### L2 — OAuth loopback + plugin-http transport + the spike ✅ built · spike pending
+New deps: `@tauri-apps/plugin-http` (rustls), `tauri-plugin-opener`. Rust: a one-shot loopback
+listener (pure cargo-tested request-line parser + integration socket accept) and an
+`oauth_token` command (secret-from-config token POST/refresh). TS: plugin-http `TokenPoster` +
+`AuthedFetch` adapters (vi.mock-tested) injected into the existing `OAuthClient`/`GoogleDriveProvider`;
+`parseDriveId` (✅ done). CSP + scoped `http`/`opener` capabilities. **Ends in the user-run spike**
+(connect Google → open one real Drive file) proving the CORS bypass + that the new CSP doesn't break
+rendering.
 
 ### L3 — Provider config + registry wiring ⬜
-Where the (non-secret) client IDs live (settings `storage` config), construct
-`GoogleDriveProvider`/`OneDriveProvider` with the authed fetch, and register them in the
-`ProviderRegistry` alongside `local`.
+Gitignored client-id/secret config (Rust loader under `app_config_dir`, `.example` committed); a
+connect/disconnect flow storing tokens via the live keyring (L1); register a Drive provider in the
+registry; make `+page.svelte`'s active `storage` resolve per the open document's provider id (not the
+hard-coded `local`).
 
-### L4 — Account + cloud-file UI ⬜
-Hamburger "Storage accounts" (connect / disconnect via `OAuthClient`), and a cloud file
-open/save flow — which needs the deferred `list`/browse capability (Drive `files.list` / Graph
-children), so this slice also lights up `capabilities.list`.
+### L4 — Account + cloud-file UI + conflict/offline round-trip ⬜
+Hamburger "Connect Google Drive" + open-by-URL/ID (via `parseDriveId`); exercise the existing
+conflict modal (external edit → 412) and offline queue against a real Drive file end-to-end (WF-17).
+Full Drive browser (`files.list` → `capabilities.list`) and OneDrive's live wiring are the next
+slices (OneDrive once the user registers Azure).
 
 ## New / changed files (anticipated)
 
@@ -236,7 +272,7 @@ children), so this slice also lights up `capabilities.list`.
 - **Changed:** `+page.svelte` (route open/save through the registry; autosave + conflict modal
   + storage-account connect UI); `src-tauri/src/lib.rs` (`read_file_meta`/`stat_file`;
   secure-store + OAuth-redirect commands in the integration tail); `HamburgerMenu.svelte`
-  ("Storage account connections"); `traceability.md` (new IDs); `roadmap.md` (mark shipped).
+  ("Storage account connections"); `requirements.md` (new IDs); `roadmap.md` (mark shipped).
 
 ## Decisions taken (defaults — overridable)
 

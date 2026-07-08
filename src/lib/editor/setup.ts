@@ -30,13 +30,18 @@ import {
   renderModeCompartment,
   type RenderMode,
 } from "./render-mode";
-import { markerDecorations, markerAtomicRanges } from "./markers";
+import { markerDecorations, markerAtomicRanges, remeasureOnFontChange } from "./markers";
 import { blockConstructDecorations } from "./blocks";
 import { hrExtension } from "./hr";
 import { taskDecorations, taskAtomicRanges } from "./tasks";
 import { imageDecorations, imageAtomicRanges } from "./images";
+import { emojiDecorations, emojiAtomicRanges, emojiEnabled, emojiCompartment } from "./emoji";
 import { alertDecorations, alertAtomicRanges } from "./alerts";
 import { tableExtension } from "./tables";
+import { tableSourceGizmos } from "./table-source-gizmos";
+import { searchExtension } from "./search";
+import { foldExtension } from "./fold";
+import { zoomGestures, type ZoomConfig } from "./zoom";
 import { editingKeymap } from "./keymap";
 import { indentExtension, type IndentConfig } from "./indent";
 
@@ -161,9 +166,9 @@ class WrapToggleWidget extends WidgetType {
     });
     return b;
   }
-  /* v8 ignore start -- pointer-event plumbing; not dispatchable in happy-dom. */
-  ignoreEvent() {
-    return true;
+  /* v8 ignore start -- event plumbing; widget events aren't dispatched in happy-dom. */
+  ignoreEvent(e: Event) {
+    return e.type !== "wheel"; // let CM handle scroll-zoom over the widget (REQ-ZOOM)
   }
   /* v8 ignore stop */
 }
@@ -354,8 +359,11 @@ export function editorExtensions(
   initialCodeWrap = true,
   initialRenderMode: RenderMode = "clean",
   initialIndent: IndentConfig = { style: "spaces", width: 2 },
+  initialEmoji = true,
+  zoom?: ZoomConfig,
 ): Extension[] {
   return [
+    ...(zoom ? [zoomGestures(zoom)] : []),
     history(),
     EditorView.lineWrapping,
     // addKeymap: false — the markdown keymap is re-added at high precedence in
@@ -370,6 +378,7 @@ export function editorExtensions(
     blockLineDecorations,
     blockConstructDecorations,
     tableExtension,
+    tableSourceGizmos,
     alertDecorations,
     alertAtomicRanges,
     hrExtension,
@@ -377,11 +386,17 @@ export function editorExtensions(
     taskAtomicRanges,
     imageDecorations,
     imageAtomicRanges,
+    emojiCompartment.of(emojiEnabled.of(initialEmoji)),
+    emojiDecorations,
+    emojiAtomicRanges,
     // Highest decoration precedence so the marker span is the INNERMOST DOM node
     // (CM nests higher-precedence decorations inside) — its absolute font-size
     // then wins over a heading's enclosing 1.9em span instead of compounding.
     Prec.highest(markerDecorations),
     markerAtomicRanges,
+    remeasureOnFontChange,
+    searchExtension,
+    foldExtension,
     revealCursorInCodeBox,
     EditorView.blockWrappers.of((view) => buildBlockWrappers(view)),
     baseTheme,

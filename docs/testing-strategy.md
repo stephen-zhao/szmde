@@ -1,10 +1,11 @@
 # Testing strategy
 
-_Status: **testing gate complete** (after M1, before M2; deferred E2E/LLM infra aside). See
-[SPEC.md §10](../SPEC.md). **T1 — done** (coverage tooling + ratchet; 100% lines + Rust units).
-**T2 — substantially in place** (editor integration tests); orchestration-needing cases deferred.
-**T3 — done** (catalog + matrix in [traceability.md](traceability.md); tests tagged with
-`REQ-*` IDs; `npm run test:trace` audits the link). **T4 — in practice** (TDD). M2 is unblocked._
+_Status: **the T1–T4 gate is in force and CI-enforced** — every milestone through **M5** shipped
+under it (the gate was introduced after M1, before M2). See [SPEC.md §10](../SPEC.md). **T1 — done**
+(coverage tooling + ratchet; 100% lines + Rust units). **T2 — in place** (editor integration tests;
+orchestration-needing cases deferred + noted). **T3 — done** (catalog + matrix in
+[requirements.md](requirements.md); tests tagged with `REQ-*` IDs; `npm run test:trace` audits the
+link). **T4 — in practice** (TDD)._
 
 ## Requirements
 
@@ -36,7 +37,7 @@ audit) · `cargo test --manifest-path src-tauri/Cargo.toml --lib`.
 
 ## T1 — 100% unit coverage
 
-- **Tooling:** Vitest coverage (`@vitest/coverage-v8`), run via `npm run test -- --coverage`; enforce a
+- **Tooling:** Vitest coverage (`@vitest/coverage-v8`), run via `npm run test:coverage`; enforce a
   threshold (target 100% lines/branches/functions/statements). **Ratchet up** to the target rather than
   flip 100% on at once, so we don't block on a big-bang backfill.
 - **Scope / exclusions:** exclude generated and non-source (`src-tauri/gen/**`, `.svelte-kit/**`,
@@ -73,8 +74,9 @@ audit) · `cargo test --manifest-path src-tauri/Cargo.toml --lib`.
    [llm-workflow-tests.md](llm-workflow-tests.md): per-workflow setup → actions → expected outcomes,
    each linked to a `REQ-*` and the bug that motivated it, **run by an LLM agent against the live editor**
    (Vite dev server in a preview browser, driven via `window.__cmview`). This is the layer the unit
-   tests structurally cannot cover — every M2 click/caret bug (HR start-vs-end, alert off-by-one, ordered
-   nesting) was green in Vitest yet broken live. Add a workflow there *before* fixing any reported
+   tests structurally cannot cover — every M2–M5 live-behavior bug (the M2 HR start-vs-end / alert
+   off-by-one / ordered nesting, the M4 syntax-gutter caret, the M5 table edit-in-place redesign) was
+   green in Vitest yet only observable live. Add a workflow there *before* fixing any reported
    live-behavior bug (TDD for interaction).
 
 ## T4 — TDD
@@ -89,18 +91,22 @@ Enter bug was reproduced by a failing test (the realistic "sibling above" struct
   (integration/E2E, deferred); `.svelte.ts` Svelte-5 runes glue (e.g. `settings/store.svelte.ts` —
   needs the Svelte compiler/runes runtime this plain-vitest setup lacks; its logic lives in the
   100%-covered pure service it delegates to); `src-tauri` Rust (→ `cargo test`); generated/types/config.
-- **Backfill:** 71% → **100% lines** (statements 98.7%, functions 98.7%, branches 93.4%) across
-  124 unit/integration tests. New suites: `setup`, `frontmatter`, `render-mode`, `blocks`,
-  `theme.dom`, `layout`, plus edge extensions to `indent`/`markers.dom`/`editing`.
+- **Backfill (testing-gate snapshot, after M1):** 71% → **100% lines** (statements 98.7%, functions
+  98.7%, branches 93.4%) across 124 unit/integration tests at that time. New suites: `setup`,
+  `frontmatter`, `render-mode`, `blocks`, `theme.dom`, `layout`, plus edge extensions to
+  `indent`/`markers.dom`/`editing`. _The suite has since grown through M2–M5 to **53 frontend
+  `*.test.ts` files** (15 `*.dom.test.ts`) across editor/settings/storage/tables; the 100%-lines
+  ratchet holds throughout._
 - **Honest residual (not chased to 100%):** the sub-100% statement/branch/function gaps are
   defensive `state.field(_, false)` guards, single-line-fence edges, and CodeMirror widget-diff
   plumbing that only the real WebView exercises. The genuinely-unreachable bits carry explicit
   `/* v8 ignore */` with reasons; we hold ratchet floors (lines 100, stmts/funcs 98, branches 93)
   rather than fake the last few percent with contrived tests.
-- **Rust units (done):** 14 `cargo test` tests for the pure backend logic — `parse_cli`
+- **Rust units (done):** **27** `cargo test` tests for the pure backend logic — `parse_cli`
   (flags, render-mode validation, help/version exit codes, usage errors), `resolve_path`
-  (absolute / relative-joins-cwd / no-cwd), and atomic `write_file` + `read_file` (roundtrip,
-  in-place overwrite, no temp residue, missing-file error). Run via
+  (absolute / relative-joins-cwd / no-cwd), atomic `write_file` + `read_file` (roundtrip,
+  in-place overwrite, no temp residue, missing-file error), atomic settings-file IO
+  (absent→None vs I/O→Err, REQ-SET-3), and the `secure_*` keyring round-trip (REQ-SEC-1). Run via
   `cargo test --manifest-path src-tauri/Cargo.toml --lib`. (`wsl_to_unc` shells out to
   `wsl.exe` → integration, not unit-tested. `cargo-llvm-cov` line coverage: optional, deferred.)
 
@@ -109,6 +115,7 @@ Enter bug was reproduced by a failing test (the realistic "sibling above" struct
 1. ✅ Add coverage tooling + reporting; set thresholds and ratchet toward 100% (T1).
 2. ✅ Backfill unit tests for existing modules to reach the threshold. ✅ `cargo test` for Rust units (14).
 3. ✅ Build the requirement catalog + traceability matrix; tag tests with requirement IDs (T3).
-   → [traceability.md](traceability.md) (28 requirements, 6 tracked gaps), `npm run test:trace`.
+   → [requirements.md](requirements.md) (grown to 67 catalogued requirements + 12 tracked gaps
+   through M5, per `npm run test:trace`).
 4. ✅ Integration tests for critical combinations in place (render-mode × markers × keymap ×
    blocks, code-block wrap); E2E + Tauri-IPC orchestration cases noted as deferred (T2).

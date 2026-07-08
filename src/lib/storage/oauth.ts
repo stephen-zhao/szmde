@@ -17,6 +17,9 @@ import {
  */
 export interface OAuthConfig {
   clientId: string;
+  /** Google "Desktop app" clients require a (non-confidential) client_secret in
+   *  the token exchange; pure PKCE clients (e.g. some providers) omit it. */
+  clientSecret?: string;
   authEndpoint: string;
   tokenEndpoint: string;
   redirectUri: string;
@@ -104,14 +107,15 @@ export async function exchangeCode(
   post: TokenPoster,
   now: number,
 ): Promise<TokenSet> {
-  const r = await post(cfg.tokenEndpoint, {
+  const form: Record<string, string> = {
     client_id: cfg.clientId,
     redirect_uri: cfg.redirectUri,
     grant_type: "authorization_code",
     code,
     code_verifier: verifier,
-  });
-  return tokenSetFrom(r, now);
+  };
+  if (cfg.clientSecret) form.client_secret = cfg.clientSecret;
+  return tokenSetFrom(await post(cfg.tokenEndpoint, form), now);
 }
 
 /** Refresh an access token. The response often omits a new refresh token, so we
@@ -122,12 +126,13 @@ export async function refreshTokens(
   post: TokenPoster,
   now: number,
 ): Promise<TokenSet> {
-  const r = await post(cfg.tokenEndpoint, {
+  const form: Record<string, string> = {
     client_id: cfg.clientId,
     grant_type: "refresh_token",
     refresh_token: refreshToken,
-  });
-  const t = tokenSetFrom(r, now);
+  };
+  if (cfg.clientSecret) form.client_secret = cfg.clientSecret;
+  const t = tokenSetFrom(await post(cfg.tokenEndpoint, form), now);
   return { ...t, refreshToken: t.refreshToken ?? refreshToken };
 }
 
@@ -145,6 +150,7 @@ export class OAuthClient {
   #post: TokenPoster;
   #now: () => number;
   #random: (n: number) => Uint8Array;
+  #refreshing: Promise<TokenSet> | null = null;
 
   constructor(
     cfg: OAuthConfig,
@@ -186,9 +192,21 @@ export class OAuthClient {
     if (!tokens) throw new StorageError("auth", "not connected");
     if (!isExpired(tokens, this.#now())) return tokens.accessToken;
     if (!tokens.refreshToken) throw new StorageError("auth", "session expired, reconnect");
-    const refreshed = await refreshTokens(this.#cfg, tokens.refreshToken, this.#post, this.#now());
-    await saveTokens(this.#store, this.#accountKey, refreshed);
-    return refreshed.accessToken;
+    // Collapse concurrent refreshes (autosave + a manual save share this client)
+    // into one network call + one token write — critical when the Google project
+    // has refresh-token rotation on, where a duplicate refresh would invalid_grant.
+    if (!this.#refreshing) {
+      const rt = tokens.refreshToken;
+      this.#refreshing = refreshTokens(this.#cfg, rt, this.#post, this.#now())
+        .then(async (refreshed) => {
+          await saveTokens(this.#store, this.#accountKey, refreshed);
+          return refreshed;
+        })
+        .finally(() => {
+          this.#refreshing = null;
+        });
+    }
+    return (await this.#refreshing).accessToken;
   }
 
   async disconnect(): Promise<void> {

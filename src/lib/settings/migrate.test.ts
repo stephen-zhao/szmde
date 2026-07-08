@@ -45,4 +45,26 @@ describe("[REQ-SET-2] migrate — version-stamped forward migration", () => {
     const out = migrate({ version: 1 }, steps, 2);
     expect(out).toEqual({ version: 2, b: 2 });
   });
+
+  // The real v1 → v2 migration: appearance.lineWidth enum → px (REQ-ZOOM-3).
+  const lw = (raw: unknown) =>
+    (migrate(raw).appearance as Record<string, unknown> | undefined)?.lineWidth;
+
+  it("[REQ-ZOOM-3] v1 → v2 maps the lineWidth enum to px", () => {
+    expect(lw({ version: 1, appearance: { lineWidth: "narrow" } })).toBe(640);
+    expect(lw({ version: 1, appearance: { lineWidth: "medium" } })).toBe(740);
+    expect(lw({ version: 1, appearance: { lineWidth: "wide" } })).toBe(880);
+  });
+
+  it("v1 → v2 maps an unknown lineWidth string to the default px", () => {
+    expect(lw({ version: 1, appearance: { lineWidth: "huge" } })).toBe(740);
+  });
+
+  it("v1 → v2 leaves an already-numeric lineWidth untouched", () => {
+    expect(lw({ version: 1, appearance: { lineWidth: 900 } })).toBe(900);
+  });
+
+  it("v1 → v2 is a no-op when appearance is absent", () => {
+    expect(migrate({ version: 1 }).version).toBe(SCHEMA_VERSION);
+  });
 });

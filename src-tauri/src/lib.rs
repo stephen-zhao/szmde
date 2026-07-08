@@ -31,7 +31,16 @@ fn write_atomic(target: &std::path::Path, content: &str) -> Result<(), String> {
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("untitled");
-    let tmp = dir.join(format!(".{}.{}.szmde-tmp", name, std::process::id()));
+    // Per-call sequence so two concurrent writes to the same target never share a
+    // temp file (which one could truncate or delete out from under the other).
+    static TMP_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let seq = TMP_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let tmp = dir.join(format!(
+        ".{}.{}.{}.szmde-tmp",
+        name,
+        std::process::id(),
+        seq
+    ));
 
     std::fs::write(&tmp, content.as_bytes()).map_err(|e| e.to_string())?;
     if let Err(e) = std::fs::rename(&tmp, target) {
@@ -122,7 +131,8 @@ fn settings_path(base: &std::path::Path, which: &str) -> Option<std::path::PathB
 #[tauri::command]
 fn read_settings_file(app: tauri::AppHandle, which: String) -> Result<Option<String>, String> {
     let base = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    let path = settings_path(&base, &which).ok_or_else(|| format!("unknown settings file: {which}"))?;
+    let path =
+        settings_path(&base, &which).ok_or_else(|| format!("unknown settings file: {which}"))?;
     read_optional(&path)
 }
 
@@ -140,6 +150,179 @@ fn write_settings_file(app: tauri::AppHandle, content: String) -> Result<(), Str
 #[tauri::command]
 fn get_launch_file(state: tauri::State<'_, LaunchFile>) -> Option<String> {
     state.0.lock().unwrap().take()
+}
+
+// --- Cloud OAuth: client config + loopback redirect capture (M3 L2) --------
+// Approach B (judge panel): Rust does ONLY the system-browser open + a one-shot
+// loopback listener that captures the OAuth redirect; PKCE, token exchange, and
+// Drive REST stay in the (tested) TS layer, egressing over @tauri-apps/plugin-http
+// (reqwest) which is exempt from the webview CORS wall.
+
+/// The non-secret-but-keep-out-of-git Google client config the user pastes into
+/// `<app_config_dir>/gdrive_client.json`.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct GdriveConfig {
+    client_id: String,
+    client_secret: String,
+}
+
+/// Path to the gdrive client config under a config base dir. Pure → cargo-testable.
+fn gdrive_config_path(base: &std::path::Path) -> std::path::PathBuf {
+    base.join("gdrive_client.json")
+}
+
+/// Read the Google client config, or None if the user hasn't created it yet.
+#[tauri::command]
+fn read_gdrive_config(app: tauri::AppHandle) -> Result<Option<GdriveConfig>, String> {
+    let base = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    match read_optional(&gdrive_config_path(&base))? {
+        Some(s) => serde_json::from_str::<GdriveConfig>(&s)
+            .map(Some)
+            .map_err(|e| format!("gdrive_client.json is malformed: {e}")),
+        None => Ok(None),
+    }
+}
+
+/// Holds the reserved loopback listener between `oauth_loopback_reserve` (which
+/// binds it to learn the port) and `oauth_loopback_await` (which accepts the
+/// redirect on it).
+struct Loopback(Mutex<Option<std::net::TcpListener>>);
+
+/// Parse the `code` and `state` from a raw loopback HTTP request. Pure →
+/// cargo-testable. Expects a request line like `GET /?code=X&state=Y HTTP/1.1`.
+fn parse_redirect(request: &str) -> Option<(String, String)> {
+    let target = request.lines().next()?.split_whitespace().nth(1)?; // "/?code=..&state=.."
+    let query = target.split_once('?')?.1;
+    let mut code = None;
+    let mut state = None;
+    for pair in query.split('&') {
+        if let Some((k, v)) = pair.split_once('=') {
+            match k {
+                "code" => code = Some(urldecode(v)),
+                "state" => state = Some(urldecode(v)),
+                _ => {}
+            }
+        }
+    }
+    Some((code?, state?))
+}
+
+fn hex_val(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
+}
+
+/// Minimal percent-decoding for the redirect query (pure → cargo-testable).
+/// Operates on BYTES (never slices the &str) so a `%` followed by a multi-byte
+/// UTF-8 char can't panic on a non-char-boundary slice.
+fn urldecode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        match b[i] {
+            b'%' if i + 2 < b.len() => match (hex_val(b[i + 1]), hex_val(b[i + 2])) {
+                (Some(hi), Some(lo)) => {
+                    out.push(hi * 16 + lo);
+                    i += 3;
+                }
+                _ => {
+                    out.push(b'%');
+                    i += 1;
+                }
+            },
+            b'+' => {
+                out.push(b' ');
+                i += 1;
+            }
+            c => {
+                out.push(c);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Accept exactly one loopback connection (polling with a timeout so an abandoned
+/// consent can't block forever), reply with a close-this-tab page, and return the
+/// parsed (code, state).
+fn capture_one_redirect(listener: std::net::TcpListener) -> Result<(String, String), String> {
+    use std::io::{Read, Write};
+    listener.set_nonblocking(true).map_err(|e| e.to_string())?;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(180);
+    loop {
+        match listener.accept() {
+            Ok((mut stream, _)) => {
+                stream
+                    .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                    .ok();
+                let mut buf = [0u8; 4096];
+                let n = stream.read(&mut buf).map_err(|e| e.to_string())?;
+                let req = String::from_utf8_lossy(&buf[..n]);
+                let body = "<!doctype html><meta charset=utf-8><body style=\"font-family:system-ui;padding:2rem\">Signed in — you can close this tab and return to szmde.</body>";
+                let resp = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(resp.as_bytes());
+                return parse_redirect(&req)
+                    .ok_or_else(|| "no authorization code in the redirect".to_string());
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                if std::time::Instant::now() > deadline {
+                    return Err("sign-in timed out".to_string());
+                }
+                std::thread::sleep(std::time::Duration::from_millis(150));
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+}
+
+/// Reserve a one-shot loopback listener on an OS-assigned ephemeral port; returns
+/// the port so the frontend can build `redirect_uri=http://127.0.0.1:<port>`.
+#[tauri::command]
+fn oauth_loopback_reserve(state: tauri::State<'_, Loopback>) -> Result<u16, String> {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
+    let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+    *state.0.lock().unwrap() = Some(listener);
+    Ok(port)
+}
+
+/// Open the system browser to `auth_url`, capture the loopback redirect, validate
+/// the `state` (CSRF), and return the authorization `code`.
+#[tauri::command]
+async fn oauth_loopback_await(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Loopback>,
+    auth_url: String,
+    expected_state: String,
+) -> Result<String, String> {
+    let listener = state
+        .0
+        .lock()
+        .unwrap()
+        .take()
+        .ok_or("no reserved loopback listener (call oauth_loopback_reserve first)")?;
+    {
+        use tauri_plugin_opener::OpenerExt;
+        app.opener()
+            .open_url(auth_url, None::<&str>)
+            .map_err(|e| e.to_string())?;
+    }
+    let (code, got_state) = tokio::task::spawn_blocking(move || capture_one_redirect(listener))
+        .await
+        .map_err(|e| format!("loopback task failed: {e}"))??;
+    if got_state != expected_state {
+        return Err("redirect state mismatch (possible CSRF) — sign-in rejected".to_string());
+    }
+    Ok(code)
 }
 
 // --- Secure store (REQ-SEC-1) ---------------------------------------------
@@ -212,7 +395,11 @@ struct Cli {
 /// Parse argv (program name already stripped). `Err(code)` means the caller
 /// should exit with that process code (0 for --help/--version, non-zero on bad args).
 fn parse_cli<I: Iterator<Item = String>>(args: I, cwd: Option<&str>) -> Result<Cli, i32> {
-    let mut cli = Cli { file: None, new_window: false, render_mode: None };
+    let mut cli = Cli {
+        file: None,
+        new_window: false,
+        render_mode: None,
+    };
     let mut it = args;
     while let Some(a) = it.next() {
         match a.as_str() {
@@ -228,7 +415,9 @@ fn parse_cli<I: Iterator<Item = String>>(args: I, cwd: Option<&str>) -> Result<C
             "--render-mode" => match it.next() {
                 Some(v) if RENDER_MODES.contains(&v.as_str()) => cli.render_mode = Some(v),
                 Some(v) => {
-                    eprintln!("szmde: invalid --render-mode '{v}' (expected one of {RENDER_MODES:?})");
+                    eprintln!(
+                        "szmde: invalid --render-mode '{v}' (expected one of {RENDER_MODES:?})"
+                    );
                     return Err(2);
                 }
                 None => {
@@ -268,7 +457,10 @@ fn resolve_path(arg: &str, cwd: Option<&str>) -> String {
         return arg.to_string();
     }
     match cwd {
-        Some(cwd) => std::path::Path::new(cwd).join(p).to_string_lossy().into_owned(),
+        Some(cwd) => std::path::Path::new(cwd)
+            .join(p)
+            .to_string_lossy()
+            .into_owned(),
         None => arg.to_string(),
     }
 }
@@ -327,7 +519,9 @@ pub fn run() {
 
     // First-launch CLI: this process runs in the invoking shell's cwd, so
     // current_dir() is the right base for relative paths.
-    let cwd = std::env::current_dir().ok().map(|p| p.to_string_lossy().into_owned());
+    let cwd = std::env::current_dir()
+        .ok()
+        .map(|p| p.to_string_lossy().into_owned());
     let cli = match parse_cli(std::env::args().skip(1), cwd.as_deref()) {
         Ok(c) => c,
         Err(code) => std::process::exit(code),
@@ -367,7 +561,10 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(LaunchFile(Mutex::new(launch_file)))
+        .manage(Loopback(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             read_file,
             write_file,
@@ -378,7 +575,10 @@ pub fn run() {
             write_settings_file,
             secure_get,
             secure_set,
-            secure_delete
+            secure_delete,
+            read_gdrive_config,
+            oauth_loopback_reserve,
+            oauth_loopback_await
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -386,16 +586,20 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    // Requirement coverage (docs/traceability.md):
+    // Requirement coverage (docs/requirements.md):
     //   [REQ-CLI-1] parse_cli   ·  [REQ-CLI-2] resolve_path
     //   [REQ-FILE-1] read_file   ·  [REQ-FILE-2] write_file (atomic)
     //   [REQ-SET-3] settings file IO (settings_path / write_atomic / read_optional)
     //   [REQ-SAVE-1] revision tokens (compose_rev / file_rev / read_file_meta / stat_file)
     //   [REQ-SEC-1] OS secure store (secure_get / secure_set / secure_delete)
+    //   [REQ-CLOUD-1] loopback redirect capture (parse_redirect / urldecode / gdrive_config_path)
     use super::*;
 
     fn args(v: &[&str]) -> std::vec::IntoIter<String> {
-        v.iter().map(|s| s.to_string()).collect::<Vec<_>>().into_iter()
+        v.iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 
     #[test]
@@ -427,7 +631,10 @@ mod tests {
 
     #[test]
     fn parse_cli_invalid_render_mode_is_usage_error() {
-        assert_eq!(parse_cli(args(&["--render-mode", "nope"]), None).unwrap_err(), 2);
+        assert_eq!(
+            parse_cli(args(&["--render-mode", "nope"]), None).unwrap_err(),
+            2
+        );
     }
 
     #[test]
@@ -490,7 +697,11 @@ mod tests {
     fn write_file_leaves_no_temp_residue() {
         let dir = std::env::temp_dir().join(format!("szmde-tmpcheck-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        write_file(dir.join("note.md").to_string_lossy().into_owned(), "x".into()).unwrap();
+        write_file(
+            dir.join("note.md").to_string_lossy().into_owned(),
+            "x".into(),
+        )
+        .unwrap();
         let residue = std::fs::read_dir(&dir)
             .unwrap()
             .filter_map(|e| e.ok())
@@ -510,7 +721,10 @@ mod tests {
     fn settings_path_maps_known_files_and_rejects_unknown() {
         let base = std::path::Path::new("/cfg");
         assert_eq!(settings_path(base, "user"), Some(base.join("user.json")));
-        assert_eq!(settings_path(base, "system"), Some(base.join("system.json")));
+        assert_eq!(
+            settings_path(base, "system"),
+            Some(base.join("system.json"))
+        );
         assert_eq!(settings_path(base, "bogus"), None);
     }
 
@@ -521,7 +735,10 @@ mod tests {
         let user = settings_path(&dir, "user").unwrap();
         assert_eq!(read_optional(&user).unwrap(), None); // absent → None, not Err
         write_atomic(&user, "{\"version\":1}").unwrap();
-        assert_eq!(read_optional(&user).unwrap(), Some("{\"version\":1}".to_string()));
+        assert_eq!(
+            read_optional(&user).unwrap(),
+            Some("{\"version\":1}".to_string())
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -557,14 +774,20 @@ mod tests {
         assert_eq!(meta.content, "abc");
         assert!(meta.rev.ends_with("-3"), "len 3 in rev: {}", meta.rev);
         // stat_file on the same unchanged file yields the identical rev.
-        assert_eq!(stat_file(p.clone()).unwrap().as_deref(), Some(meta.rev.as_str()));
+        assert_eq!(
+            stat_file(p.clone()).unwrap().as_deref(),
+            Some(meta.rev.as_str())
+        );
         let _ = std::fs::remove_file(&f);
     }
 
     #[test]
     fn stat_file_is_none_for_a_missing_path() {
         let missing = std::env::temp_dir().join("szmde-absent-rev-xyz.md");
-        assert_eq!(stat_file(missing.to_string_lossy().into_owned()).unwrap(), None);
+        assert_eq!(
+            stat_file(missing.to_string_lossy().into_owned()).unwrap(),
+            None
+        );
     }
 
     // --- [REQ-SEC-1] OS secure store --------------------------------------
@@ -584,6 +807,49 @@ mod tests {
         secure_delete(svc.clone(), acct.clone()).unwrap();
         assert_eq!(secure_get(svc.clone(), acct.clone()).unwrap(), None); // gone
         secure_delete(svc.clone(), acct.clone()).unwrap(); // idempotent: no error
+    }
+
+    // --- [REQ-CLOUD-1] loopback redirect capture (pure helpers) -----------
+    #[test]
+    fn parse_redirect_extracts_code_and_state() {
+        let req = "GET /?code=4/abc-DEF_123&state=xyz789 HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+        assert_eq!(
+            parse_redirect(req),
+            Some(("4/abc-DEF_123".to_string(), "xyz789".to_string())),
+        );
+    }
+
+    #[test]
+    fn parse_redirect_percent_decodes_values() {
+        // Google often percent-encodes the `/` in the code as %2F.
+        let req = "GET /?state=s1&code=4%2Fabc%20def HTTP/1.1\r\n\r\n";
+        assert_eq!(
+            parse_redirect(req),
+            Some(("4/abc def".to_string(), "s1".to_string()))
+        );
+    }
+
+    #[test]
+    fn parse_redirect_is_none_without_code_or_query() {
+        assert_eq!(parse_redirect("GET /?state=only HTTP/1.1\r\n\r\n"), None);
+        assert_eq!(parse_redirect("GET / HTTP/1.1\r\n\r\n"), None);
+        assert_eq!(parse_redirect(""), None);
+    }
+
+    #[test]
+    fn urldecode_handles_percent_plus_and_bad_escapes() {
+        assert_eq!(urldecode("a%2Fb"), "a/b");
+        assert_eq!(urldecode("a+b"), "a b");
+        assert_eq!(urldecode("plain"), "plain");
+        assert_eq!(urldecode("bad%zz"), "bad%zz"); // malformed escape kept literally
+        assert_eq!(urldecode("trailing%"), "trailing%"); // truncated escape kept
+        assert_eq!(urldecode("%\u{20AC}"), "%\u{20AC}"); // % before a multi-byte char: no panic
+    }
+
+    #[test]
+    fn gdrive_config_path_is_under_the_base() {
+        let base = std::path::Path::new("/cfg");
+        assert_eq!(gdrive_config_path(base), base.join("gdrive_client.json"));
     }
 
     #[test]

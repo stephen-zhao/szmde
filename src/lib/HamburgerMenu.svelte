@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { WrapState } from "$lib/editor/setup";
   import { MODE_ORDER, MODE_LABELS, type RenderMode } from "$lib/editor/render-mode";
+  import TableSizePicker from "$lib/TableSizePicker.svelte";
 
   // The only persistent chrome in szmde (SPEC §7 / §9): a top-left hamburger.
   let {
@@ -9,27 +10,43 @@
     onsave,
     onsaveas,
     onexit,
+    onopendrive,
+    onconnectdrive,
+    ondisconnectdrive,
+    driveConnected,
     wrapState,
     ontogglewrap,
     renderMode,
     onsetrendermode,
+    oninserttable,
   }: {
     onnew: () => void;
     onopen: () => void;
     onsave: () => void;
     onsaveas: () => void;
     onexit: () => void;
+    onopendrive: () => void;
+    onconnectdrive: () => void;
+    ondisconnectdrive: () => void;
+    driveConnected: boolean;
     wrapState: WrapState;
     ontogglewrap: () => void;
     renderMode: RenderMode;
     onsetrendermode: (mode: RenderMode) => void;
+    oninserttable: (rows: number, cols: number) => void;
   } = $props();
 
   let open = $state(false);
+  let tablePickerOpen = $state(false);
 
   function run(fn: () => void) {
     open = false;
     fn();
+  }
+
+  function closeMenu() {
+    open = false;
+    tablePickerOpen = false;
   }
 </script>
 
@@ -55,7 +72,7 @@
     <button
       class="backdrop"
       aria-label="Close menu"
-      onclick={() => (open = false)}
+      onclick={closeMenu}
     ></button>
 
     <div class="dropdown" role="menu">
@@ -72,6 +89,14 @@
         Save As… <span class="kbd">Ctrl+Shift+S</span>
       </button>
       <hr />
+      <div class="section-label">Storage</div>
+      <button role="menuitem" onclick={() => run(onopendrive)}>Open from Google Drive…</button>
+      {#if driveConnected}
+        <button role="menuitem" onclick={() => run(ondisconnectdrive)}>Disconnect Google Drive</button>
+      {:else}
+        <button role="menuitem" onclick={() => run(onconnectdrive)}>Connect Google Drive…</button>
+      {/if}
+      <hr />
       <div class="section-label">Render mode <span class="kbd">Ctrl+Shift+M</span></div>
       {#each MODE_ORDER as mode (mode)}
         <button
@@ -83,6 +108,23 @@
           <span class="check">{renderMode === mode ? "✓" : ""}</span>
         </button>
       {/each}
+      <hr />
+      <div class="section-label">Insert</div>
+      <button
+        role="menuitem"
+        aria-expanded={tablePickerOpen}
+        onclick={() => (tablePickerOpen = !tablePickerOpen)}
+      >
+        Table… <span class="check">{tablePickerOpen ? "▾" : "▸"}</span>
+      </button>
+      {#if tablePickerOpen}
+        <TableSizePicker
+          oninsert={(rows, cols) => {
+            closeMenu();
+            oninserttable(rows, cols);
+          }}
+        />
+      {/if}
       <hr />
       <button
         role="menuitemcheckbox"

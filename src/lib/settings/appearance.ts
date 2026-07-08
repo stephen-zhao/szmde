@@ -1,13 +1,4 @@
-import type { AppearanceSettings, LineWidth } from "./schema";
-
-// Reading-column widths for the lineWidth enum. `medium` is today's hard-coded
-// 740px (so the default is visually unchanged). Wired via the --reading-width
-// var that theme.ts's .cm-content max-width reads.
-const LINE_WIDTH_PX: Record<LineWidth, string> = {
-  narrow: "640px",
-  medium: "740px",
-  wide: "880px",
-};
+import type { AppearanceSettings } from "./schema";
 
 // Fallback stack appended after the user's chosen family so we never lose the
 // system fallbacks (matches the original --font-body value for "Inter").
@@ -25,7 +16,8 @@ export function applyAppearance(target: HTMLElement, a: AppearanceSettings): voi
   s.setProperty("--editor-font-size", `${a.fontSize}px`);
   s.setProperty("--accent", a.accentColor);
   s.setProperty("--font-body", `"${a.fontFamily}", ${FONT_FALLBACK}`);
-  s.setProperty("--reading-width", LINE_WIDTH_PX[a.lineWidth]);
+  // px reading-column width; theme.ts clamps it to the window via min(…, 100%-pad).
+  s.setProperty("--reading-width", `${a.lineWidth}px`);
   // color-scheme drives native UI; data-theme is the hook for the future light
   // palette (only the dark palette exists today — light/system land in M5).
   s.setProperty("color-scheme", a.theme === "system" ? "light dark" : a.theme);

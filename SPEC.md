@@ -2,7 +2,9 @@
 
 _**szmde** = **S**tephen **Z**hao **M**ark**D**own **E**ditor._
 
-_Status: draft for review. Date: 2026-06-24._
+_Status: accepted vision / foundation. Originally drafted 2026-06-24; last reconciled with the
+as-built app 2026-07-07. This is the stable "what"; current build status lives in
+[docs/roadmap.md](docs/roadmap.md)._
 
 A minimal, fast, cross-platform **WYSIWYG markdown editor** for local and cloud-stored
 files. "What you see is what you get" — headings render larger, bullets render as
@@ -134,15 +136,22 @@ construct's markers become visible so you can edit them, then re-hide when the c
 leaves — the standard live-preview affordance. (Markers are never made visible for
 constructs the cursor isn't in.)
 
+**Tables are the exception to reveal-on-cursor** (as built in M5, §7.4). A rendered table stays
+rendered and is treated as an **atomic** unit — arrow keys skip past it rather than entering it. To
+edit, you **click a cell**, which opens an inline single-cell editor (a `<textarea>` over that cell
+showing its markdown source; Enter/Tab commit + move, Esc cancels, blur commits). The raw pipe source
+appears in **Source mode**, not on-cursor in Clean mode.
+
 In Clean mode, unordered-list bullets and ordered-list numbers are **content, not syntax**,
 so they render in normal text color (not greyed) — only the truly-syntactic markers are
 hidden/greyed. The marker's **trailing space is syntax too**, so in Clean mode it is hidden
 along with the marker (heading text renders flush, no leading space) — `REQ-RENDER-8`, shipped.
 
-**Deferred refinement — `REQ-RENDER-9`** (markers-syntax layout; not built; slot in
-[docs/roadmap.md](docs/roadmap.md)): in markers-syntax mode, block-level leading markers should
-hang in the **left margin** (overhanging indent, right-aligned to the content margin line) so the
-content stays flush at the margin rather than being pushed inward. This applies to:
+**`REQ-RENDER-9` (markers-syntax layout — shipped in M4):** in markers-syntax mode, block-level
+leading markers hang in the **left margin** (an overhanging indent, right-aligned to the content
+margin line) so the content stays flush at the margin rather than being pushed inward — implemented as
+a per-line `text-indent` within a dedicated 3-column `[fold chevron][marker gutter][content]` layout
+(`REQ-RENDER-12`). This applies to:
 - **heading markers** (`#`, `##`, …) — and the space following them likewise sits in the
   gutter, so heading text starts at the left margin;
 - **blockquote markers** (`>`) — they too appear to the left of the left-margin line, keeping
@@ -214,7 +223,7 @@ Both are per-document, editable via a small status widget (§7.1) and defaulted 
 | Inline code | `` `x` `` | monospace span |
 | Links | `[text](url)`, autolinks | clickable link |
 | Images | `![alt](src)` | rendered inline (local + remote; cloud-relative paths TBD) |
-| Tables (GFM) | pipe tables | rendered as real tables |
+| Tables (GFM) | pipe tables | rendered as real tables (rich inline editing, §7.4) |
 | Task lists | `- [ ]` / `- [x]` | rendered as checkboxes |
 | Horizontal rule | `---` | divider line |
 | Nested lists | indentation | mixed ordered/unordered nesting |
@@ -413,7 +422,7 @@ layered above the editor core:
 This is the natural home for an eventual multi-window story too. Deferred well beyond M1;
 slot into the roadmap (§10) as its own milestone when prioritized.
 
-### 7.3 Zoom & page width (scroll gestures) — deferred (`REQ-ZOOM-1/2`; polish pool, [docs/roadmap.md](docs/roadmap.md))
+### 7.3 Zoom & page width (scroll gestures) — shipped in M4 (`REQ-ZOOM-1/2/3`; [docs/roadmap.md](docs/roadmap.md))
 
 Two modifier-scroll gestures over the editor adjust presentation live:
 
@@ -427,12 +436,11 @@ Two modifier-scroll gestures over the editor adjust presentation live:
   column ⇄ narrower margins.
 
 Both are bounded (sensible min/max), step in small increments, and map to the same underlying
-appearance settings (`appearance.fontSize` and `appearance.lineWidth`, §8) so the chosen
-zoom/width persists once the settings system lands (M2). Implementation is small — a wheel
-handler on the editor scroller updating the two values — but it's **not yet built**; schedule
-when convenient (it doesn't depend on other milestones).
+appearance settings (`appearance.fontSize` and `appearance.lineWidth`, §8) so the chosen zoom/width
+persists. **Shipped in M4** (`REQ-ZOOM-1/2`); the page-width range was later extended to span up to the
+current window width (`REQ-ZOOM-3`).
 
-### 7.4 Table editing experience (deferred — `REQ-TBLED-*`; current slot in [docs/roadmap.md](docs/roadmap.md))
+### 7.4 Table editing experience (shipped in M5 — `REQ-TBLED-*`; [docs/roadmap.md](docs/roadmap.md))
 
 Traditional markdown editors make tables miserable — hand-aligning pipes, counting columns,
 rebuilding a row to move a cell. szmde should make table editing genuinely pleasant: a
@@ -453,9 +461,12 @@ pipe tables**. Requirements:
 - **Auto-tidy source.** Cells re-pad/realign as you edit so the saved GFM stays clean; per-column
   alignment (`:--`, `:-:`, `--:`) is settable from the editing UI.
 
-Scope note: GFM table _rendering_ is M2 (§5.1). This rich _editing_ experience is a larger,
-later effort — block-widget interaction work in the §9 decoration/widget layer — and is **not
-required for v1**.
+Scope note: GFM table _rendering_ is M2 (§5.1). This rich _editing_ experience was a larger,
+later effort — block-widget interaction work in the §9 decoration/widget layer — **not required for
+v1**. It **shipped in M5** (S1–S6; only the header-row toggle, `REQ-TBLED-2`, remains). As built,
+edit-in-place uses an **inline cell editor over an atomic rendered table** — click a cell → a
+`<textarea>` over it; arrow keys skip the rendered table; raw pipe source appears in Source mode only —
+rather than un-rendering the whole table to raw pipes.
 
 ### 7.5 Keyboard-shortcut hints (Alt overlay) (deferred — `REQ-ALT-1`; polish pool, [docs/roadmap.md](docs/roadmap.md))
 
@@ -561,7 +572,7 @@ the bridge interface only.
 > the §5.4 backlog — lives in **[docs/roadmap.md](docs/roadmap.md)** (the milestone tracker). Every
 > piece of work has a SPEC section, a milestone, and a `REQ-*` ID before it starts — no ad-hoc work.
 > Per-milestone **implementation plans** (architecture + staged `S<n>` slices) live under
-> [`docs/`](docs/) — e.g. [docs/m1-plan.md](docs/m1-plan.md). This section is the high-level sketch;
+> [`docs/`](docs/) — e.g. [docs/m1-plan.md](docs/archive/m1-plan.md). This section is the high-level sketch;
 > the tracker is the source of truth.
 
 **Shipped (completes the §5.1 v1 feature set):**
@@ -576,16 +587,19 @@ the bridge interface only.
 4. **M2 – Remaining v1 blocks + settings:** tables, task lists, images, horizontal rule,
    nested lists, GFM alerts/callouts; settings system (system+user JSON). ✅
 
-**Scheduled (post-v1).** Milestones are **fixed, in-order slots** (M3 next, then M4, M5, …); you
-schedule by **moving requirements between slots** and retitling, not by reordering milestones, so refer
-to `REQ-*` IDs — never milestone numbers — since slot contents are fluid. Per-requirement breakdown +
-the current slotting in [docs/roadmap.md](docs/roadmap.md); order is yours to set (§11). Current slots:
-5. **M3 – Cloud storage:** Google Drive + OneDrive; conflict/autosave/offline cache.
-6. **M4 – Authoring essentials (§5.4, §7.3, §4.1):** emoji shortcodes, find & replace,
-   word/character count, foldable sections, scroll-zoom/page-width, syntax-mode margin overhang —
-   daily-authoring power-features.
+**Post-v1.** Milestones are **fixed, in-order slots**; you schedule by **moving requirements between
+slots** and retitling, not by reordering milestones, so refer to `REQ-*` IDs — never milestone numbers
+— since slot contents are fluid. Per-requirement breakdown + the current slotting in
+[docs/roadmap.md](docs/roadmap.md); order is yours to set (§11).
+
+_Shipped post-v1:_
+5. **M3 – Cloud storage:** Google Drive (live) + OneDrive (backend-only); conflict/autosave/offline cache. ✅
+6. **M4 – Authoring essentials (§5.4, §7.3, §4.1):** emoji shortcodes, find & replace, word/character
+   count, foldable sections, scroll-zoom/page-width, syntax-mode margin overhang. ✅
 7. **M5 – Rich table editing (§7.4):** structured editing over portable GFM tables (insert/reorder
-   rows & cols, drag handles, cursor-context shortcuts, edit-in-place).
+   rows & cols, drag handles, cursor-context shortcuts, inline cell editor). ✅ _(S7 header-toggle pending)_
+
+_Scheduled (M6 next):_
 8. **M6 – Android:** Tauri mobile build; responsive UI; storage access framework.
 9. **M7 – Network storage + polish:** SMB/CIFS + WebDAV; light/system mode; a11y pass.
 10. **M8 – Workspace: tabs & splittable panes (§7.2):** document registry + serializable layout tree.

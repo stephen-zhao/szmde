@@ -100,6 +100,36 @@ describe("token exchange / refresh", () => {
     const t = await refreshTokens(CFG, "OLD_RT", post, 0);
     expect(t.refreshToken).toBe("NEW_RT");
   });
+
+  it("includes client_secret in the exchange when the config has one (Google desktop)", async () => {
+    let sentForm: Record<string, string> = {};
+    const post: TokenPoster = async (_url, form) => {
+      sentForm = form;
+      return ok({ access_token: "AT", expires_in: 1 });
+    };
+    await exchangeCode({ ...CFG, clientSecret: "SECRET" }, "V", "C", post, 0);
+    expect(sentForm.client_secret).toBe("SECRET");
+  });
+
+  it("omits client_secret when the config has none", async () => {
+    let sentForm: Record<string, string> = {};
+    const post: TokenPoster = async (_url, form) => {
+      sentForm = form;
+      return ok({ access_token: "AT", expires_in: 1 });
+    };
+    await exchangeCode(CFG, "V", "C", post, 0); // CFG has no clientSecret
+    expect(sentForm.client_secret).toBeUndefined();
+  });
+
+  it("includes client_secret on refresh too", async () => {
+    let sentForm: Record<string, string> = {};
+    const post: TokenPoster = async (_url, form) => {
+      sentForm = form;
+      return ok({ access_token: "AT2", expires_in: 1 });
+    };
+    await refreshTokens({ ...CFG, clientSecret: "SECRET" }, "RT", post, 0);
+    expect(sentForm.client_secret).toBe("SECRET");
+  });
 });
 
 describe("OAuthClient", () => {
@@ -145,6 +175,17 @@ describe("OAuthClient", () => {
     await store.set("acct", JSON.stringify({ accessToken: "OLD", refreshToken: "RT", expiresAt: 0 }));
     expect(await c.getAccessToken()).toBe("AT2");
     expect((await loadTokens(store, "acct"))?.accessToken).toBe("AT2"); // repersisted
+  });
+
+  it("dedupes concurrent refreshes into a single token POST", async () => {
+    const store = new InMemorySecureStore();
+    await store.set("acct", JSON.stringify({ accessToken: "OLD", refreshToken: "RT", expiresAt: 0 }));
+    const post = vi.fn(async () => ok({ access_token: "AT2", expires_in: 3600 }));
+    const c = new OAuthClient(CFG, store, "acct", post as unknown as TokenPoster, { now: () => 1_000_000 });
+    const [a, b] = await Promise.all([c.getAccessToken(), c.getAccessToken()]);
+    expect(a).toBe("AT2");
+    expect(b).toBe("AT2");
+    expect(post).toHaveBeenCalledTimes(1); // one refresh despite two concurrent callers
   });
 
   it("getAccessToken throws auth when expired and there is no refresh token", async () => {

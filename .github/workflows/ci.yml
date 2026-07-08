@@ -1,0 +1,51 @@
+name: CI
+
+# The full gate on every push to main and every pull request — what makes branch
+# protection meaningful (see docs/ci-cd.md). Mirrors the local gate exactly.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same branch/PR supersedes an in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Frontend gate (typecheck · build · tests · coverage · traceability)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck (svelte-check, 0 errors)
+        run: npm run check
+      - name: Production build (catches SvelteKit/Vite build breaks)
+        run: npm run build
+      - name: Unit + DOM tests with coverage (100%-lines threshold, vitest.config.ts)
+        run: npm run test:coverage
+      - name: Requirement ↔ test traceability
+        run: npm run test:trace
+
+  rust:
+    name: Rust (fmt · clippy · test)
+    runs-on: windows-latest # matches the Windows release target; WebView2 preinstalled
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
