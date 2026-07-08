@@ -213,10 +213,26 @@ describe("[REQ-TBLED-6] setColAlign", () => {
 });
 
 describe("[REQ-TBLED-2] toggleHeader", () => {
-  it("blanks the header cells (stays valid GFM)", () => {
-    const out = serialize(toggleHeader(model(T)));
-    expect(out.split("\n")[0]).toBe("|  |  |");
-    expect(out.split("\n").length).toBe(3); // still header + delimiter + body
+  it("OFF: demotes a populated header into the first body row + blanks it (stays valid GFM)", () => {
+    const lines = serialize(toggleHeader(model(T))).split("\n");
+    expect(lines[0]).toBe("|  |  |"); // header blanked
+    expect(lines[1]).toBe("| --- | --- |"); // delimiter unchanged
+    expect(lines[2]).toBe("| a | b |"); // old header preserved as the first body row
+    expect(lines[3]).toBe("| 1 | 2 |");
+  });
+  it("ON: promotes the first body row into a blank header", () => {
+    const blank = "|  |  |\n| --- | --- |\n| a | b |\n| 1 | 2 |";
+    const lines = serialize(toggleHeader(model(blank))).split("\n");
+    expect(lines[0]).toBe("| a | b |"); // first body row promoted up
+    expect(lines.length).toBe(3); // body shrank by one row
+  });
+  it("round-trips off→on back to the original", () => {
+    const m = model(T);
+    expect(serialize(toggleHeader(toggleHeader(m)))).toBe(serialize(m));
+  });
+  it("is a no-op (same reference) on a blank header with no body rows", () => {
+    const m = model("|  |  |\n| --- | --- |");
+    expect(toggleHeader(m)).toBe(m);
   });
 });
 

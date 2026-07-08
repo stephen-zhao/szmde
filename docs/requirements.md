@@ -48,7 +48,7 @@ missing. Requirements with no automated test are tracked explicitly in the gaps 
 | REQ-TABLE-1 | GFM pipe table renders as a real `<table>` in Clean (header/body cells, per-column alignment); header-only tables don't crash | §5.1 | integration (DOM) | `table.dom.test.ts` |
 | REQ-TABLE-2 | Table reveals raw pipe source on cursor (atomic); literal pipe text kept in Source/Syntax | §5.1 | integration (DOM) | `table.dom.test.ts` |
 | REQ-TBLED-1 | Insert an N×M table from scratch — **model (S1)** `makeTable` + **command/UI (S6):** `insertTable(rows,cols)` (table-commands.ts — block-inserts at the caret, caret in the first cell) wired through `EditorApi.insertTable`; the hamburger menu's **Insert → Table…** opens a hover-preview grid picker (`TableSizePicker.svelte`) | §7.4 | unit + integration (DOM) | `table-model.test.ts`, `table.dom.test.ts` |
-| REQ-TBLED-2 | Toggle the header row on/off — **model (S1):** `toggleHeader` (blank-header keeps valid GFM); command/UI in S7 | §7.4 | unit | `table-model.test.ts` |
+| REQ-TBLED-2 | Toggle the header row on/off — **lossless** (a populated header demotes into the first body row + blanks; a blank header promotes the first body row up; off→on round-trips, stays valid GFM). **model (S1)** `toggleHeader` + **command/UI (S7)** `toggleTableHeader` (`Mod-Alt-h`) + right-click **Toggle header row** | §7.4 | unit + integration (DOM) | `table-model.test.ts`, `table.dom.test.ts` |
 | REQ-TBLED-3 | Insert/delete rows & columns at any position — **model (S1)** + **commands (S3):** `insertRowAbove/Below`, `insertColLeft/Right`, `deleteCurrentRow/Col` (resolve the table at the caret → model op → one whole-table replace → re-place caret); the **right-click context menu UI landed in S3b** (`table-menu.ts` — all ops in-place; hover gizmos still pending) | §7.4 | unit + integration (DOM) | `table-model.test.ts`, `table.dom.test.ts` |
 | REQ-TBLED-4 | Drag to reorder rows/columns — **model (S1):** `moveRow`/`moveCol`; pointer-drag UI in S5 (the keyboard move is REQ-TBLED-5) | §7.4 | unit | `table-model.test.ts` |
 | REQ-TBLED-5 | Cursor-context shortcuts (move/insert/delete current row/col) — **commands + keybindings (S3):** `Mod-Enter`/`Mod-Shift-Enter` insert row below/above, `Alt-Shift-Arrows` move row/col (all return false off a table); delete + insert-col also reachable via the **S3b right-click menu** | §7.4 | integration (DOM) | `table.dom.test.ts` |
@@ -110,5 +110,4 @@ and the bug that motivated it. Run it before releases and after editor-interacti
 **not** part of the CI `npm run test`/`test:trace` gate — it needs an LLM agent + a live WebView).
 
 _Future requirements (Alt-hints §7.5, tabs/panes §7.2, and the rest of the §5.4 backlog) enter this
-table with linked tests as they're built. The one outstanding table slice is REQ-TBLED-2 (M5 S7,
-toggle header)._
+table with linked tests as they're built. **M5 rich table editing is now complete** (REQ-TBLED-1…7)._

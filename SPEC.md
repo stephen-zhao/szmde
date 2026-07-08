@@ -463,7 +463,7 @@ pipe tables**. Requirements:
 
 Scope note: GFM table _rendering_ is M2 (§5.1). This rich _editing_ experience was a larger,
 later effort — block-widget interaction work in the §9 decoration/widget layer — **not required for
-v1**. It **shipped in M5** (S1–S6; only the header-row toggle, `REQ-TBLED-2`, remains). As built,
+v1**. It **shipped in M5** (complete — S1–S7, including the header-row toggle). As built,
 edit-in-place uses an **inline cell editor over an atomic rendered table** — click a cell → a
 `<textarea>` over it; arrow keys skip the rendered table; raw pipe source appears in Source mode only —
 rather than un-rendering the whole table to raw pipes.

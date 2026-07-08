@@ -420,6 +420,21 @@ save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.
 - A brand-new untitled buffer is **not** autosaved (no Save As dialog pops); it
   only autosaves after a first manual Save gives it a path.
 
+### WF-27 · Toggle table header on/off · `REQ-TBLED-2`
+**Behavior (M5 S7):** a **lossless** header toggle. With a populated header, "off" demotes the
+header into the first body row and blanks the header (kept valid GFM — the header text is NOT
+lost); with a blank header, "on" promotes the first body row back up. Reachable via `Mod-Alt-h`
+and the right-click **Toggle header row** item; the rendered table updates in place.
+**Setup:** `__T.setDoc("| a | b |\n| - | - |\n| 1 | 2 |")`, caret in a cell (Formatted mode).
+**Steps:**
+- Press `Ctrl/Cmd+Alt+H` (or right-click a cell → **Toggle header row**) → Expected: the table
+  stays rendered (`count("table.cm-md-table") === 1`); the header row is now empty and the old
+  header shows as the first body row (`doc()` starts `"|  |  |\n| --- | --- |\n| a | b |…"`).
+- Toggle again → Expected: `doc()` returns to `"| a | b |\n| --- | --- |\n| 1 | 2 |"` (off→on
+  round-trips; the header is restored, nothing lost).
+- Put the caret outside any table and press the chord → Expected: no change (the command returns
+  false and passes the key through).
+
 ---
 
 ## Requirement coverage
@@ -430,6 +445,7 @@ save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.
 | REQ-ALERT-2 | structure (`alerts.dom.test.ts`) | WF-2 (click→char) |
 | REQ-TABLE-2 | structure (`table.dom.test.ts`) | — (render + Source-mode literal pipes; structural only) |
 | REQ-TBLED-7 | structure (`table-cell-editor.dom.test.ts`, `table.dom.test.ts`) | WF-3 (inline cell editor; table stays rendered, atomic-skip) |
+| REQ-TBLED-2 | model + structure (`table-model.test.ts`, `table.dom.test.ts`) | WF-27 (header toggle on/off) |
 | REQ-NEST-1 | structure (`nested.dom.test.ts`) | WF-4 (Tab nest + styling) |
 | REQ-LIST-3 | doc model (`editing.test.ts`) | WF-5 (task Enter) |
 | REQ-TASK-2 | doc model (`tasklist.dom.test.ts`) | WF-6 (toggle) |
