@@ -259,13 +259,33 @@ export function setColAlign(m: TableModel, index: number, align: Align): TableMo
   return { ...m, aligns };
 }
 
-/** Toggle the header row: GFM has no headerless pipe table, so "off" blanks the
- *  header cells (keeps it a valid table). Re-blanking is a no-op; a header that's
- *  already all-blank is treated as "off" and... stays blank (idempotent both ways —
- *  callers decide the UX). Default per the M5 plan (open question #1). */
+/**
+ * Toggle the header row on/off — LOSSLESS, staying within valid GFM. A GFM pipe table
+ * always has a structural header row, so "off" is a BLANK header (never a removed row):
+ *   - HEADER PRESENT (any non-blank header cell) → OFF: demote the header into a new FIRST
+ *     body row and blank the header, so the old header text becomes ordinary data (nothing
+ *     is discarded) and the table renders with an empty header.
+ *   - HEADER BLANK (every cell empty) → ON: promote the first body row up into the header
+ *     (removed from the body). A blank header with no body row has nothing to promote → no-op
+ *     (returns the same reference, so command/menu callers treat it as a pass-through).
+ * Off-then-on round-trips to the original (REQ-TBLED-2). Wired to a command + the right-click
+ * menu (M5 S7); the on-disk file stays portable GFM either way (open question #1, resolved
+ * 2026-06-30: blank the header within GFM).
+ */
 export function toggleHeader(m: TableModel): TableModel {
   const cols = effectiveCols(m);
-  return { ...m, header: emptyRow(cols) };
+  const pad = (cells: Cell[]): Cell[] => {
+    const out = cells.slice();
+    while (out.length < cols) out.push(mkCell(""));
+    return out;
+  };
+  if (m.header.some((c) => c.text.trim() !== "")) {
+    // OFF: demote the populated header into the first body row, blank the header.
+    return { ...m, header: emptyRow(cols), rows: [pad(m.header), ...m.rows] };
+  }
+  // ON: promote the first body row into the blank header (nothing to promote → no-op).
+  if (m.rows.length === 0) return m;
+  return { ...m, header: pad(m.rows[0]), rows: m.rows.slice(1) };
 }
 
 /** Build an empty `rows`×`cols` table model (row 0 is the header). For REQ-TBLED-1. */

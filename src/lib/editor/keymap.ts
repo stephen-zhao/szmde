@@ -8,6 +8,7 @@ import { cycleRenderMode } from "./render-mode";
 import {
   insertRowBelow,
   insertRowAbove,
+  toggleTableHeader,
   moveRowDown,
   moveRowUp,
   moveColLeft,
@@ -318,5 +319,7 @@ export const editingKeymap: Extension = Prec.high(
     { key: "Alt-Shift-ArrowRight", run: moveColRight },
     // Re-tidy a hand-typed messy table to canonical GFM (inert outside a table).
     { key: "Mod-Alt-t", run: tidyTable, preventDefault: true },
+    // Toggle the table header row on/off (REQ-TBLED-2; inert outside a table).
+    { key: "Mod-Alt-h", run: toggleTableHeader, preventDefault: true },
   ]),
 );

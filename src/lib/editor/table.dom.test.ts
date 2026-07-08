@@ -17,6 +17,7 @@ import {
   moveColLeft,
   tidyTable,
   insertTable,
+  toggleTableHeader,
 } from "./table-commands";
 import { closeTableMenu } from "./table-menu";
 import type { RenderMode } from "./render-mode";
@@ -274,6 +275,28 @@ describe("[REQ-TBLED-6] tidyTable — explicit canonicalize command", () => {
   });
 });
 
+describe("[REQ-TBLED-2] toggleTableHeader — command toggles the header on/off", () => {
+  const run = (v: EditorView, cmd: StateCommand) => cmd({ state: v.state, dispatch: (tr) => v.dispatch(tr) });
+  const TBL = "intro\n\n| a | b |\n| - | - |\n| 1 | 2 |"; // Source mode: caret sits in the raw pipes
+
+  it("OFF: demotes a populated header into the first body row + blanks it (nothing lost)", () => {
+    const v = build(TBL, "markers-rendered", TBL.indexOf("a")); // caret in the header
+    expect(run(v, toggleTableHeader)).toBe(true);
+    expect(v.state.doc.toString()).toBe("intro\n\n|  |  |\n| --- | --- |\n| a | b |\n| 1 | 2 |");
+  });
+  it("round-trips off→on back to the tidy original", () => {
+    const v = build(TBL, "markers-rendered", TBL.indexOf("a"));
+    run(v, toggleTableHeader); // off (caret is left in the first header cell)
+    forceParsing(v, v.state.doc.length, 5000); // re-parse the new doc so tableBlockAt resolves
+    run(v, toggleTableHeader); // on
+    expect(v.state.doc.toString()).toBe("intro\n\n| a | b |\n| --- | --- |\n| 1 | 2 |");
+  });
+  it("returns false when the caret is not in a table", () => {
+    const v = build("just text", "markers-rendered", 0);
+    expect(run(v, toggleTableHeader)).toBe(false);
+  });
+});
+
 describe("[REQ-TBLED-3][REQ-TBLED-5][REQ-TBLED-6] right-click table context menu", () => {
   // Formatted-mode structural-edit UI: right-click a cell → a menu of every op for
   // that cell's row + column. The op is a whole-table replace; the caret stays
@@ -338,6 +361,15 @@ describe("[REQ-TBLED-3][REQ-TBLED-5][REQ-TBLED-6] right-click table context menu
     forceParsing(v, v.state.doc.length, 5000);
     expect(count(v, "table.cm-md-table")).toBe(1); // applied in place, NOT revealed
     expect(v.state.selection.main.head).toBe(0); // caret stayed outside the block
+  });
+
+  it("[REQ-TBLED-2] 'Toggle header row' demotes the header into a body row, in place", () => {
+    const v = build(MDOC, "clean", 0);
+    rightClick(bodyCell(v, 0));
+    clickItem(v, "Toggle header row");
+    forceParsing(v, v.state.doc.length, 5000);
+    expect(doc(v)).toBe("intro\n\n|  |  |\n| --- | --- |\n| a | b |\n| 1 | 2 |");
+    expect(count(v, "table.cm-md-table")).toBe(1); // applied in place, still rendered
   });
 
   it("'Insert row below' adds an empty body row after the clicked row", () => {

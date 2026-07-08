@@ -16,8 +16,8 @@ CodeMirror 6 · Svelte 5 / SvelteKit (`adapter-static`) · Tauri 2 · TypeScript
 - **Shipped & merged: M0–M5.** Full live-preview engine (render modes, hidden markers, block
   widgets), the v1 GFM feature set, two-tier settings, CI/CD, cloud storage, authoring essentials
   (find/replace, emoji, folding, word count, zoom/page-width), and rich inline table editing.
-- **In flight / next:** M5 **S7** (toggle table header row, `REQ-TBLED-2`); OneDrive live wiring;
-  then **M6 (Android)**. See [docs/roadmap.md#whats-left](docs/roadmap.md).
+- **In flight / next:** OneDrive live wiring (`REQ-CLOUD-2`), then **M6 (Android)**. M5 is complete
+  (the S7 header toggle shipped). See [docs/roadmap.md#whats-left](docs/roadmap.md).
 
 ## Process — no ad-hoc work (non-negotiable)
 
