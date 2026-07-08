@@ -26,12 +26,12 @@ This completes the **§5.1 v1 markdown feature set** + the settings system. Ever
 
 ## What's left
 
-Everything through **M5 is shipped and merged**. What's actually in flight or immediately next:
+**M5 is now complete** (the S7 header toggle shipped), so everything through **M5 is done**. What's
+next:
 
 | Item | REQ | State |
 |------|-----|-------|
-| Toggle the table header row on/off | REQ-TBLED-2 | 🔜 next (M5 **S7** — the one unshipped M5 slice) |
-| OneDrive live wiring (a connect orchestration + UI entry, mirroring `gdrive-connect.ts`) | REQ-CLOUD-2 | ⬜ backend + unit tests done; **not live-wired** |
+| OneDrive live wiring (a connect orchestration + UI entry, mirroring `gdrive-connect.ts`) | REQ-CLOUD-2 | 🔜 next — backend + unit tests done; **not live-wired** |
 | **M6 — Android** (next full milestone) | REQ-MOBILE-* | ⬜ planned |
 
 _Parked (specced-lite, unscheduled):_ keyboard entry into the inline table-cell editor; Google Docs →
@@ -86,13 +86,13 @@ Pulled ahead of table editing on 2026-06-27. **Shipped 2026-06-28 (S1–S6,
 | REQ-RENDER-9 | **Syntax mode:** block markers (heading `#`/`##`…, blockquote `>`) hang in the LEFT margin as an overhanging indent, right-aligned to the content margin, so text stays flush (the §4.1 deferred refinement) | §4.1 |
 
 ### M5 — Rich table editing ✅  (SPEC §7.4)
-Absorbs the M2 table deferrals. On-disk stays portable GFM pipe tables. **Shipped S1–S6 (PR #4,
-[m5-plan.md](archive/m5-plan.md)); S7 (REQ-TBLED-2, toggle header) is the one remaining slice — see
-[What's left](#whats-left).** Reachable via a right-click menu, hover gizmos, and keybindings.
+Absorbs the M2 table deferrals. On-disk stays portable GFM pipe tables. **Complete: S1–S6 (PR #4,
+[m5-plan.md](archive/m5-plan.md)) + S7 (header toggle).** Reachable via a right-click menu, hover
+gizmos, and keybindings.
 | REQ | Requirement | SPEC | Status |
 |-----|-------------|------|--------|
 | REQ-TBLED-1 | Insert an N×M table from scratch (grid picker / command, not hand-typed) | §7.4 | ✅ S6 |
-| REQ-TBLED-2 | Toggle the header row on/off | §7.4 | 🔜 S7 (only unshipped slice) |
+| REQ-TBLED-2 | Toggle the header row on/off (lossless: demote header↔promote row) | §7.4 | ✅ S7 |
 | REQ-TBLED-3 | Insert/delete rows & columns at any position (before/after/between) | §7.4 | ✅ S3 |
 | REQ-TBLED-4 | Drag to reorder columns/rows | §7.4 | ✅ S5 |
 | REQ-TBLED-5 | Cursor-context shortcuts (move/insert/delete current row/col) | §7.4 | ✅ S3 |

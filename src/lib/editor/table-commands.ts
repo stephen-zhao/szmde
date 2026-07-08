@@ -10,6 +10,7 @@ import {
   deleteCol,
   moveRow,
   moveCol,
+  toggleHeader,
   makeTable,
   type TableModel,
 } from "./table-model";
@@ -113,6 +114,32 @@ export const tidyTable: StateCommand = ({ state, dispatch }) => {
   dispatch(
     state.update({
       changes: { from: tbl.from, to: tbl.to, insert: tidied },
+      userEvent: "input",
+    }),
+  );
+  return true;
+};
+
+/**
+ * Toggle the header row of the table at the caret on/off (REQ-TBLED-2, M5 S7). A
+ * populated header is demoted into the first body row (blanked, still valid GFM); a
+ * blank header pulls the first body row up. One whole-table replace; the caret lands in
+ * the first header cell. Returns false (passes the key through) outside a table or on a
+ * no-op (a blank header with no body row to promote).
+ */
+export const toggleTableHeader: StateCommand = ({ state, dispatch }) => {
+  const tbl = tableBlockAt(state, state.selection.main.head);
+  if (!tbl) return false;
+  const m = parseTable(state.doc.sliceString(tbl.from, tbl.to), tbl.from);
+  const m2 = toggleHeader(m);
+  if (m2 === m) return false; // no-op (blank header, no body row)
+  const insert = serialize(m2);
+  const reparsed = parseTable(insert, tbl.from);
+  dispatch(
+    state.update({
+      changes: { from: tbl.from, to: tbl.to, insert },
+      selection: EditorSelection.cursor(cellOffset(reparsed, -1, 0)), // first header cell
+      scrollIntoView: true,
       userEvent: "input",
     }),
   );
