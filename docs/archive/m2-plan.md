@@ -3,7 +3,7 @@
 > **📦 Archived — historical planning artifact.** This milestone has shipped; the plan below is
 > preserved as **provenance** (why the code is shaped the way it is), **not** current-state tracking.
 > For current status see [roadmap.md](../roadmap.md) · [requirements.md](../requirements.md) ·
-> [bugs.md](../bugs.md); per-doc "what changed since" notes are in [this folder's README](README.md).
+> [bugs.md](../bugs.md).
 
 _Implementation plan for milestone **M2** (see [SPEC.md](../../SPEC.md) §10 "M2" for the
 milestone definition and §5.1 / §8 for the behavior). SPEC.md is the "what"; this doc is

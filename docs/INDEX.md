@@ -33,17 +33,9 @@ was under-specified. Each round's classification is recorded in a triage doc.
 
 ## Archive (historical — completed-milestone plans)
 
-Per-milestone build plans for shipped milestones live in [archive/](archive/) — kept as provenance,
-**not** current-state tracking (see [archive/README.md](archive/README.md)):
-
-| Doc | Purpose |
-|-----|---------|
-| [archive/m1-plan.md](archive/m1-plan.md) | M1 (core WYSIWYG) architecture + slices |
-| [archive/m2-plan.md](archive/m2-plan.md) | M2 (remaining v1 blocks + settings) architecture + slices |
-| [archive/m3-plan.md](archive/m3-plan.md) | M3 (cloud storage) architecture + slices + live-wiring tail |
-| [archive/m4-plan.md](archive/m4-plan.md) | M4 (authoring essentials) architecture + slices |
-| [archive/m5-plan.md](archive/m5-plan.md) | M5 (rich table editing) architecture + slices |
-| [archive/m4-feedback-triage.md](archive/m4-feedback-triage.md) | M4 review feedback, each comment classified bug-vs-requirement |
+Per-milestone build plans (`m<N>-plan.md`) for shipped milestones live in [archive/](archive/) —
+kept as provenance, **not** current-state tracking. See [archive/README.md](archive/README.md); the
+folder listing itself is the index.
 
 ## Conventions
 
