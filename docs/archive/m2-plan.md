@@ -1,6 +1,11 @@
 # M2 — Remaining v1 blocks + settings (implementation plan)
 
-_Implementation plan for milestone **M2** (see [SPEC.md](../SPEC.md) §10 "M2" for the
+> **📦 Archived — historical planning artifact.** This milestone has shipped; the plan below is
+> preserved as **provenance** (why the code is shaped the way it is), **not** current-state tracking.
+> For current status see [roadmap.md](../roadmap.md) · [requirements.md](../requirements.md) ·
+> [bugs.md](../bugs.md).
+
+_Implementation plan for milestone **M2** (see [SPEC.md](../../SPEC.md) §10 "M2" for the
 milestone definition and §5.1 / §8 for the behavior). SPEC.md is the "what"; this doc is
 the "how" — the architecture and the staged `S1…S7` build slices. Same shape as
 [m1-plan.md](m1-plan.md)._
@@ -107,7 +112,7 @@ TDD, one commit each.
 ## Staged build sequence
 
 > Each slice: **failing test(s) first** (TDD, T4), then implementation, then `npm run test`
-> + `npm run check` green, update [requirements.md](requirements.md) with the new `REQ-*`
+> + `npm run check` green, update [requirements.md](../requirements.md) with the new `REQ-*`
 > IDs and tag the tests, then commit. Visual-verify checkpoint with the user between slices.
 
 ### S1 — Horizontal rule ✅  (`REQ-HR-1`)

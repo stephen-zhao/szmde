@@ -122,16 +122,24 @@ body line so the label renders).
   `[` of `[!WARNING]`.
 **Notes:** the rendered name maps 1:1 onto the source name after `[!`.
 
-### WF-3 · Table cell click → caret in that cell · `REQ-TABLE-2`
-**Bug:** "table only editable by gliding the caret in; click does nothing."
-**Setup:** `__T.setDoc("intro\n\n| a | b |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |")`
+### WF-3 · Table cell click → inline cell editor (table stays rendered) · `REQ-TBLED-7`
+**Behavior (M5):** a rendered table is **atomic**; clicking a cell opens an inline
+`<textarea>` over just that cell — the table does **not** un-render. Enter/Tab commit +
+move (down/next), Esc cancels, blur commits. Raw pipe source shows in **Source mode** only.
+**Setup:** `__T.setDoc("intro\n\n| a | b |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |")` (Formatted mode)
 **Steps:**
 - Click the body cell containing `2`: `__T.click("table.cm-md-table tbody td", 0.5, 0.5, 1)`
-  → Expected: source revealed (`count("table.cm-md-table")===0`) and the caret is
-  inside that cell's source (`caret().char === "2"`).
-**Notes / deferred (SPEC §7.4):** up/down arrows skipping the whole table, and
-exact char offset inside *markdown-formatted* cells, are out of scope until the
-rich table-editing milestone — do not fail this workflow for them.
+  → Expected: the table **stays rendered** (`count("table.cm-md-table") === 1`) and a cell
+  editor textarea appears over that cell (`count("textarea.cm-md-cell-editor") === 1`), seeded
+  with the cell's source (`2`).
+- Type `20`, press Enter → Expected: the editor commits and moves down; `doc()` now has `20`
+  in that cell and the table re-renders as valid GFM. A typed `|` / newline is sanitized so the
+  table can't break.
+- Reset; put the caret before the table and press ↓/→ → Expected: the caret **skips past** the
+  whole rendered table (atomic), landing after it — it does not enter cell-by-cell.
+**Notes:** this supersedes the old "click reveals raw pipes / caret lands at the clicked char /
+arrows enter the table" design. REQ-TABLE-2 (render + Source-mode literal pipes) is covered
+structurally by `table.dom.test.ts`, not here.
 
 ### WF-4 · Ordered-list nesting via Tab → depth styling · `REQ-NEST-1`
 **Bug:** "ordered nesting doesn't work — everything stays decimal, numbering
@@ -248,22 +256,29 @@ on-disk revision changes; make an edit in szmde so it's dirty; press Ctrl+S.
 but the live OAuth handshake, real network, and Drive's actual ETag/If-Match
 semantics can only be exercised end-to-end. **Needs the Tauri dev app + a Google
 OAuth client ([m3-cloud-setup.md](m3-cloud-setup.md)).**
-**Setup:** connect a Google account (hamburger → Storage accounts → Google Drive);
-have a `.md` file in that Drive.
+**Status:** ✅ **live** — the open→edit→save round-trip is user-verified (2026-07).
+**Setup:** connect Google Drive (hamburger → Storage → **Connect Google Drive…**), approve consent
+in the browser; then **Open from Google Drive…** and paste a Drive link or file ID for a `.md` file.
+Uses the **full `drive` scope** — needed to open pre-existing files (`drive.file` would 404); the
+consent screen shows an unverified-app warning until verified, so add yourself as a test user (see
+[m3-cloud-setup.md](m3-cloud-setup.md)).
 **Steps:**
 - Open the Drive file → Expected: its content loads; editing + Ctrl+S writes back
   (verify the change in Drive's web UI).
 - Change the file in Drive's web UI, then save again in szmde → Expected: the
   conflict modal (WF-15) appears (If-Match precondition failed → conflict).
-- Disconnect network mid-save → Expected: the write is queued offline (WF, S4
-  REQ-SAVE-3) and flushes on reconnect; no data loss.
+- Disconnect network mid-save → Expected: the write is queued offline (REQ-SAVE-3,
+  M3 S4) and flushes on reconnect; no data loss.
 - Let the access token expire (or revoke it) → Expected: a transparent refresh, or
   a re-auth prompt if the refresh token is gone (no silent failure).
 
-### WF-18 · OneDrive open/save round-trip · `REQ-CLOUD-2`
-**Why:** same rationale as WF-17, against Microsoft Graph. **Needs the Tauri dev
+### WF-18 · OneDrive open/save round-trip · `REQ-CLOUD-2` — ⛔ BLOCKED (not yet runnable)
+**Blocked:** OneDrive is **backend-only** (`onedrive.ts` + unit tests). There is no
+`onedrive-connect` orchestration and no "Connect OneDrive" UI entry yet, so there is nothing to
+drive live. Un-block when the OneDrive live wiring lands (mirror `gdrive-connect.ts`).
+**Why (once unblocked):** same rationale as WF-17, against Microsoft Graph. **Needs the Tauri dev
 app + an Azure app registration ([m3-cloud-setup.md](m3-cloud-setup.md)).**
-**Setup:** connect a Microsoft account (hamburger → Storage accounts → OneDrive);
+**Setup:** connect a Microsoft account (hamburger → Storage → Connect OneDrive…);
 have a `.md` file in that OneDrive.
 **Steps:** mirror WF-17 — open loads content; Ctrl+S writes back (verify in
 OneDrive web); an out-of-band change → conflict modal on next save; offline →
@@ -413,7 +428,8 @@ save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.
 |-----|---------------------------------|--------------------------|
 | REQ-HR-1 | structure (`hr.dom.test.ts`) | WF-1 (click→end) |
 | REQ-ALERT-2 | structure (`alerts.dom.test.ts`) | WF-2 (click→char) |
-| REQ-TABLE-2 | structure (`table.dom.test.ts`) | WF-3 (cell click) |
+| REQ-TABLE-2 | structure (`table.dom.test.ts`) | — (render + Source-mode literal pipes; structural only) |
+| REQ-TBLED-7 | structure (`table-cell-editor.dom.test.ts`, `table.dom.test.ts`) | WF-3 (inline cell editor; table stays rendered, atomic-skip) |
 | REQ-NEST-1 | structure (`nested.dom.test.ts`) | WF-4 (Tab nest + styling) |
 | REQ-LIST-3 | doc model (`editing.test.ts`) | WF-5 (task Enter) |
 | REQ-TASK-2 | doc model (`tasklist.dom.test.ts`) | WF-6 (toggle) |
@@ -426,8 +442,8 @@ save wiring and the settings seed are `.svelte` glue. **Needs the Tauri dev app.
 | REQ-PERF-1 | — (gap) | WF-14 (lag) |
 | REQ-SAVE-1 | logic (`storage/local.test.ts`, `storage/conflict.test.ts`, cargo) | WF-15 (conflict modal) |
 | REQ-SAVE-2 | logic (`storage/autosave.test.ts`) | WF-16 (autosave fires) |
-| REQ-CLOUD-1 | logic (`storage/gdrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-17 (Drive round-trip) |
-| REQ-CLOUD-2 | logic (`storage/onedrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-18 (OneDrive round-trip) |
+| REQ-CLOUD-1 | logic (`storage/gdrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-17 (Drive round-trip — ✅ live, verified) |
+| REQ-CLOUD-2 | logic (`storage/onedrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-18 (OneDrive round-trip — ⛔ blocked, backend-only) |
 | REQ-COUNT-1 | logic (`editor/count.test.ts`) | WF-19 (chip live/off-by-default) |
 | REQ-FR-1 | structure (`editor/search.dom.test.ts`) | WF-20 (find panel) |
 | REQ-FR-2 | unit+structure (`editor/replace-groups.test.ts`, `search-replace.dom.test.ts`) | WF-20 (`\1` capture group) |

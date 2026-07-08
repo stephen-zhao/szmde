@@ -1,7 +1,12 @@
 # M3 — Cloud storage (implementation plan)
 
-_Implementation plan for milestone **M3** (see [roadmap.md](roadmap.md) "M3" for the
-requirement slotting and [SPEC.md](../SPEC.md) §6 / §8 for the behavior). SPEC.md is the
+> **📦 Archived — historical planning artifact.** This milestone has shipped; the plan below is
+> preserved as **provenance** (why the code is shaped the way it is), **not** current-state tracking.
+> For current status see [roadmap.md](../roadmap.md) · [requirements.md](../requirements.md) ·
+> [bugs.md](../bugs.md).
+
+_Implementation plan for milestone **M3** (see [roadmap.md](../roadmap.md) "M3" for the
+requirement slotting and [SPEC.md](../../SPEC.md) §6 / §8 for the behavior). SPEC.md is the
 "what"; this doc is the "how" — the architecture and the staged `S1…S8` build slices. Same
 shape as [m1-plan.md](m1-plan.md) / [m2-plan.md](m2-plan.md)._
 
@@ -51,15 +56,15 @@ that line, exactly mirroring how `REQ-CLI-3` (`wsl_to_unc` shells to `wsl.exe`) 
 - **Live integration tail (tracked as gaps + LLM workflows, needs the user):** real OAuth
   client IDs in config; the actual redirect/loopback capture in the Tauri shell; the Rust
   Credential-Manager / Keychain / Keystore command; and real network round-trips. These get
-  catalogued in [requirements.md](requirements.md) "no automated test" + a workflow in
-  [llm-workflow-tests.md](llm-workflow-tests.md), not faked into the unit gate.
+  catalogued in [requirements.md](../requirements.md) "no automated test" + a workflow in
+  [llm-workflow-tests.md](../llm-workflow-tests.md), not faked into the unit gate.
 
 > **User action with lead time:** S7/S8 live wiring needs an OAuth **client ID** for each
 > service (Google Cloud Console → OAuth 2.0 Client; Azure Portal → App registration, Graph
 > `Files.ReadWrite` scope), each configured with a desktop **loopback redirect**
 > (`http://127.0.0.1:<port>`). Claude cannot create these. They are only needed when S7/S8
 > live wiring lands — S1–S6 do not block on them, so registration can proceed in parallel.
-> **Step-by-step walkthrough: [m3-cloud-setup.md](m3-cloud-setup.md).**
+> **Step-by-step walkthrough: [m3-cloud-setup.md](../m3-cloud-setup.md).**
 
 ## Architecture (the seam the whole milestone hangs on)
 
@@ -118,9 +123,9 @@ changes; this is service + shell-wiring work. Viewport/decoration layers are unt
 ## Staged build sequence
 
 > Each slice: **failing test(s) first** (TDD, T4), then implementation, then `npm run test` +
-> `npm run check` green, update [requirements.md](requirements.md) with the new `REQ-*` IDs and
+> `npm run check` green, update [requirements.md](../requirements.md) with the new `REQ-*` IDs and
 > tag the tests, then commit. Live-behavior aspects (real OAuth/network/secure-store) get a
-> workflow in [llm-workflow-tests.md](llm-workflow-tests.md), not a unit test.
+> workflow in [llm-workflow-tests.md](../llm-workflow-tests.md), not a unit test.
 
 ### S1 — `StorageProvider` seam + `LocalProvider` refactor ✅  _(seam; no behavior change)_
 Define `provider.ts` (interface + types + `StorageError`). Add `local.ts` (`LocalProvider`
@@ -203,7 +208,7 @@ helpers factored out of S7 so the two backends differ only in endpoints/auth.
 
 S1–S8 leave the storage logic fully built + unit-tested; these slices connect it to the OS
 and the live cloud. They are integration-level (Rust + OS APIs + UI), so most are verified by
-the WF-15…18 workflows + the user's OAuth registration ([m3-cloud-setup.md](m3-cloud-setup.md))
+the WF-15…18 workflows + the user's OAuth registration ([m3-cloud-setup.md](../m3-cloud-setup.md))
 rather than the unit gate.
 
 ### L1 — Secure store (OS keyring) ✅  (`REQ-SEC-1` live)

@@ -255,7 +255,7 @@ Notes:
 
 ---
 
-## Checklist — values to have ready before S7/S8
+## Checklist — values to have ready before connecting
 
 By the end of this walkthrough you should have collected:
 
@@ -267,5 +267,7 @@ By the end of this walkthrough you should have collected:
 - [ ] **Tenant choice** — plan to use **`common`** (multitenant + personal accounts). Keep
       the **Directory (tenant) ID** GUID on hand for reference.
 
-Keep all of these out of git, and out of `user.json`. They'll be wired in during the M3
-live-wiring slice (S7/S8).
+Keep all of these out of git, and out of `user.json`. The **Google** values are wired in and
+**live now** (M3 L2 — Connect Google Drive works end-to-end). The **Microsoft** values are collected
+in advance for OneDrive, whose live wiring is **not built yet** (the OneDrive backend exists, but
+there's no connect flow / UI entry).

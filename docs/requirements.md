@@ -75,8 +75,8 @@ missing. Requirements with no automated test are tracked explicitly in the gaps 
 | REQ-SAVE-2 | Autosave: a debounced scheduler saves after a quiet interval, coalescing bursts; honors `editor.autosave` / `autosaveIntervalMs`; disabling cancels pending; `flush()` forces a save; a failed save doesn't wedge later ones | §8 | unit | `storage/autosave.test.ts` (live wiring → WF-16) |
 | REQ-SAVE-3 | Offline draft cache + write queue: a write that fails `offline` is stashed (coalesced per file) and replayed in order on reconnect; a non-offline failure drops from the queue; drafts persist across restarts via a `DraftStore` seam | §6 | unit | `storage/offline.test.ts` (shell activation + a live-offline workflow land with a cloud backend, S7) |
 | REQ-SEC-1 | OAuth tokens in a `SecureStore` seam (never in user.json): token model serialize/parse (corrupt→re-auth, never throws), early-refresh `isExpired` with skew, account-keyed save/load/clear; desktop impl over the OS credential store (Windows Credential Manager / macOS Keychain) via the `keyring` crate | §6 | unit + unit (Rust) | `storage/secure-store.test.ts`, `storage/tauri-secure-store.test.ts`, `src-tauri/src/lib.rs` (`secure_*` round-trip) |
-| REQ-CLOUD-1 | Google Drive backend over the StorageProvider seam (OAuth + Drive REST): read media+etag, write with `If-Match` optimistic concurrency, stat; HTTP→error mapping (412⇒conflict, 401/403⇒auth, 404⇒not-found, network⇒offline) | §6 | unit | `storage/gdrive.test.ts`, `storage/cloud-http.test.ts`, `storage/oauth.test.ts` (live OAuth + network + Drive ETag semantics → WF-17) |
-| REQ-CLOUD-2 | OneDrive backend over the StorageProvider seam (OAuth + Microsoft Graph): Graph item content read/write (PUT) with `If-Match`, stat; same shared error mapping as Drive | §6 | unit | `storage/onedrive.test.ts`, `storage/cloud-http.test.ts`, `storage/oauth.test.ts` (live OAuth + network + Graph ETag semantics → WF-18) |
+| REQ-CLOUD-1 | Google Drive backend over the StorageProvider seam (OAuth + Drive REST): read media+etag, write with `If-Match` optimistic concurrency, stat; HTTP→error mapping (412⇒conflict, 401/403⇒auth, 404⇒not-found, network⇒offline) | §6 | unit | `storage/gdrive.test.ts`, `storage/cloud-http.test.ts`, `storage/oauth.test.ts` (**live-wired** with the full `drive` scope, open→edit→save round-trip user-verified → WF-17) |
+| REQ-CLOUD-2 | OneDrive backend over the StorageProvider seam (OAuth + Microsoft Graph): Graph item content read/write (PUT) with `If-Match`, stat; same shared error mapping as Drive | §6 | unit | `storage/onedrive.test.ts`, `storage/cloud-http.test.ts`, `storage/oauth.test.ts` (**backend + unit tests only** — live wiring, i.e. an `onedrive-connect` orchestration + UI entry mirroring `gdrive-connect.ts`, is not built yet, so WF-18 isn't runnable) |
 | REQ-COUNT-1 | Live word/character count of the raw buffer (render-mode independent): code-point chars excluding line breaks; Unicode word runs (apostrophes/hyphens within a word). Shown as an off-by-default read-only status chip (`appearance.showWordCount`) | §7.1/§5.4 | unit | `editor/count.test.ts` (the status-chip wiring + no-lag is `.svelte`/live → WF-19) |
 | REQ-FR-1 | Find & replace (incl. regex / case / whole-word) via `@codemirror/search`: themed top panel, literal-by-default, `Mod-f`; matches run on the raw doc and a match selected on a hidden Clean-mode marker line reveals it | §5.4 | integration (DOM) | `editor/search.dom.test.ts` (live panel UX/theme → WF-20) |
 | REQ-EMOJI-1 | Emoji shortcodes `:code:` render as a glyph in Clean mode (literal kept on disk, reveal-on-cursor, atomic); unknown / inline-code / fenced / URL stay literal; Source/Syntax keep literal; gated by `markdown.emoji` | §5.4 | unit + integration (DOM) | `editor/emoji.test.ts`, `editor/emoji.dom.test.ts` (live glyph render → WF-21) |
@@ -101,13 +101,14 @@ missing. Requirements with no automated test are tracked explicitly in the gaps 
 | REQ-FR-3 | Find/replace panel text + inputs legible and uniformly sized | §5.4 | Pure CSS sizing — happy-dom has no layout; covered by **WF-20**. |
 | REQ-ZOOM-4 | Page-width range accounts for all three columns (REQ-RENDER-12) — chevron + marker gutter reserved inside `--reading-width` (border-box), so the window-width max keeps every column on-screen (the old negative-margin chevron clipped when maxed) | §7.3 | Pure layout (border-box padding) — happy-dom has no layout; covered by **WF-24**. |
 | REQ-CLI-3 | `wsl_to_unc` translates a WSL path to a UNC path | §6.1 | Shells out to `wsl.exe` → integration, not a unit; needs WSL present. |
-| REQ-FS-1 | Open/save via local FS, Google Drive, OneDrive, network storage | §6 | Cloud/network backends not yet implemented (post-v1). |
+| REQ-FS-1 | Open/save via local FS, Google Drive, OneDrive, network storage | §6 | Local FS + **Google Drive live** (REQ-CLOUD-1, WF-17); OneDrive backend exists but is **not yet live-wired** (REQ-CLOUD-2, WF-18 blocked); SMB/WebDAV network storage is post-v1 (M7). |
 
 **Live-behavior layer.** The Vitest/cargo tests above cover document model + decoration structure,
 not real layout/click/caret/visual behavior. Those are covered by the LLM-driven workflow suite in
-[llm-workflow-tests.md](llm-workflow-tests.md) (WF-1…WF-14), each linked back to a `REQ-*` and the bug
-that motivated it. Run it before releases and after editor-interaction changes (it is **not** part of
-the CI `npm run test`/`test:trace` gate — it needs an LLM agent + a live WebView).
+[llm-workflow-tests.md](llm-workflow-tests.md) (WF-1…WF-26 and growing), each linked back to a `REQ-*`
+and the bug that motivated it. Run it before releases and after editor-interaction changes (it is
+**not** part of the CI `npm run test`/`test:trace` gate — it needs an LLM agent + a live WebView).
 
-_Future requirements (tables editing §7.4, Alt-hints §7.5, tabs/panes §7.2, zoom §7.3, and the
-rest of §5.4) enter this table with linked tests as they're built._
+_Future requirements (Alt-hints §7.5, tabs/panes §7.2, and the rest of the §5.4 backlog) enter this
+table with linked tests as they're built. The one outstanding table slice is REQ-TBLED-2 (M5 S7,
+toggle header)._

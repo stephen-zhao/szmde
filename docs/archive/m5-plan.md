@@ -1,7 +1,12 @@
 # M5 — Rich table editing (implementation plan)
 
-_Implementation plan for milestone **M5** (see [roadmap.md](roadmap.md) "M5" for the
-requirement slotting and [SPEC.md](../SPEC.md) §7.4 / §5.1 for the behavior). SPEC.md is the
+> **📦 Archived — historical planning artifact.** This milestone has shipped; the plan below is
+> preserved as **provenance** (why the code is shaped the way it is), **not** current-state tracking.
+> For current status see [roadmap.md](../roadmap.md) · [requirements.md](../requirements.md) ·
+> [bugs.md](../bugs.md).
+
+_Implementation plan for milestone **M5** (see [roadmap.md](../roadmap.md) "M5" for the
+requirement slotting and [SPEC.md](../../SPEC.md) §7.4 / §5.1 for the behavior). SPEC.md is the
 "what"; this doc is the "how" — architecture + staged `S1…S7` slices. Same shape as
 [m4-plan.md](m4-plan.md). Grounded by a 5-agent parallel design scout + empirical lezer parse
 probes (2026-06-29)._
@@ -85,7 +90,7 @@ toolbar/picker glue.
 ## Staged build sequence
 
 > Each slice: **failing test(s) first** (TDD, T4), then implementation, `npm run test` +
-> `npm run check` green, update [requirements.md](requirements.md) with the `REQ-TBLED-*` rows and
+> `npm run check` green, update [requirements.md](../requirements.md) with the `REQ-TBLED-*` rows and
 > tag tests `[REQ-TBLED-n]`, add the WF-* entry for any live aspect BEFORE the fix, then commit.
 > Run an adversarial ("ultracode") review over the substantial slices (S1, S3).
 
