@@ -23,6 +23,15 @@ describe("[REQ-CLOUD-1][REQ-CLOUD-2] cloud-http", () => {
     });
   });
 
+  it("cloudRequest includes the status + provider error body in the message", async () => {
+    const fetch: AuthedFetch = async () =>
+      new Response('{"error":{"code":404,"message":"File not found: abc"}}', { status: 404 });
+    const call = () => cloudRequest(fetch, "https://api/files/abc?alt=media");
+    await expect(call()).rejects.toBeInstanceOf(StorageError);
+    await expect(call()).rejects.toThrow(/→ 404/);
+    await expect(call()).rejects.toThrow(/File not found: abc/); // Drive's real reason surfaced
+  });
+
   it("cloudRequest maps a thrown fetch (no network) to offline", async () => {
     const fetch: AuthedFetch = async () => {
       throw new Error("ECONNREFUSED");
