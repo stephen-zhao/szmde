@@ -314,6 +314,10 @@ Cross-cutting concerns:
 - **Autosave + local draft cache** so a dropped network connection never loses work.
 - **OAuth tokens** stored in the OS secure store (Keychain / Credential Manager /
   Android Keystore); refresh handled in the native layer.
+- **Least-privilege cloud access (Google Drive):** use the non-sensitive `drive.file` scope and open
+  pre-existing files via Google's **system-browser Picker** (`trigger_onepick`), so szmde needs neither
+  the restricted full-`drive` scope nor Google's restricted-scope verification (REQ-CLOUD-3 —
+  [docs/gdrive-picker-plan.md](docs/gdrive-picker-plan.md)).
 - **Offline:** local cache of recently opened cloud files; queue writes until reconnect.
 
 > **Decision:** both **SMB/CIFS and WebDAV ship in v1**. SMB is the lead use case
