@@ -30,6 +30,8 @@ was under-specified. Each round's classification is recorded in a triage doc.
 | [ci-cd.md](ci-cd.md) | GitHub Actions CI gate + tag-triggered Windows release; the branch/PR workflow |
 | [llm-workflow-tests.md](llm-workflow-tests.md) | Live-behavior test scripts (`WF-*`) for things happy-dom can't cover, each linked to a `REQ-*` |
 | [m3-cloud-setup.md](m3-cloud-setup.md) | Human steps to register the Google/Azure OAuth apps (Google Drive is live; OneDrive pending) |
+| [gdrive-picker-plan.md](gdrive-picker-plan.md) | Design + staged plan for the least-privilege Google Drive picker (REQ-CLOUD-3, next-up) |
+| [gdrive-picker-s1-runbook.md](gdrive-picker-s1-runbook.md) | S1 spike runbook — resolve the picker `redirect_uri` crux (Cloud Console + a Node spike script) |
 
 ## Archive (historical — completed-milestone plans)
 
