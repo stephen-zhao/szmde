@@ -7,6 +7,7 @@ import {
   moveRow,
   moveCol,
   setColAlign,
+  toggleHeader,
   type Align,
   type TableModel,
 } from "./table-model";
@@ -94,6 +95,10 @@ export function showTableMenu(
   item("Align center", setA("center"));
   item("Align right", setA("right"));
   item("Align clear", setA(null));
+  sep();
+  // Toggle the header row on/off (REQ-TBLED-2): a populated header demotes into the
+  // first body row (blanked); a blank header promotes the first body row up.
+  item("Toggle header row", (md) => toggleHeader(md));
 
   menu.style.left = `${x}px`;
   menu.style.top = `${y}px`;

@@ -26,12 +26,13 @@ This completes the **§5.1 v1 markdown feature set** + the settings system. Ever
 
 ## What's left
 
-Everything through **M5 is shipped and merged**. What's actually in flight or immediately next:
+**M5 is now complete** (the S7 header toggle shipped), so everything through **M5 is done**. What's
+next:
 
 | Item | REQ | State |
 |------|-----|-------|
-| Toggle the table header row on/off | REQ-TBLED-2 | 🔜 next (M5 **S7** — the one unshipped M5 slice) |
-| OneDrive live wiring (a connect orchestration + UI entry, mirroring `gdrive-connect.ts`) | REQ-CLOUD-2 | ⬜ backend + unit tests done; **not live-wired** |
+| **Least-privilege Google Drive picker** — open pre-existing files via the system-browser Picker under `drive.file`, dropping the restricted full-`drive` scope + its unverified-app warning | REQ-CLOUD-3 | 🔜 **next** — design in [gdrive-picker-plan.md](gdrive-picker-plan.md) |
+| OneDrive live wiring (connect orchestration + UI, mirroring `gdrive-connect.ts`) | REQ-CLOUD-2 | ⬜ **deferred** (deprioritized 2026-07-11) — backend + unit tests done, not live-wired |
 | **M6 — Android** (next full milestone) | REQ-MOBILE-* | ⬜ planned |
 
 _Parked (specced-lite, unscheduled):_ keyboard entry into the inline table-cell editor; Google Docs →
@@ -86,18 +87,29 @@ Pulled ahead of table editing on 2026-06-27. **Shipped 2026-06-28 (S1–S6,
 | REQ-RENDER-9 | **Syntax mode:** block markers (heading `#`/`##`…, blockquote `>`) hang in the LEFT margin as an overhanging indent, right-aligned to the content margin, so text stays flush (the §4.1 deferred refinement) | §4.1 |
 
 ### M5 — Rich table editing ✅  (SPEC §7.4)
-Absorbs the M2 table deferrals. On-disk stays portable GFM pipe tables. **Shipped S1–S6 (PR #4,
-[m5-plan.md](archive/m5-plan.md)); S7 (REQ-TBLED-2, toggle header) is the one remaining slice — see
-[What's left](#whats-left).** Reachable via a right-click menu, hover gizmos, and keybindings.
+Absorbs the M2 table deferrals. On-disk stays portable GFM pipe tables. **Complete: S1–S6 (PR #4,
+[m5-plan.md](archive/m5-plan.md)) + S7 (header toggle).** Reachable via a right-click menu, hover
+gizmos, and keybindings.
 | REQ | Requirement | SPEC | Status |
 |-----|-------------|------|--------|
 | REQ-TBLED-1 | Insert an N×M table from scratch (grid picker / command, not hand-typed) | §7.4 | ✅ S6 |
-| REQ-TBLED-2 | Toggle the header row on/off | §7.4 | 🔜 S7 (only unshipped slice) |
+| REQ-TBLED-2 | Toggle the header row on/off (lossless: demote header↔promote row) | §7.4 | ✅ S7 |
 | REQ-TBLED-3 | Insert/delete rows & columns at any position (before/after/between) | §7.4 | ✅ S3 |
 | REQ-TBLED-4 | Drag to reorder columns/rows | §7.4 | ✅ S5 |
 | REQ-TBLED-5 | Cursor-context shortcuts (move/insert/delete current row/col) | §7.4 | ✅ S3 |
 | REQ-TBLED-6 | Auto-tidy source + per-column alignment UI (`:--`/`:-:`/`--:`) | §7.4 | ✅ S4 |
 | REQ-TBLED-7 | Edit-in-place: the **table stays rendered** while you edit a cell — a rendered table is atomic (arrows skip past it); clicking a cell opens an **inline editor** (a `<textarea>` over that cell showing its markdown source; Enter/Tab commit + move, Esc cancels, blur commits). Raw pipe source shows in **Source mode** only _(supersedes the earlier "caret lands at the clicked char / arrows enter the table" design)_ | §7.4, §5.1 | ✅ S2 |
+
+### Least-privilege Google Drive picker 🔜  (REQ-CLOUD-3, SPEC §6)
+The current next-up workstream (ahead of the numbered M6+ slots; OneDrive was deprioritized here on
+2026-07-11). Drop the restricted full-`drive` scope for the non-sensitive **`drive.file`** scope and
+open pre-existing files via Google's **system-browser desktop Picker** (`trigger_onepick=true`) over
+the existing OAuth loopback — **no CSP change, no authorized JS origin, no token in page JS**. Full
+design, staged slices (S1–S7), and the one crux to verify first (the picker `redirect_uri` may require
+a public-HTTPS relay to the loopback) live in **[gdrive-picker-plan.md](gdrive-picker-plan.md)**.
+| REQ | Requirement | SPEC |
+|-----|-------------|------|
+| REQ-CLOUD-3 | Open pre-existing Drive files via the system-browser Google Picker (`drive.file` + `trigger_onepick`), replacing the full-`drive` restricted scope + its unverified-app warning | §6 |
 
 ### M6 — Android ⬜  (SPEC §2)
 | REQ | Requirement | SPEC |
