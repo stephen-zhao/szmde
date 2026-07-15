@@ -31,7 +31,8 @@ next:
 
 | Item | REQ | State |
 |------|-----|-------|
-| OneDrive live wiring (a connect orchestration + UI entry, mirroring `gdrive-connect.ts`) | REQ-CLOUD-2 | 🔜 next — backend + unit tests done; **not live-wired** |
+| **Least-privilege Google Drive picker** — open pre-existing files via the system-browser Picker under `drive.file`, dropping the restricted full-`drive` scope + its unverified-app warning | REQ-CLOUD-3 | 🔜 **next** — design in [gdrive-picker-plan.md](gdrive-picker-plan.md) |
+| OneDrive live wiring (connect orchestration + UI, mirroring `gdrive-connect.ts`) | REQ-CLOUD-2 | ⬜ **deferred** (deprioritized 2026-07-11) — backend + unit tests done, not live-wired |
 | **M6 — Android** (next full milestone) | REQ-MOBILE-* | ⬜ planned |
 
 _Parked (specced-lite, unscheduled):_ keyboard entry into the inline table-cell editor; Google Docs →
@@ -98,6 +99,17 @@ gizmos, and keybindings.
 | REQ-TBLED-5 | Cursor-context shortcuts (move/insert/delete current row/col) | §7.4 | ✅ S3 |
 | REQ-TBLED-6 | Auto-tidy source + per-column alignment UI (`:--`/`:-:`/`--:`) | §7.4 | ✅ S4 |
 | REQ-TBLED-7 | Edit-in-place: the **table stays rendered** while you edit a cell — a rendered table is atomic (arrows skip past it); clicking a cell opens an **inline editor** (a `<textarea>` over that cell showing its markdown source; Enter/Tab commit + move, Esc cancels, blur commits). Raw pipe source shows in **Source mode** only _(supersedes the earlier "caret lands at the clicked char / arrows enter the table" design)_ | §7.4, §5.1 | ✅ S2 |
+
+### Least-privilege Google Drive picker 🔜  (REQ-CLOUD-3, SPEC §6)
+The current next-up workstream (ahead of the numbered M6+ slots; OneDrive was deprioritized here on
+2026-07-11). Drop the restricted full-`drive` scope for the non-sensitive **`drive.file`** scope and
+open pre-existing files via Google's **system-browser desktop Picker** (`trigger_onepick=true`) over
+the existing OAuth loopback — **no CSP change, no authorized JS origin, no token in page JS**. Full
+design, staged slices (S1–S7), and the one crux to verify first (the picker `redirect_uri` may require
+a public-HTTPS relay to the loopback) live in **[gdrive-picker-plan.md](gdrive-picker-plan.md)**.
+| REQ | Requirement | SPEC |
+|-----|-------------|------|
+| REQ-CLOUD-3 | Open pre-existing Drive files via the system-browser Google Picker (`drive.file` + `trigger_onepick`), replacing the full-`drive` restricted scope + its unverified-app warning | §6 |
 
 ### M6 — Android ⬜  (SPEC §2)
 | REQ | Requirement | SPEC |
