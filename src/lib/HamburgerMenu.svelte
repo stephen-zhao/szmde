@@ -150,8 +150,9 @@
 <style>
   .menu-root {
     position: fixed;
-    top: 10px;
-    left: 10px;
+    /* clear a notch / status bar on mobile; == 10px on desktop where env() is 0 (M6) */
+    top: max(10px, env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
     z-index: 20;
   }
 
@@ -167,6 +168,7 @@
     background: transparent;
     color: var(--muted);
     cursor: pointer;
+    touch-action: manipulation; /* no 300ms double-tap-zoom delay on touch */
     transition: background 0.15s, color 0.15s;
   }
   .hamburger:hover {
@@ -210,6 +212,7 @@
     font-size: 14px;
     text-align: left;
     cursor: pointer;
+    touch-action: manipulation;
   }
   .dropdown button:hover:not(:disabled) {
     background: var(--bg-hover);
@@ -246,5 +249,31 @@
     margin: 6px 4px;
     border: none;
     border-top: 1px solid var(--border);
+  }
+
+  /* Phone (M6 REQ-MOBILE-2): ≥44px tap targets, a wider menu that can't overflow
+     the screen, and a scrollable dropdown so a tall menu stays reachable. */
+  @media (max-width: 600px) {
+    .hamburger {
+      width: 44px;
+      height: 44px;
+    }
+    .dropdown {
+      top: 48px;
+      min-width: 260px;
+      max-width: calc(100vw - 20px);
+      max-height: calc(100dvh - 96px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    .dropdown button {
+      min-height: 44px;
+      padding: 10px 12px;
+      font-size: 15px;
+    }
+    .section-label {
+      font-size: 12px;
+      padding: 6px 12px 3px;
+    }
   }
 </style>

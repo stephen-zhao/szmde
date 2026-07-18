@@ -607,8 +607,9 @@
 
   .statusbar {
     position: fixed;
-    bottom: 8px;
-    right: 14px;
+    /* clear the home indicator / nav bar on mobile; == the base px on desktop (M6) */
+    bottom: max(8px, env(safe-area-inset-bottom));
+    right: max(14px, env(safe-area-inset-right));
     z-index: 15;
     display: flex;
     align-items: center;
@@ -632,6 +633,7 @@
     color: var(--muted);
     font-size: 12px;
     cursor: pointer;
+    touch-action: manipulation;
   }
   .chip:hover {
     color: var(--text);
@@ -750,5 +752,51 @@
   .modal-actions .btn-danger {
     border-color: transparent;
     color: #ff8b8b;
+  }
+
+  /* Stop pull-to-refresh / scroll-chaining on the editor scroller on touch; a no-op
+     on desktop where there's no page to chain to (M6 REQ-MOBILE-2). */
+  :global(.cm-scroller) {
+    overscroll-behavior: none;
+  }
+
+  /* Phone (M6 REQ-MOBILE-2): keep the bottom status chips on-screen (wrap + inset,
+     truncate a long filename) and make the tappable chips comfortable to touch. The
+     editor column already clings to the window width on narrow screens (REQ-ZOOM-3),
+     so it's full-width here without extra rules. */
+  @media (max-width: 600px) {
+    .statusbar {
+      left: max(8px, env(safe-area-inset-left));
+      max-width: calc(100vw - 16px);
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 5px;
+    }
+    .status-name {
+      max-width: 45vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .chip {
+      min-height: 34px;
+      padding: 6px 12px;
+      display: inline-flex;
+      align-items: center;
+      font-size: 13px;
+    }
+    .chip-menu {
+      max-height: calc(100dvh - 120px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    .chip-menu button {
+      min-height: 44px;
+      padding: 10px 12px;
+      font-size: 14px;
+    }
+    .modal {
+      max-width: calc(100vw - 24px);
+    }
   }
 </style>

@@ -455,6 +455,21 @@ Cloud Console setup ([m3-cloud-setup.md](m3-cloud-setup.md): `drive.file` scope 
   no hang (the loopback surfaces Google's `error=` redirect).
 - Sanity: check `myaccount.google.com/permissions` shows szmde with per-file (not full-Drive) access.
 
+### WF-29 · Responsive shell at phone width · `REQ-MOBILE-2` _(M6 S2 — browser-width; extends on-device in S3)_
+**Why:** the responsive layout is CSS (media queries + `env()` insets) that happy-dom can't evaluate.
+S2 is the layout half of REQ-MOBILE-2 (the soft-keyboard/IME half is WF-30, S3, real device only).
+**Setup:** the szmde dev app / Vite server; a doc with a longish filename + a table.
+**Steps (a narrow browser ≤600px stands in for the phone for the layout checks):**
+- At **375px** width: the hamburger button is **≥44×44**; opening it shows a menu with **≥44px** rows
+  that **scrolls** (doesn't overflow the screen) and can't exceed the viewport width.
+- The bottom status chips **wrap** instead of running off-screen; a long filename **truncates** with an
+  ellipsis; each tappable chip is a comfortable touch target (≥34px tall); the editor column is
+  effectively full-width (it already clings to the window width, REQ-ZOOM-3).
+- Resize to **desktop (≥1280px)**: the layout is **identical to before M6** — hamburger 36×36, compact
+  bottom-right chips, no wrap (the media query and `env()` maxes resolve to the original values).
+- On a **real device** (or with `viewport-fit=cover` emulated): the hamburger clears a notch/status bar
+  and the status bar clears the home indicator (safe-area insets); no horizontal page scroll.
+
 ---
 
 ## Requirement coverage
