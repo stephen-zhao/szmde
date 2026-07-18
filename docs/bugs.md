@@ -13,7 +13,9 @@ Status key: ✅ fixed · 🔧 in progress · ⬜ open.
 
 ## Open / in progress
 
-_None._
+| ID | Title | REQ | Notes |
+|----|-------|-----|-------|
+| BUG-ALERT-ICON-OVERLAP | (Formatted mode) GFM alert/callout boxes (`> [!TIP]`, `> [!WARNING]`, …) render with the **type icon overlapping the label/body text** instead of sitting beside it — the icon and text collide. Reported 2026-07-18. | REQ-ALERT-1 | ⬜ open. Violates REQ-ALERT-1 ("callout boxes with an icon+name label") — a CSS layout defect in the alert widget (likely the icon's absolute/negative positioning vs. the label's left padding). happy-dom has no layout, so this needs a **live WF** (add it red, then fix to green — TDD for interaction, per testing-strategy T3). Check every alert type + that a long wrapping body doesn't slide under the icon. |
 
 ## Known limitations (accepted trade-offs, not scheduled)
 

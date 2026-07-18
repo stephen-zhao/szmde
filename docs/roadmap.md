@@ -143,6 +143,7 @@ _(REQ-ZOOM-1/2 were moved into the authoring slot — now M4 — on 2026-06-27.)
 | REQ-HTML-1 | HTML render mode (the `markdown.renderHtml` extension hook) | §5.2, §8 |
 | REQ-UL-1 | Underline via the `<u>` HTML allowlist (depends on REQ-HTML-1) | §5.3 |
 | REQ-IMG-3 | Desktop local image assets: Tauri `convertFileSrc` + asset-protocol scope + resolve relative to the open file's dir _(M2 follow-up — remote/`data:` work today)_ | §5.1, §6.1 |
+| REQ-CLOUD-4 | **Show a cloud file's human-readable name, not its opaque id.** A Drive file opened via the Picker (REQ-CLOUD-3) currently displays its file *id* as the document name; fetch the Drive `name` metadata (`files.get?fields=name`) on open and use it for the filename chip / window title. Generalize to any cloud backend. _(REQ-CLOUD-3 follow-up — reported 2026-07-18)_ | §6 |
 
 ### Engineering & test infrastructure ⬜
 Not product features, but tracked the same way (no ad-hoc infra work either).
