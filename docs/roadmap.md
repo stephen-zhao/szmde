@@ -33,7 +33,7 @@ next:
 |------|-----|-------|
 | **Least-privilege Google Drive picker** — built (scope → `drive.file`, system-browser Picker, hardened loopback); remaining: the live pick→open→save round-trip in the dev app (**WF-28**, user-run) | REQ-CLOUD-3 | ✅ code + tests (catalogued in [requirements.md](requirements.md)); 🔜 live verify |
 | OneDrive live wiring (connect orchestration + UI, mirroring `gdrive-connect.ts`) | REQ-CLOUD-2 | ⬜ **deferred** (deprioritized 2026-07-11) — backend + unit tests done, not live-wired |
-| **M6 — Android** (next full milestone) | REQ-MOBILE-* | ⬜ planned |
+| **M6 — Android** (current milestone) | REQ-MOBILE-* | 🔜 planning — [m6-plan.md](m6-plan.md) (needs toolchain setup) |
 
 _Parked (specced-lite, unscheduled):_ keyboard entry into the inline table-cell editor; Google Docs →
 markdown export (native Google Docs return `403` on `alt=media`, so only true `.md` / binary Drive
@@ -111,12 +111,17 @@ works (no HTTPS relay — S4 skipped). Design: **[gdrive-picker-plan.md](gdrive-
 |-----|-------------|------|--------|
 | REQ-CLOUD-3 | Open pre-existing Drive files via the system-browser Google Picker (`drive.file` + `trigger_onepick`), replacing the full-`drive` restricted scope + its unverified-app warning | §6 | ✅ (live round-trip → WF-28) |
 
-### M6 — Android ⬜  (SPEC §2)
+### M6 — Android 🔜  (SPEC §2)
+**Planning ([m6-plan.md](m6-plan.md)).** Local-first: boot on an emulator → responsive/touch → soft
+keyboard → SAF file open/save → signed build, then port cloud (Drive sign-in, then the Picker) last.
+Big shift: the desktop `127.0.0.1` OAuth loopback is invalid on Android (Google deprecated it for
+mobile), so Drive moves to a deep-link redirect + a separate Android OAuth client. Needs a real
+toolchain setup (JDK 17, Android SDK/NDK, rustup targets — see the plan).
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
-| REQ-MOBILE-1 | Tauri 2 mobile build (APK) | §2 |
-| REQ-MOBILE-2 | Responsive UI from desktop down to phone widths | §7 |
-| REQ-MOBILE-3 | Storage Access Framework / scoped storage backend | §6 |
+| REQ-MOBILE-1 | Tauri 2 mobile build (APK/AAB) | §2 |
+| REQ-MOBILE-2 | Responsive UI from desktop down to phone widths (touch, soft keyboard, safe-areas) | §7 |
+| REQ-MOBILE-3 | Storage Access Framework / scoped storage backend (`SafProvider` over `content://`) | §6 |
 
 ### M7 — Network storage + polish ⬜  (SPEC §6, §7)
 | REQ | Requirement | SPEC |
