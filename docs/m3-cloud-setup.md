@@ -94,23 +94,34 @@ client and copy its Client ID.
 
 6. **Declare the Drive scope (Data Access).** Go to **Google Auth platform → Data Access**
    and click **Add or remove scopes**. Add:
-   - **`https://www.googleapis.com/auth/drive`** — full read/write access to your Drive.
+   - **`https://www.googleapis.com/auth/drive.file`** — per-file access: files szmde creates
+     plus any file you grant it via the **Google Picker**.
 
-   **Why the broad scope?** szmde opens files by pasted URL/id. The narrower
-   `drive.file` scope only covers files the app *itself* created (or that you pick via the
-   Google Picker), so opening one of your **existing** `.md` files under `drive.file`
-   returns 404. The Google Picker would let us keep `drive.file`, but it isn't reliable in a
-   bundled Tauri app (its origin check rejects the desktop WebView's custom-scheme origin).
-   So szmde uses `drive`. You're granting it to *your own* app, and you can revoke it
-   anytime at [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
+   **Why the narrow scope (REQ-CLOUD-3)?** szmde opens pre-existing files through the
+   system-browser **Google Picker** — the pick itself grants per-file access, so the broad
+   `drive` scope is unnecessary. `drive.file` is **non-sensitive** (not restricted): no
+   security assessment, and **no "unverified app" warning** on the consent screen. You can
+   review/revoke the grant anytime at
+   [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
 
-   > **Gotcha:** In the scope picker, paste `https://www.googleapis.com/auth/drive` into the
-   > **"manually add scopes"** box and click **Add to table**, then confirm it's in the
-   > selected table before saving. `drive` is classified as a **restricted** scope (stricter
-   > than "sensitive"): fully verifying it for a *published* app requires a security
-   > assessment, but while your app stays in **Testing** with you as a test user it works
-   > fine — you just click through the "unverified app → Advanced → Go to szmde" warning on
-   > first consent.
+   > **Gotcha:** In the scope picker, paste `https://www.googleapis.com/auth/drive.file`
+   > into the **"manually add scopes"** box and click **Add to table**, then confirm it's in
+   > the selected table before saving.
+
+   > **Migrating from the earlier full-`drive` setup?** szmde ≤ 2026-07 used the broad
+   > `drive` scope. Narrowing the app's scope does **not** by itself revoke a grant Google
+   > already recorded — the old broad refresh token in your Credential Manager keeps working
+   > (with full-Drive reach) until it's replaced or revoked. To fully migrate:
+   > 1. **Open from Google Drive…** and pick a file — the pick's fresh `drive.file` tokens
+   >    **overwrite** the stored broad tokens locally, and the file you pick is re-granted.
+   > 2. For a clean server-side state, **revoke szmde** at
+   >    [myaccount.google.com/permissions](https://myaccount.google.com/permissions), then
+   >    reconnect (you'll re-consent under `drive.file` only).
+   > 3. Optionally remove the `.../auth/drive` scope from **Data Access** (keep `drive.file`).
+
+6b. **Enable the Google Picker API.** Go to **APIs & Services → Library**, search
+   **"Google Picker API"**, and click **Enable**. (The desktop Picker flow rides the OAuth
+   consent screen, but the API must be enabled on the project.)
 
 7. **Create the OAuth client (Desktop app).** Go to **APIs & Services → Credentials** (or
    **Google Auth platform → Clients**) and click **Create credentials → OAuth client ID**.
@@ -240,10 +251,11 @@ with your real values:
 }
 ```
 
-Then in szmde: **hamburger → Storage → Connect Google Drive…** — your browser opens, you
-approve consent, and the loopback catches the redirect. Open a Drive file via **Open from
-Google Drive…** (paste a Drive link or file ID). Save / autosave / conflict all work as for
-local files.
+Then in szmde: **hamburger → Storage → Open from Google Drive…** — your browser opens the
+**Google Picker** (as part of consent, REQ-CLOUD-3); pick your `.md` file(s) and the loopback
+catches the redirect. The pick doubles as sign-in, so a separate **Connect Google Drive…** is
+optional (it signs in without opening a file). Save / autosave / conflict all work as for
+local files; re-opening an already-picked file needs no re-pick while connected.
 
 Notes:
 - **`gdrive_client.json` is git-ignored** and lives outside the repo (in `%APPDATA%`), so it

@@ -41,12 +41,15 @@ CodeMirror 6 · Svelte 5 / SvelteKit (`adapter-static`) · Tauri 2 · TypeScript
 
 - All I/O goes through the **`StorageProvider` seam** (`src/lib/storage/`); the on-disk artifact stays
   portable GFM for every backend.
-- **Google Drive: LIVE.** Uses the **full `https://www.googleapis.com/auth/drive` scope** — *not*
-  `drive.file`, which only sees app-created files and 404s on a user's pre-existing file (the Google
-  Picker, which would preserve least-privilege, is infeasible in a bundled Tauri WebView because its
-  origin check rejects the custom-scheme origin). OAuth loopback + PKCE; tokens in the Windows
-  Credential Manager (`TauriSecureStore`). Setup: [docs/m3-cloud-setup.md](docs/m3-cloud-setup.md).
-  Connect via **hamburger → Storage → Connect Google Drive…**, open via **Open from Google Drive…**.
+- **Google Drive: LIVE, least-privilege.** Uses the **non-sensitive `drive.file` scope**; pre-existing
+  files are opened via the **system-browser Google Picker** (`trigger_onepick`, REQ-CLOUD-3) — the pick
+  grants per-file access AND doubles as sign-in (its code exchange persists tokens). Nothing
+  Google-related loads in the WebView: **no CSP change, no authorized JS origin, no token in page JS**.
+  Do NOT reintroduce the full `drive` scope (restricted → verification + unverified-app warning) or an
+  in-WebView Picker. OAuth loopback + PKCE, `Host`-header allowlisted (DNS-rebinding defence); tokens in
+  the Windows Credential Manager (`TauriSecureStore`). Setup: [docs/m3-cloud-setup.md](docs/m3-cloud-setup.md);
+  design: [docs/gdrive-picker-plan.md](docs/gdrive-picker-plan.md). Open via **hamburger → Storage →
+  Open from Google Drive…** (launches the Picker).
 - **OneDrive: BACKEND-ONLY** (`onedrive.ts` + unit tests). No `onedrive-connect.ts`, no UI entry, no
   live wiring — do **not** describe it as usable until that lands.
 

@@ -256,12 +256,12 @@ on-disk revision changes; make an edit in szmde so it's dirty; press Ctrl+S.
 but the live OAuth handshake, real network, and Drive's actual ETag/If-Match
 semantics can only be exercised end-to-end. **Needs the Tauri dev app + a Google
 OAuth client ([m3-cloud-setup.md](m3-cloud-setup.md)).**
-**Status:** ✅ **live** — the open→edit→save round-trip is user-verified (2026-07).
-**Setup:** connect Google Drive (hamburger → Storage → **Connect Google Drive…**), approve consent
-in the browser; then **Open from Google Drive…** and paste a Drive link or file ID for a `.md` file.
-Uses the **full `drive` scope** — needed to open pre-existing files (`drive.file` would 404); the
-consent screen shows an unverified-app warning until verified, so add yourself as a test user (see
-[m3-cloud-setup.md](m3-cloud-setup.md)).
+**Status:** ✅ **live** — the open→edit→save round-trip was user-verified (2026-07, then under the
+full scope; the scope has since narrowed to `drive.file` + the Picker — see WF-28, which now owns
+the open-a-file path).
+**Setup:** open a `.md` via the Picker (WF-28) or be already connected with the file granted. Uses
+the **non-sensitive `drive.file` scope** (REQ-CLOUD-3) — per-file access granted by the pick; **no
+unverified-app warning** (see [m3-cloud-setup.md](m3-cloud-setup.md)).
 **Steps:**
 - Open the Drive file → Expected: its content loads; editing + Ctrl+S writes back
   (verify the change in Drive's web UI).
@@ -435,6 +435,26 @@ and the right-click **Toggle header row** item; the rendered table updates in pl
 - Put the caret outside any table and press the chord → Expected: no change (the command returns
   false and passes the key through).
 
+### WF-28 · Google Picker open (least-privilege) · `REQ-CLOUD-3`
+**Why:** the URL build, redirect parsing, Host allowlist, and token exchange are unit-tested; the
+real consent + Picker UI + per-file grant semantics only exist live. **Needs the Tauri dev app + the
+Cloud Console setup ([m3-cloud-setup.md](m3-cloud-setup.md): `drive.file` scope + Picker API enabled).**
+**Setup:** a pre-existing `.md` in your Drive that szmde has never touched; szmde disconnected.
+**Steps:**
+- **hamburger → Storage → Open from Google Drive…** → Expected: the system browser opens ONE tab
+  with consent **and** the Google Picker; the consent screen shows **NO unverified-app /
+  restricted-scope warning** (the whole point of `drive.file`).
+- Pick the `.md` → Expected: the browser tab says signed in / close; szmde loads the file's content
+  (no paste-an-ID modal — it no longer exists).
+- Edit + Ctrl+S → Expected: the change lands in Drive (verify in Drive web) — the per-file grant
+  covers writes.
+- Close and relaunch szmde, **Open from Google Drive…** again and pick the SAME file → Expected: it
+  opens (re-pick re-grants); also verify a **previously-granted** file still reads without a re-pick
+  while tokens live (open risk #4 — grant persistence across sessions).
+- Cancel the consent (close the tab / hit Cancel) → Expected: szmde shows a clean "declined" error,
+  no hang (the loopback surfaces Google's `error=` redirect).
+- Sanity: check `myaccount.google.com/permissions` shows szmde with per-file (not full-Drive) access.
+
 ---
 
 ## Requirement coverage
@@ -460,6 +480,7 @@ and the right-click **Toggle header row** item; the rendered table updates in pl
 | REQ-SAVE-2 | logic (`storage/autosave.test.ts`) | WF-16 (autosave fires) |
 | REQ-CLOUD-1 | logic (`storage/gdrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-17 (Drive round-trip — ✅ live, verified) |
 | REQ-CLOUD-2 | logic (`storage/onedrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-18 (OneDrive round-trip — ⛔ blocked, backend-only) |
+| REQ-CLOUD-3 | logic (`storage/gdrive-connect.test.ts`, Rust `parse_redirect`/`parse_error`/`host_allowed`) | WF-28 (Picker open, no-warning consent, grant persistence) |
 | REQ-COUNT-1 | logic (`editor/count.test.ts`) | WF-19 (chip live/off-by-default) |
 | REQ-FR-1 | structure (`editor/search.dom.test.ts`) | WF-20 (find panel) |
 | REQ-FR-2 | unit+structure (`editor/replace-groups.test.ts`, `search-replace.dom.test.ts`) | WF-20 (`\1` capture group) |

@@ -1,7 +1,9 @@
 /**
  * Parse a Google Drive file id from a pasted share link or a bare id — the
- * open-by-URL/ID MVP for cloud open (REQ-CLOUD-1; the full Drive file browser via
- * `files.list` is a later slice). Recognized shapes:
+ * open-by-URL/ID MVP for cloud open (REQ-CLOUD-1). NOTE: currently UNUSED by the
+ * app — the paste-an-id modal was replaced by the Google Picker (REQ-CLOUD-3),
+ * which is how per-file access is granted under `drive.file`. Kept (tested) for a
+ * future paste-a-link affordance over already-granted files. Recognized shapes:
  *   https://drive.google.com/file/d/<ID>/view      → <ID>
  *   https://docs.google.com/document/d/<ID>/edit    → <ID>
  *   https://drive.google.com/open?id=<ID>           → <ID>

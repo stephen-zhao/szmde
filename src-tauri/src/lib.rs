@@ -188,23 +188,109 @@ fn read_gdrive_config(app: tauri::AppHandle) -> Result<Option<GdriveConfig>, Str
 /// redirect on it).
 struct Loopback(Mutex<Option<std::net::TcpListener>>);
 
-/// Parse the `code` and `state` from a raw loopback HTTP request. Pure →
+/// A parsed OAuth loopback redirect: the auth `code`, the CSRF `state`, and —
+/// for the Google Picker flow (REQ-CLOUD-3, `trigger_onepick`) — the ids of the
+/// files the user picked (`picked_file_ids`, comma-separated as Google sends it;
+/// `None` on a plain sign-in redirect).
+#[derive(Debug, PartialEq, serde::Serialize)]
+struct Redirect {
+    code: String,
+    state: String,
+    #[serde(rename = "pickedFileIds")]
+    picked_file_ids: Option<String>,
+}
+
+/// Parse the redirect params from a raw loopback HTTP request. Pure →
 /// cargo-testable. Expects a request line like `GET /?code=X&state=Y HTTP/1.1`.
-fn parse_redirect(request: &str) -> Option<(String, String)> {
+fn parse_redirect(request: &str) -> Option<Redirect> {
     let target = request.lines().next()?.split_whitespace().nth(1)?; // "/?code=..&state=.."
     let query = target.split_once('?')?.1;
     let mut code = None;
     let mut state = None;
+    let mut picked = None;
     for pair in query.split('&') {
         if let Some((k, v)) = pair.split_once('=') {
             match k {
                 "code" => code = Some(urldecode(v)),
                 "state" => state = Some(urldecode(v)),
+                "picked_file_ids" => picked = Some(urldecode(v)),
                 _ => {}
             }
         }
     }
-    Some((code?, state?))
+    Some(Redirect {
+        code: code?,
+        state: state?,
+        picked_file_ids: picked,
+    })
+}
+
+/// Extract one percent-decoded query param from a raw request's request line.
+/// Pure → cargo-testable.
+fn query_param(request: &str, key: &str) -> Option<String> {
+    let target = request.lines().next()?.split_whitespace().nth(1)?;
+    let query = target.split_once('?')?.1;
+    query.split('&').find_map(|pair| {
+        let (k, v) = pair.split_once('=')?;
+        (k == key).then(|| urldecode(v))
+    })
+}
+
+/// The `error` param of a redirect, if Google sent one (e.g. `access_denied`
+/// when the user cancels the consent/Picker). Pure → cargo-testable.
+fn parse_error(request: &str) -> Option<String> {
+    query_param(request, "error")
+}
+
+/// True iff the request's `Host` header targets the loopback listener itself.
+/// This is the DNS-rebinding defence: a malicious page can point a hostname at
+/// 127.0.0.1, but the browser still sends that hostname in `Host` — so anything
+/// other than `127.0.0.1:<port>` / `localhost:<port>` is rejected (403). A
+/// request with no Host header is rejected too. Pure → cargo-testable.
+fn host_allowed(request: &str, port: u16) -> bool {
+    let host = request.lines().find_map(|l| {
+        let (k, v) = l.split_once(':')?;
+        k.eq_ignore_ascii_case("host").then(|| v.trim())
+    });
+    match host {
+        Some(h) => h == format!("127.0.0.1:{port}") || h == format!("localhost:{port}"),
+        None => false,
+    }
+}
+
+/// What to do with an accepted loopback request. A pure decision (→ cargo-testable),
+/// so the security-critical gating is unit-covered while the socket loop stays thin.
+#[derive(Debug, PartialEq)]
+enum Disposition {
+    /// The genuine, state-matched redirect — serve "signed in" and finish.
+    Redirect(Redirect),
+    /// A state-matched `error=` (user cancelled the consent/Picker) — finish with this reason.
+    Declined(String),
+    /// A stray request (bad Host, foreign/mismatched `state`, or not the redirect) — serve this
+    /// status line and KEEP WAITING. Never aborts the flow.
+    Ignore(&'static str),
+}
+
+/// Decide how to handle one accepted request. The CSRF `state` check lives HERE,
+/// inside the wait loop (REQ-CLOUD-3 adversarial-review hardening): a request that
+/// isn't this listener (`Host`), or that carries an absent/foreign/mismatched
+/// `state`, is IGNORED rather than aborting a real sign-in — so a localhost
+/// port-probe or a forged `error=`/`code=` can't DoS the flow. Only a request whose
+/// `state` equals ours is honored (as the redirect, or as a genuine cancel).
+fn classify_request(request: &str, expected_state: &str, port: u16) -> Disposition {
+    if !host_allowed(request, port) {
+        return Disposition::Ignore("403 Forbidden");
+    }
+    if query_param(request, "state").as_deref() != Some(expected_state) {
+        return Disposition::Ignore("403 Forbidden"); // foreign/forged — not our redirect
+    }
+    if let Some(err) = parse_error(request) {
+        return Disposition::Declined(err);
+    }
+    if let Some(redirect) = parse_redirect(request) {
+        return Disposition::Redirect(redirect);
+    }
+    Disposition::Ignore("404 Not Found")
 }
 
 fn hex_val(b: u8) -> Option<u8> {
@@ -248,39 +334,95 @@ fn urldecode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// Accept exactly one loopback connection (polling with a timeout so an abandoned
-/// consent can't block forever), reply with a close-this-tab page, and return the
-/// parsed (code, state).
-fn capture_one_redirect(listener: std::net::TcpListener) -> Result<(String, String), String> {
-    use std::io::{Read, Write};
-    listener.set_nonblocking(true).map_err(|e| e.to_string())?;
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(180);
+/// One tiny HTTP response for the loopback (status line + html body).
+fn http_response(status: &str, body: &str) -> String {
+    format!(
+        "HTTP/1.1 {}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        status,
+        body.len(),
+        body
+    )
+}
+
+/// Read a full HTTP request (headers) from `stream`: loop reads until the
+/// `\r\n\r\n` header terminator or a 64 KiB cap, so a large `picked_file_ids`
+/// redirect (or one split across TCP segments) isn't truncated into a 403. The
+/// stream's 5 s read timeout bounds a slow/stalled sender. Returns whatever was
+/// read on EOF/cap (the caller classifies it); an I/O error propagates so the
+/// caller can drop the connection and keep waiting. Generic over `Read` → testable.
+fn read_request<R: std::io::Read>(stream: &mut R) -> std::io::Result<String> {
+    let mut buf: Vec<u8> = Vec::new();
+    let mut chunk = [0u8; 4096];
     loop {
-        match listener.accept() {
-            Ok((mut stream, _)) => {
-                stream
-                    .set_read_timeout(Some(std::time::Duration::from_secs(5)))
-                    .ok();
-                let mut buf = [0u8; 4096];
-                let n = stream.read(&mut buf).map_err(|e| e.to_string())?;
-                let req = String::from_utf8_lossy(&buf[..n]);
-                let body = "<!doctype html><meta charset=utf-8><body style=\"font-family:system-ui;padding:2rem\">Signed in — you can close this tab and return to szmde.</body>";
-                let resp = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                    body.len(),
-                    body
-                );
-                let _ = stream.write_all(resp.as_bytes());
-                return parse_redirect(&req)
-                    .ok_or_else(|| "no authorization code in the redirect".to_string());
-            }
+        let n = stream.read(&mut chunk)?;
+        if n == 0 {
+            break; // client closed
+        }
+        buf.extend_from_slice(&chunk[..n]);
+        // A GET redirect has no body; headers end at the first CRLFCRLF.
+        if buf.windows(4).any(|w| w == b"\r\n\r\n") || buf.len() > 64 * 1024 {
+            break;
+        }
+    }
+    Ok(String::from_utf8_lossy(&buf).into_owned())
+}
+
+/// Accept loopback connections until the genuine (state-matched) OAuth redirect
+/// arrives, reply with a close-this-tab page, and return the parsed redirect.
+/// Hardened per the REQ-CLOUD-3 plan + its adversarial review: EVERY stray is
+/// answered and IGNORED (never fatal) — a bad `Host`, a foreign/mismatched
+/// `state`, a non-redirect path, a per-connection read error, or a transient
+/// accept error all `continue` the wait; a state-matched `error=` (user cancelled)
+/// ends it with a clear reason; the `deadline_secs` cap (checked every iteration)
+/// stops an abandoned consent — or continuous stray traffic — blocking forever.
+fn capture_one_redirect(
+    listener: std::net::TcpListener,
+    port: u16,
+    expected_state: &str,
+    deadline_secs: u64,
+) -> Result<Redirect, String> {
+    use std::io::Write;
+    listener.set_nonblocking(true).map_err(|e| e.to_string())?;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(deadline_secs);
+    loop {
+        if std::time::Instant::now() > deadline {
+            return Err("sign-in timed out".to_string());
+        }
+        let (mut stream, _) = match listener.accept() {
+            Ok(conn) => conn,
             Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                if std::time::Instant::now() > deadline {
-                    return Err("sign-in timed out".to_string());
-                }
                 std::thread::sleep(std::time::Duration::from_millis(150));
+                continue;
             }
-            Err(e) => return Err(e.to_string()),
+            // A transient accept error (a peer that RST'd while queued, etc.) must not
+            // kill an in-flight sign-in — drop it and keep waiting (the deadline bounds us).
+            Err(_) => continue,
+        };
+        // On Windows an accepted socket inherits the listener's non-blocking mode,
+        // which would make set_read_timeout inert (immediate WouldBlock); reset it so
+        // the 5 s read timeout actually bounds a slow sender.
+        let _ = stream.set_nonblocking(false);
+        let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(5)));
+        // A per-connection read error is a stray, not a flow-fatal event — drop + continue.
+        let req = match read_request(&mut stream) {
+            Ok(req) => req,
+            Err(_) => continue,
+        };
+        match classify_request(&req, expected_state, port) {
+            Disposition::Redirect(redirect) => {
+                let body = "<!doctype html><meta charset=utf-8><body style=\"font-family:system-ui;padding:2rem\">Signed in — you can close this tab and return to szmde.</body>";
+                let _ = stream.write_all(http_response("200 OK", body).as_bytes());
+                return Ok(redirect);
+            }
+            Disposition::Declined(err) => {
+                let body = "<!doctype html><meta charset=utf-8><body style=\"font-family:system-ui;padding:2rem\">Sign-in was cancelled — you can close this tab.</body>";
+                let _ = stream.write_all(http_response("200 OK", body).as_bytes());
+                return Err(format!("sign-in was declined: {err}"));
+            }
+            Disposition::Ignore(status) => {
+                let _ = stream.write_all(http_response(status, "").as_bytes());
+                continue;
+            }
         }
     }
 }
@@ -295,8 +437,40 @@ fn oauth_loopback_reserve(state: tauri::State<'_, Loopback>) -> Result<u16, Stri
     Ok(port)
 }
 
-/// Open the system browser to `auth_url`, capture the loopback redirect, validate
-/// the `state` (CSRF), and return the authorization `code`.
+/// Take the reserved listener (or error if none was reserved).
+fn take_listener(state: &tauri::State<'_, Loopback>) -> Result<std::net::TcpListener, String> {
+    state.0.lock().unwrap().take().ok_or_else(|| {
+        "no reserved loopback listener (call oauth_loopback_reserve first)".to_string()
+    })
+}
+
+/// Open the system browser to `auth_url` and capture the loopback redirect. The
+/// CSRF `state` check happens INSIDE `capture_one_redirect` (so a mismatched state
+/// is ignored-and-kept-waiting, not fatal); this just wires the browser open to the
+/// capture. `deadline_secs` bounds the wait (longer for the interactive Picker).
+async fn open_and_capture(
+    app: tauri::AppHandle,
+    listener: std::net::TcpListener,
+    auth_url: String,
+    expected_state: String,
+    deadline_secs: u64,
+) -> Result<Redirect, String> {
+    let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+    {
+        use tauri_plugin_opener::OpenerExt;
+        app.opener()
+            .open_url(auth_url, None::<&str>)
+            .map_err(|e| e.to_string())?;
+    }
+    tokio::task::spawn_blocking(move || {
+        capture_one_redirect(listener, port, &expected_state, deadline_secs)
+    })
+    .await
+    .map_err(|e| format!("loopback task failed: {e}"))?
+}
+
+/// Sign-in: open the browser, capture the loopback redirect, and return the
+/// authorization `code`. 180 s deadline (a quick, non-interactive consent).
 #[tauri::command]
 async fn oauth_loopback_await(
     app: tauri::AppHandle,
@@ -304,25 +478,27 @@ async fn oauth_loopback_await(
     auth_url: String,
     expected_state: String,
 ) -> Result<String, String> {
-    let listener = state
-        .0
-        .lock()
-        .unwrap()
-        .take()
-        .ok_or("no reserved loopback listener (call oauth_loopback_reserve first)")?;
-    {
-        use tauri_plugin_opener::OpenerExt;
-        app.opener()
-            .open_url(auth_url, None::<&str>)
-            .map_err(|e| e.to_string())?;
-    }
-    let (code, got_state) = tokio::task::spawn_blocking(move || capture_one_redirect(listener))
-        .await
-        .map_err(|e| format!("loopback task failed: {e}"))??;
-    if got_state != expected_state {
-        return Err("redirect state mismatch (possible CSRF) — sign-in rejected".to_string());
-    }
-    Ok(code)
+    let listener = take_listener(&state)?;
+    Ok(
+        open_and_capture(app, listener, auth_url, expected_state, 180)
+            .await?
+            .code,
+    )
+}
+
+/// Picker variant (REQ-CLOUD-3): same browser-open + capture, but returns the WHOLE
+/// redirect so the caller also gets `pickedFileIds` from the Google desktop Picker
+/// (`trigger_onepick`) flow. 300 s deadline — the user is interactively BROWSING
+/// their Drive in the Picker, which takes longer than a plain sign-in.
+#[tauri::command]
+async fn oauth_pick_await(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Loopback>,
+    auth_url: String,
+    expected_state: String,
+) -> Result<Redirect, String> {
+    let listener = take_listener(&state)?;
+    open_and_capture(app, listener, auth_url, expected_state, 300).await
 }
 
 // --- Secure store (REQ-SEC-1) ---------------------------------------------
@@ -578,7 +754,8 @@ pub fn run() {
             secure_delete,
             read_gdrive_config,
             oauth_loopback_reserve,
-            oauth_loopback_await
+            oauth_loopback_await,
+            oauth_pick_await
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -815,7 +992,11 @@ mod tests {
         let req = "GET /?code=4/abc-DEF_123&state=xyz789 HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
         assert_eq!(
             parse_redirect(req),
-            Some(("4/abc-DEF_123".to_string(), "xyz789".to_string())),
+            Some(Redirect {
+                code: "4/abc-DEF_123".to_string(),
+                state: "xyz789".to_string(),
+                picked_file_ids: None,
+            }),
         );
     }
 
@@ -825,7 +1006,11 @@ mod tests {
         let req = "GET /?state=s1&code=4%2Fabc%20def HTTP/1.1\r\n\r\n";
         assert_eq!(
             parse_redirect(req),
-            Some(("4/abc def".to_string(), "s1".to_string()))
+            Some(Redirect {
+                code: "4/abc def".to_string(),
+                state: "s1".to_string(),
+                picked_file_ids: None,
+            }),
         );
     }
 
@@ -834,6 +1019,134 @@ mod tests {
         assert_eq!(parse_redirect("GET /?state=only HTTP/1.1\r\n\r\n"), None);
         assert_eq!(parse_redirect("GET / HTTP/1.1\r\n\r\n"), None);
         assert_eq!(parse_redirect(""), None);
+    }
+
+    // --- [REQ-CLOUD-3] Picker redirect + loopback hardening (pure helpers) --
+    #[test]
+    fn parse_redirect_extracts_picked_file_ids() {
+        // The shape of a real trigger_onepick redirect (S1 spike, 2026-07-11) —
+        // extra params like `iss`/`scope` are present and must be tolerated.
+        let req = "GET /?state=s1&iss=https%3A%2F%2Faccounts.google.com&picked_file_ids=ID1%2CID2&code=4%2Fcode&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive.file HTTP/1.1\r\nHost: 127.0.0.1:49737\r\n\r\n";
+        assert_eq!(
+            parse_redirect(req),
+            Some(Redirect {
+                code: "4/code".to_string(),
+                state: "s1".to_string(),
+                picked_file_ids: Some("ID1,ID2".to_string()),
+            }),
+        );
+    }
+
+    #[test]
+    fn parse_error_extracts_a_declined_consent() {
+        let req = "GET /?error=access_denied&state=s1 HTTP/1.1\r\n\r\n";
+        assert_eq!(parse_error(req), Some("access_denied".to_string()));
+        assert_eq!(parse_error("GET /?code=x&state=s1 HTTP/1.1\r\n\r\n"), None);
+        assert_eq!(parse_error("GET / HTTP/1.1\r\n\r\n"), None);
+    }
+
+    #[test]
+    fn host_allowed_accepts_only_the_loopback_listener() {
+        let ok_ip = "GET /? HTTP/1.1\r\nHost: 127.0.0.1:49737\r\n\r\n";
+        let ok_name = "GET /? HTTP/1.1\r\nhost: localhost:49737\r\n\r\n"; // case-insensitive
+        let bad_host = "GET /? HTTP/1.1\r\nHost: evil.example:49737\r\n\r\n"; // DNS rebinding
+        let bad_port = "GET /? HTTP/1.1\r\nHost: 127.0.0.1:9999\r\n\r\n";
+        let no_host = "GET /? HTTP/1.1\r\n\r\n";
+        assert!(host_allowed(ok_ip, 49737));
+        assert!(host_allowed(ok_name, 49737));
+        assert!(!host_allowed(bad_host, 49737));
+        assert!(!host_allowed(bad_port, 49737));
+        assert!(!host_allowed(no_host, 49737));
+    }
+
+    #[test]
+    fn query_param_extracts_and_decodes() {
+        let req = "GET /?a=1&b=x%2Fy&c= HTTP/1.1\r\n\r\n";
+        assert_eq!(query_param(req, "a").as_deref(), Some("1"));
+        assert_eq!(query_param(req, "b").as_deref(), Some("x/y"));
+        assert_eq!(query_param(req, "c").as_deref(), Some(""));
+        assert_eq!(query_param(req, "missing"), None);
+        assert_eq!(query_param("GET / HTTP/1.1\r\n\r\n", "a"), None); // no query
+    }
+
+    // classify_request is the security gate: the CSRF `state` check lives inside the
+    // wait loop so strays are ignored (kept waiting), only our state-matched redirect
+    // (or genuine cancel) is honored. Covers the adversarial-review findings.
+    #[test]
+    fn classify_ignores_bad_host_and_foreign_state() {
+        let host = "Host: 127.0.0.1:49737";
+        // Wrong Host (DNS rebinding) → ignore even with the right state.
+        let rebind = "GET /?code=c&state=S HTTP/1.1\r\nHost: evil:49737\r\n\r\n";
+        assert_eq!(
+            classify_request(rebind, "S", 49737),
+            Disposition::Ignore("403 Forbidden")
+        );
+        // Right Host but a FORGED/foreign state → ignore (can't DoS the real flow).
+        let forged = format!("GET /?code=c&state=WRONG HTTP/1.1\r\n{host}\r\n\r\n");
+        assert_eq!(
+            classify_request(&forged, "S", 49737),
+            Disposition::Ignore("403 Forbidden")
+        );
+        // A forged error= with no/foreign state must NOT abort the flow either.
+        let forged_err = format!("GET /?error=access_denied HTTP/1.1\r\n{host}\r\n\r\n");
+        assert_eq!(
+            classify_request(&forged_err, "S", 49737),
+            Disposition::Ignore("403 Forbidden")
+        );
+        // A non-redirect path (favicon) with the right Host but no state → ignore.
+        let favicon = format!("GET /favicon.ico HTTP/1.1\r\n{host}\r\n\r\n");
+        assert_eq!(
+            classify_request(&favicon, "S", 49737),
+            Disposition::Ignore("403 Forbidden")
+        );
+    }
+
+    #[test]
+    fn classify_honors_state_matched_redirect_and_cancel() {
+        let host = "Host: 127.0.0.1:49737";
+        // The genuine redirect (state matches) → Redirect.
+        let ok = format!("GET /?state=S&picked_file_ids=ID&code=c HTTP/1.1\r\n{host}\r\n\r\n");
+        assert_eq!(
+            classify_request(&ok, "S", 49737),
+            Disposition::Redirect(Redirect {
+                code: "c".into(),
+                state: "S".into(),
+                picked_file_ids: Some("ID".into()),
+            })
+        );
+        // A state-matched error= (real user cancel) → Declined.
+        let cancel = format!("GET /?error=access_denied&state=S HTTP/1.1\r\n{host}\r\n\r\n");
+        assert_eq!(
+            classify_request(&cancel, "S", 49737),
+            Disposition::Declined("access_denied".into())
+        );
+        // Right Host + right state but neither code nor error (odd but possible) → 404 ignore.
+        let neither = format!("GET /?state=S&foo=bar HTTP/1.1\r\n{host}\r\n\r\n");
+        assert_eq!(
+            classify_request(&neither, "S", 49737),
+            Disposition::Ignore("404 Not Found")
+        );
+    }
+
+    #[test]
+    fn read_request_reads_until_the_header_terminator() {
+        // Stops at CRLFCRLF (a GET redirect has no body) even with trailing bytes.
+        let raw = b"GET /?code=c&state=S HTTP/1.1\r\nHost: 127.0.0.1:1\r\n\r\nIGNORED_BODY";
+        let got = read_request(&mut &raw[..]).unwrap();
+        assert!(got.contains("code=c&state=S"));
+        assert!(got.contains("\r\n\r\n"));
+        // A large multi-file redirect (no early terminator until the end) survives intact
+        // rather than truncating at 4 KiB — the fix for the picked_file_ids overflow.
+        // Real Drive ids are ~33 chars; 200 of them overflow the 4 KiB read buffer.
+        let ids = (0..200)
+            .map(|i| format!("{i:033}"))
+            .collect::<Vec<_>>()
+            .join("%2C");
+        let big = format!("GET /?state=S&picked_file_ids={ids}&code=c HTTP/1.1\r\nHost: h\r\n\r\n");
+        assert!(big.len() > 4096, "fixture must exceed one read buffer");
+        let got = read_request(&mut big.as_bytes()).unwrap();
+        assert!(got.contains("code=c")); // the code after the long id list is not lost
+        assert_eq!(query_param(&got, "code").as_deref(), Some("c"));
     }
 
     #[test]

@@ -11,6 +11,7 @@ import {
   disconnectGoogleDrive,
   isGoogleDriveConnected,
   makeGoogleDriveProvider,
+  pickGoogleDriveFiles,
 } from "./gdrive-connect";
 import { GoogleDriveProvider } from "./gdrive";
 import { InMemorySecureStore, loadTokens } from "./secure-store";
@@ -32,6 +33,7 @@ function fakeInvoke(over: Partial<Record<string, (a: Record<string, unknown>) =>
     read_gdrive_config: () => CONFIG,
     oauth_loopback_reserve: () => 49737,
     oauth_loopback_await: () => "AUTH_CODE",
+    oauth_pick_await: () => ({ code: "PICK_CODE", pickedFileIds: "ID1,ID2" }),
     ...over,
   };
   const invoke = vi.fn((cmd: string, args?: Record<string, unknown>) => {
@@ -58,6 +60,9 @@ describe("[REQ-CLOUD-1] connectGoogleDrive", () => {
     const awaitCall = calls[2].args as { authUrl: string; expectedState: string };
     expect(awaitCall.authUrl).toContain("redirect_uri=http%3A%2F%2F127.0.0.1%3A49737");
     expect(awaitCall.authUrl).toContain("code_challenge_method=S256");
+    // scope stays the least-privilege drive.file (REQ-CLOUD-3), never the full drive
+    expect(awaitCall.authUrl).toContain("drive.file");
+    expect(awaitCall.authUrl).not.toContain("auth%2Fdrive&"); // no bare full-drive scope
     expect(awaitCall.expectedState).toBeTruthy();
     // tokens landed in the keyring under the gdrive account
     expect((await loadTokens(store, GDRIVE_ACCOUNT))?.accessToken).toBe("AT");
@@ -68,6 +73,58 @@ describe("[REQ-CLOUD-1] connectGoogleDrive", () => {
     await expect(
       connectGoogleDrive({ invoke, store: new InMemorySecureStore(), poster: tokenOk }),
     ).rejects.toMatchObject({ kind: "auth" });
+  });
+});
+
+describe("[REQ-CLOUD-3] pickGoogleDriveFiles — system-browser Picker under drive.file", () => {
+  it("runs the pick flow, persists tokens (pick doubles as sign-in), returns the ids", async () => {
+    const store = new InMemorySecureStore();
+    const { invoke, calls } = fakeInvoke();
+    const ids = await pickGoogleDriveFiles({ invoke, store, poster: tokenOk, now: () => 1000, random: fixedRandom });
+
+    expect(calls.map((c) => c.cmd)).toEqual([
+      "read_gdrive_config",
+      "oauth_loopback_reserve",
+      "oauth_pick_await", // NOT oauth_loopback_await — the pick command returns pickedFileIds too
+    ]);
+    // the auth URL is a Picker session: trigger_onepick + consent + the NARROW scope only
+    const awaitCall = calls[2].args as { authUrl: string; expectedState: string };
+    expect(awaitCall.authUrl).toContain("trigger_onepick=true");
+    expect(awaitCall.authUrl).not.toContain("allow_multiple"); // single-doc open; no multi-select
+    expect(awaitCall.authUrl).toContain("prompt=consent");
+    expect(awaitCall.authUrl).toContain("scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive.file");
+    expect(awaitCall.authUrl).toContain("redirect_uri=http%3A%2F%2F127.0.0.1%3A49737");
+    expect(awaitCall.authUrl).toContain("code_challenge_method=S256");
+    // ids parsed from Google's comma-separated param
+    expect(ids).toEqual(["ID1", "ID2"]);
+    // the pick's code exchange persisted tokens — no separate connect needed
+    expect((await loadTokens(store, GDRIVE_ACCOUNT))?.accessToken).toBe("AT");
+  });
+
+  it("returns [] when consent completed but nothing was picked", async () => {
+    const { invoke } = fakeInvoke({ oauth_pick_await: () => ({ code: "C", pickedFileIds: null }) });
+    const ids = await pickGoogleDriveFiles({
+      invoke, store: new InMemorySecureStore(), poster: tokenOk, now: () => 0, random: fixedRandom,
+    });
+    expect(ids).toEqual([]);
+  });
+
+  it("throws auth when Drive isn't configured", async () => {
+    const { invoke } = fakeInvoke({ read_gdrive_config: () => null });
+    await expect(
+      pickGoogleDriveFiles({ invoke, store: new InMemorySecureStore(), poster: tokenOk }),
+    ).rejects.toMatchObject({ kind: "auth" });
+  });
+
+  it("propagates a declined/cancelled consent from the Rust command", async () => {
+    const { invoke } = fakeInvoke({
+      oauth_pick_await: () => Promise.reject("sign-in was declined: access_denied"),
+    });
+    await expect(
+      pickGoogleDriveFiles({
+        invoke, store: new InMemorySecureStore(), poster: tokenOk, random: fixedRandom,
+      }),
+    ).rejects.toMatch(/declined/);
   });
 });
 
