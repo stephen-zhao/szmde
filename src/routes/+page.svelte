@@ -25,8 +25,8 @@
     disconnectGoogleDrive,
     isGoogleDriveConnected,
     makeGoogleDriveProvider,
+    pickGoogleDriveFiles,
   } from "$lib/storage/gdrive-connect";
-  import { parseDriveId } from "$lib/storage/drive-id";
   import { stepFontSize, stepLineWidth } from "$lib/editor/zoom";
 
   // File I/O goes through the StorageProvider seam (SPEC §6). The active provider
@@ -352,44 +352,41 @@
 
   async function doOpenDrive() {
     if (!(await guardUnsaved())) return;
-    if (!driveConnected) {
-      await doConnectDrive();
-      if (!driveConnected) return;
+    if (driveConnecting) return; // one browser handshake at a time (shared with connect)
+    driveConnecting = true;
+    try {
+      // The Google Picker opens in the system browser (REQ-CLOUD-3). The pick session
+      // DOUBLES as sign-in — its code exchange persists fresh drive.file tokens and
+      // grants per-file access to whatever the user picked — so no separate connect
+      // is needed first, and no paste-an-id prompt (the Picker replaced it).
+      const ids = await pickGoogleDriveFiles();
+      // Tokens are persisted the moment the pick resolves, so sync the connection
+      // state BEFORE any early return — else a consent-but-no-file-picked would leave
+      // the menu wrongly offering "Connect Google Drive…" despite a live session.
+      driveProvider = await makeGoogleDriveProvider();
+      driveConnected = driveProvider !== null;
+      if (ids.length === 0) {
+        editor?.focus();
+        return; // consent completed, nothing picked
+      }
+      await openPath(ids[0], "gdrive");
+    } catch (e) {
+      // A deliberate cancel (declined consent/Picker) returns silently, like
+      // cancelling the native file dialog — only surface real failures.
+      if (!/declined/i.test(String(e))) {
+        await message(`Couldn't open from Google Drive:\n${e}`, {
+          title: "Google Drive",
+          kind: "error",
+        });
+      }
+      editor?.focus();
+    } finally {
+      driveConnecting = false;
     }
-    const input = await askDriveId();
-    if (!input) return;
-    await openPath(parseDriveId(input), "gdrive");
-  }
-
-  // Open-from-Drive input modal. Unlike the other modals it has a text field, so
-  // it does NOT trap/suppress keys — the input owns its Enter/Escape.
-  let driveInputOpen = $state(false);
-  let driveInputValue = $state("");
-  let driveInputResolve: ((v: string | null) => void) | null = null;
-  function askDriveId(): Promise<string | null> {
-    if (driveInputResolve) return Promise.resolve(null);
-    driveInputValue = "";
-    driveInputOpen = true;
-    return new Promise<string | null>((resolve) => {
-      driveInputResolve = resolve;
-    });
-  }
-  function resolveDriveInput(v: string | null) {
-    driveInputOpen = false;
-    driveInputResolve?.(v);
-    driveInputResolve = null;
-    editor?.focus();
   }
 
   // --- Shortcuts --------------------------------------------------------------
   function onKeydown(e: KeyboardEvent) {
-    // The Drive-id modal has a text input that owns its own keys (Enter/Escape).
-    // Trap Tab so focus can't escape to the editor behind it; let other keys reach
-    // the input. (App shortcuts stay disabled while it's open.)
-    if (driveInputOpen) {
-      if (e.key === "Tab") e.preventDefault();
-      return;
-    }
     // While a modal is open, swallow EVERY key (not just its shortcuts) so nothing
     // leaks into the editor behind it. Focus is also trapped into the modal (see
     // use:trapFocus), so CM never receives the keystroke in the first place; this
@@ -599,30 +596,6 @@
     </div>
   {/if}
 
-  {#if driveInputOpen}
-    <div class="modal-backdrop" role="presentation">
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="drive-title">
-        <h2 id="drive-title">Open from Google Drive</h2>
-        <p>Paste a Google Drive file link or ID:</p>
-        <!-- svelte-ignore a11y_autofocus -->
-        <input
-          class="drive-input"
-          type="text"
-          autofocus
-          placeholder="https://drive.google.com/file/d/…/view"
-          bind:value={driveInputValue}
-          onkeydown={(e) => {
-            if (e.key === "Enter") resolveDriveInput(driveInputValue);
-            else if (e.key === "Escape") resolveDriveInput(null);
-          }}
-        />
-        <div class="modal-actions">
-          <button class="btn-primary" onclick={() => resolveDriveInput(driveInputValue)}>Open</button>
-          <button onclick={() => resolveDriveInput(null)}>Cancel</button>
-        </div>
-      </div>
-    </div>
-  {/if}
 </div>
 
 <style>
@@ -751,21 +724,6 @@
     line-height: 1.5;
     word-break: break-word;
   }
-  .drive-input {
-    width: 100%;
-    margin: 0 0 16px;
-    padding: 9px 11px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg-input, var(--bg));
-    color: var(--text);
-    font-size: 13px;
-  }
-  .drive-input:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
-
   .modal-actions {
     display: flex;
     justify-content: flex-end;

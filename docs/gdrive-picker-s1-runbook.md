@@ -4,6 +4,11 @@ _This is the **S1 spike** from [gdrive-picker-plan.md](gdrive-picker-plan.md). I
 step — it needs your Google Cloud Console + a real OAuth consent, which the assistant can't perform.
 Goal: answer **one** question so S2–S7 can proceed with the right redirect design._
 
+> **✅ RESOLVED (2026-07-11): bare loopback works.** The spike redirected straight to
+> `http://127.0.0.1:PORT` with `picked_file_ids` + `code` + matching `state` on the Desktop-app
+> client — no HTTPS relay (S4 skipped). Kept for provenance / re-running if Google's behavior
+> changes; the result is recorded in the plan doc._
+
 ## The question S1 answers
 
 Google's desktop-Picker docs say the `redirect_uri` **"must be a public HTTPS URL … to use a localhost
