@@ -20,8 +20,13 @@ Make szmde run as a **native Android app** on Tauri 2 mobile (GA since 2024-10-0
 
 **Guiding principle — local-first.** Prove the app *boots*, make it *phone-usable*, ship a fully
 **offline** Android editor that opens/saves real files via SAF, cut a *signed* build — and only then
-port the cloud path (Drive sign-in, then the Drive Picker), which carries the highest uncertainty.
-M6 is shippable as a local-only Android editor; cloud is additive.
+port **Drive sign-in**. M6 is shippable as a local-only Android editor; cloud is additive.
+
+**Scope (decided 2026-07-18):** M6 = **S1–S6** (local-first + Drive sign-in). The native Drive
+**Picker** (opening *pre-existing* Drive files, was S7) is **deferred to M6.1** — the highest-uncertainty
+item. **Distribution** for M6 is a **sideload signed APK**; the **Play Store** release is its own later
+milestone (**REQ-PLAY-1**). The Android OAuth redirect is an **https App Link**. See
+[Decisions](#decisions-resolved-2026-07-18--stephen).
 
 ## The big shift: three desktop seams carry over, their tails change
 
@@ -106,7 +111,7 @@ rustup Android targets, no `src-tauri/gen/android`.
    the loopback, `oauth_pick_await` → `picked_file_ids`) can't fire on Android. The Android Picker is a
    native Google Identity Services `AuthorizationRequest` with the `PICKER_OAUTH_TRIGGER` resource
    (Kotlin — likely a second custom plugin) returning `picked_file_ids` to the deep-link redirect;
-   `drive.file`-only. **Deferred to the last slice (candidate to slip to M6.1).**
+   `drive.file`-only. **Deferred to M6.1** (out of the M6 line — decision 1, 2026-07-18).
 7. **Secure store — shared contract, Cargo bump only.** `secure_*` + `TauriSecureStore` stay
    byte-for-byte. Bump `keyring = { version = "3", features = ["apple-native","windows-native"] }` →
    `keyring = "4"` (v4's default feature covers Windows/Apple/Linux; the companion
@@ -145,8 +150,8 @@ rustup Android targets, no `src-tauri/gen/android`.
   ndk-context on device.
 - **REQ-CLOUD-1 (parity on Android)** — deep-link redirect + separate Android OAuth client; PKCE/refresh/
   Drive REST unchanged. Enables sign-in + read/write of already-known file IDs.
-- **REQ-CLOUD-3 (parity on Android)** — native GIS Picker (`PICKER_OAUTH_TRIGGER`); highest uncertainty,
-  last slice.
+- **REQ-CLOUD-3 (parity on Android)** — native GIS Picker (`PICKER_OAUTH_TRIGGER`); **deferred to M6.1**
+  (decision 1), out of the M6 line.
 - **REQ-CLOUD-2 (OneDrive)** — out of M6 scope (already deferred/backend-only).
 
 ## Staged slices
@@ -159,7 +164,7 @@ rustup Android targets, no `src-tauri/gen/android`.
 | **S4** | SAF local storage backend (offline open/save) | REQ-MOBILE-3 | Spike dialog+fs (`content://` via `FilePath::Url`); add `SafProvider` + persistable permissions + `DocumentFile` rev; settings via app-private `std::fs`. **On-device: pick a real `.md`, edit, save back (with conflict detection), reopen after app restart via the persisted URI — fully offline.** The milestone's core shippable. |
 | **S5** | Signed release AAB/APK + Android CI | REQ-MOBILE-1 | Upload keystore + `signingConfigs`; a GitHub Actions job (setup-java 17 + SDK/NDK + the 4 targets, keystore from base64 secrets) building `--apk`/`--aab`. **CI produces a signed APK installable on a device + a signed AAB.** A local-only Android szmde is shippable here. |
 | **S6** | Cloud sign-in on Android (deep-link OAuth + keystore verify) | REQ-CLOUD-1 | Verify `keyring` v4 round-trip on device; add `tauri-plugin-deep-link` + the redirect (App Link recommended) + separate Android OAuth client; mobile-gate `gdrive-connect.ts`. **`connectGoogleDrive` completes in a Custom Tab, tokens persist in the Keystore, refresh works, read/write of a known Drive file ID succeeds.** |
-| **S7** | Android Drive Picker (open pre-existing files) | REQ-CLOUD-3 | Native GIS `AuthorizationRequest` Kotlin plugin (`PICKER_OAUTH_TRIGGER`, `drive.file`) → `picked_file_ids` via deep link; mobile-gate `pickGoogleDriveFiles`. **On-device: pick a pre-existing Drive file via the native Picker and open it read/write.** Highest uncertainty — explicit candidate to defer to **M6.1**. |
+| **S7 → M6.1** | Android Drive Picker (open pre-existing files) — **deferred out of M6** (decision 1) | REQ-CLOUD-3 | Native GIS `AuthorizationRequest` Kotlin plugin (`PICKER_OAUTH_TRIGGER`, `drive.file`) → `picked_file_ids` via deep link; mobile-gate `pickGoogleDriveFiles`. **On-device: pick a pre-existing Drive file via the native Picker and open it read/write.** Highest uncertainty — lands in **M6.1**, after the M6 local + Drive-sign-in line ships. |
 
 ## Risks (need on-device verification)
 
@@ -183,18 +188,56 @@ rustup Android targets, no `src-tauri/gen/android`.
 9. `tauri-action` Android support is **experimental** — pin the version and confirm the mobile input, or
    hand-roll the Gradle+signing CI job.
 
-## Open decisions (confirm with Stephen)
+## Decisions (resolved 2026-07-18 — Stephen)
 
-1. **Scope of M6:** ship the native Drive Picker (S7) inside M6, or land **local + basic Drive
-   (known file IDs)** and defer the Picker to **M6.1**? (Recommend defer — it's the riskiest item.)
-2. **Android redirect:** https **App Link** (needs `.well-known/assetlinks.json` hosted on a domain —
-   `zhaostephen.com` is available) vs. a re-enabled custom URI scheme. (Recommend App Link.)
-3. **SAF implementation:** official `tauri-plugin-dialog`+`tauri-plugin-fs` MVP → then
-   `tauri-plugin-android-fs` vs. a custom Kotlin plugin for persistence + metadata. (Spike the official
-   path first.)
-4. **Distribution for M6:** sideload signed **APK** only (fastest) vs. Play Store **AAB** (needs a Play
-   Console account + review). (Recommend sideload APK for M6.)
-5. **minSdk/targetSdk:** keep minSdk 24, target 35 (edge-to-edge) — confirm the targetSdk edit point.
+1. **Scope of M6 → local + Drive sign-in; the Picker is deferred to M6.1.** M6 ships **S1–S6** (a
+   local-first Android editor + Google Drive sign-in and read/write of already-known file IDs). Opening
+   *pre-existing* Drive files via the native GIS Picker (was S7) becomes **M6.1** — the
+   highest-uncertainty item, cut from the M6 line.
+2. **Android redirect → https App Link** (not a custom URI scheme). Stephen hosts the verification file;
+   setup below (§ [App Link setup](#app-link-setup-decision-2)).
+3. **SAF → spike the official `tauri-plugin-dialog` + `tauri-plugin-fs` path first** (content:// via
+   `FilePath::Url`), before reaching for `tauri-plugin-android-fs` or a custom Kotlin plugin — add those
+   only for what the official path can't do (persistable permissions / `DocumentFile` metadata).
+4. **Distribution → sideload signed APK for M6.** The Play Store (AAB + Console + review) is kept open
+   as its **own later milestone** — a real requirement (**REQ-PLAY-1**), not part of M6. See
+   [roadmap.md](roadmap.md).
+5. **SDK levels → minSdk 24, targetSdk 35** (edge-to-edge); confirm the targetSdk edit point in
+   `gen/android` after `init`.
+
+### App Link setup (decision 2)
+
+The OAuth/Picker redirect on Android is an **https App Link** that Android verifies (via a hosted
+`assetlinks.json`) and routes into szmde, so the Custom Tab returns to the app. One-time setup, split
+between you and the code:
+
+**You — hosting + Cloud Console:**
+1. Host a static file at **`https://zhaostephen.com/.well-known/assetlinks.json`** (real HTTPS,
+   `Content-Type: application/json`, no redirect) authorizing the app to handle the domain's links:
+   ```json
+   [{
+     "relation": ["delegate_permission/common.handle_all_urls"],
+     "target": {
+       "namespace": "android_app",
+       "package_name": "com.zhaostephen.szmde",
+       "sha256_cert_fingerprints": ["<DEBUG SHA-256>", "<RELEASE SHA-256>"]
+     }
+   }]
+   ```
+   Get the SHA-256s from `keytool -list -v -keystore <keystore>` — for **both** the debug keystore
+   (usually `~/.android/debug.keystore`, password `android`) and your release upload keystore.
+2. In the **Android OAuth client** (Cloud Console), set the redirect to a path under that verified
+   domain, e.g. `https://zhaostephen.com/szmde/oauth2redirect`. (No "Advanced Settings" toggle — that's
+   only for the custom-URI-scheme option we're not using.)
+
+**The code (S6):** `tauri-plugin-deep-link` in `tauri.conf.json > plugins > deep-link`:
+`{"mobile":[{"scheme":["https"],"host":"zhaostephen.com","pathPrefix":["/szmde"],"appLink":true}]}` —
+the plugin emits the intent filter with `android:autoVerify="true"`, and `onOpenUrl` captures the
+redirect (`code`/`picked_file_ids`). `gdrive-connect.ts`'s `redirectUri` is mobile-gated to the App
+Link URL.
+
+_Gotcha: verification only succeeds once `assetlinks.json` is live AND the installed app's signing-cert
+SHA-256 is listed — validate with the debug cert first, add the release cert before shipping._
 
 ## Process
 

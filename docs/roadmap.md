@@ -112,16 +112,21 @@ works (no HTTPS relay — S4 skipped). Design: **[gdrive-picker-plan.md](gdrive-
 | REQ-CLOUD-3 | Open pre-existing Drive files via the system-browser Google Picker (`drive.file` + `trigger_onepick`), replacing the full-`drive` restricted scope + its unverified-app warning | §6 | ✅ (live round-trip → WF-28) |
 
 ### M6 — Android 🔜  (SPEC §2)
-**Planning ([m6-plan.md](m6-plan.md)).** Local-first: boot on an emulator → responsive/touch → soft
-keyboard → SAF file open/save → signed build, then port cloud (Drive sign-in, then the Picker) last.
-Big shift: the desktop `127.0.0.1` OAuth loopback is invalid on Android (Google deprecated it for
-mobile), so Drive moves to a deep-link redirect + a separate Android OAuth client. Needs a real
-toolchain setup (JDK 17, Android SDK/NDK, rustup targets — see the plan).
+**In progress ([m6-plan.md](m6-plan.md)).** Local-first: boot on an emulator → responsive/touch → soft
+keyboard → SAF file open/save → signed **APK** → Drive **sign-in** (deep-link, since the desktop
+`127.0.0.1` OAuth loopback is invalid on Android — Google deprecated it for mobile, so Drive moves to
+an **https App Link** redirect + a separate Android OAuth client). Needs a real toolchain setup
+(JDK 17, Android SDK/NDK, rustup targets — see the plan). **Scope decided 2026-07-18:** M6 = S1–S6;
+the Drive **Picker** (opening pre-existing files) is deferred to **M6.1**; Play Store is its own later
+milestone (REQ-PLAY-1). Progress: `keyring` 3→4 (S1 prep, PR #13) + responsive shell (S2, PR #14).
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
-| REQ-MOBILE-1 | Tauri 2 mobile build (APK/AAB) | §2 |
+| REQ-MOBILE-1 | Tauri 2 mobile build → sideload signed **APK** (Play Store = REQ-PLAY-1, later) | §2 |
 | REQ-MOBILE-2 | Responsive UI from desktop down to phone widths (touch, soft keyboard, safe-areas) | §7 |
 | REQ-MOBILE-3 | Storage Access Framework / scoped storage backend (`SafProvider` over `content://`) | §6 |
+
+_**M6.1** (after M6): the native Google Drive **Picker** on Android (open pre-existing files) —
+REQ-CLOUD-3 parity via the GIS `PICKER_OAUTH_TRIGGER` flow; deferred as the highest-uncertainty item._
 
 ### M7 — Network storage + polish ⬜  (SPEC §6, §7)
 | REQ | Requirement | SPEC |
@@ -150,6 +155,7 @@ _(REQ-ZOOM-1/2 were moved into the authoring slot — now M4 — on 2026-06-27.)
 | REQ-IMG-3 | Desktop local image assets: Tauri `convertFileSrc` + asset-protocol scope + resolve relative to the open file's dir _(M2 follow-up — remote/`data:` work today)_ | §5.1, §6.1 |
 | REQ-CLOUD-4 | **Show a cloud file's human-readable name, not its opaque id.** A Drive file opened via the Picker (REQ-CLOUD-3) currently displays its file *id* as the document name; fetch the Drive `name` metadata (`files.get?fields=name`) on open and use it for the filename chip / window title. Generalize to any cloud backend. _(REQ-CLOUD-3 follow-up — reported 2026-07-18)_ | §6 |
 | REQ-UI-3 | **Hamburger-menu storage reorg.** (a) Fold **Open from Google Drive…** into the **Open** section as one of a list of open-source options (Open local file / Open from Google Drive / …future OneDrive/network), each with a stylized per-storage-type **icon**. (b) Move Google Drive **Connect / Disconnect** out to a separate **Storage / accounts management** section (home for future cloud accounts too). `.svelte` UI → covered by a live workflow when built. _(reported 2026-07-18)_ | §6, §7 |
+| REQ-PLAY-1 | **Google Play Store release** (a distribution follow-up to M6, which ships a sideload APK): signed **AAB** via `tauri android build --aab`, a Play Console listing, and review/rollout. Its own later milestone — needs a Play Console account + signing/upload-key management. _(decided 2026-07-18)_ | §2 |
 
 ### Engineering & test infrastructure ⬜
 Not product features, but tracked the same way (no ad-hoc infra work either).
