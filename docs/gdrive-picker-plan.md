@@ -1,8 +1,17 @@
 # Least-privilege Google Drive picker — design & plan (REQ-CLOUD-3)
 
-_Status: **planned / next-up** (2026-07-11). Design grounded in a 6-agent cited research pass; the
-one crux (the picker `redirect_uri`) is gated behind an **S1 Cloud-Console spike before any app code**.
-See [roadmap.md](roadmap.md) for slotting and [SPEC.md §6](../SPEC.md) for the storage seam._
+_Status: **BUILT** (2026-07-11) — S1 ✅ · S2 ✅ · S3 ✅ · S4 **skipped** (unneeded) · S5 ✅ · S6 ✅ ·
+S7 = live verification (**WF-28**, user-run in the dev app). Design grounded in a 6-agent cited
+research pass. See [roadmap.md](roadmap.md) for slotting and [SPEC.md §6](../SPEC.md) for the seam._
+
+> **S1 spike result (2026-07-11): bare loopback WORKS.** `trigger_onepick` + `drive.file` +
+> `prompt=consent` redirected straight to `http://127.0.0.1:PORT` with
+> `?state=…&iss=https://accounts.google.com&picked_file_ids=<id>&code=…&scope=…/drive.file` and a
+> matching `state` — on the existing **Desktop-app** client, no redirect registration, **no
+> public-HTTPS relay needed** (the docs' "must be a public HTTPS URL" wording did not bind in
+> practice). Note the undocumented `iss` param — the parser tolerates unknown params. Open risks
+> 1–3 below are thereby resolved; #4 (grant persistence) and #6 (`.md` MIME behavior — we ship NO
+> `mimetypes` filter) are folded into WF-28._
 
 ## Goal
 
