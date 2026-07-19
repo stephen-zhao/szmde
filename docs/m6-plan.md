@@ -53,9 +53,10 @@ szmde is the documented **Windows-native** exception to the WSL-first rule, so s
 Windows-native. Current machine state: **Java 1.8 (too old)**, no `ANDROID_HOME`/`NDK_HOME`, no NDK, no
 rustup Android targets, no `src-tauri/gen/android`.
 
-1. **Android Studio** → SDK Manager: install *SDK Platform*, *Platform-Tools*, *Build-Tools*,
-   *Command-line Tools*, and *NDK (Side by side)* — prefer **NDK r28+** (Play's 16 KB memory-page rule).
-   Accept licenses (`sdkmanager --licenses`) or Gradle fails.
+1. **Android Studio** → SDK Manager: install *SDK Platform* (**API 36** — we compile/target 36),
+   *Platform-Tools*, *Build-Tools*, *Command-line Tools*, and *NDK (Side by side)* — **NDK r28+ is
+   required** for the 16 KB memory-page support that Android 16 / Play enforce. Accept licenses
+   (`sdkmanager --licenses`) or Gradle fails.
 2. **JDK 17** with `JAVA_HOME` pointing at it (Android Studio's bundled JBR works). Java 1.8 errors
    with *"Android Gradle plugin requires Java 17"*; **do not** use JDK 21/26 (they conflict with
    Tauri's bundled Gradle 8.14.x).
@@ -66,7 +67,7 @@ rustup Android targets, no `src-tauri/gen/android`.
    [System.Environment]::SetEnvironmentVariable("NDK_HOME", "$env:LocalAppData\Android\Sdk\ndk\$VERSION", "User")
    ```
 4. **Rust targets:** `rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android`
-5. **A test device:** an AVD (e.g. Pixel, API 34/35 x86_64) and/or a physical phone with USB debugging
+5. **A test device:** an AVD (e.g. Pixel, API 35/36 x86_64) and/or a physical phone with USB debugging
    (needed for the on-device slices S3 keyboard/IME, S6 keystore/deep-link).
 6. **(Cloud, S6/S7)** In Google Cloud Console, create a **separate Android OAuth client** for
    `com.zhaostephen.szmde` keyed by the **debug AND release SHA-1** (`keytool -list -v -keystore …`).
@@ -125,7 +126,8 @@ rustup Android targets, no `src-tauri/gen/android`.
    `resizes-content` shrinks the *layout* viewport so CM6's caret scrolls into view). Add a phone
    (`<600px`) breakpoint collapsing the sidebar/`HamburgerMenu` into a drawer, ≥48dp tap targets,
    `touch-action:manipulation`, `overscroll-behavior:none`, and `env(safe-area-inset-*)` wrapped in
-   `max(…, fallback)` (env() returns 0 on WebView <M136; Android 15 targetSdk 35 enforces edge-to-edge).
+   `max(…, fallback)` (env() returns 0 on WebView <M136; **targetSdk 36 / Android 16 makes edge-to-edge
+   mandatory** — no opt-out — which is exactly why we handle insets rather than opt out).
    Keep CM6 **contenteditable-native** selection (do not override `contentAttributes` in ways that break
    native touch selection/IME).
 9. **Rust cfg gating — one `run()`, two modes.** Gate the CLI launcher (`parse_cli`/`env::args`/
@@ -158,7 +160,7 @@ rustup Android targets, no `src-tauri/gen/android`.
 
 | Slice | Title | REQ | Acceptance |
 |-------|-------|-----|-----------|
-| **S1** | Boots on emulator (toolchain + `android init` + cross-compile) | REQ-MOBILE-1 | Provision the toolchain; bump `keyring` 3→4; `cfg(desktop)`-gate the CLI; `tauri android init` + commit `gen/android`; set minSdk 24. **`tauri android dev` launches the blank editor in an emulator; `cargo build` succeeds for all 4 ABIs; desktop `tauri dev` + `npm test` still green.** No storage/cloud/keyboard yet. |
+| **S1** | Boots on emulator (toolchain + `android init` + cross-compile) | REQ-MOBILE-1 | Provision the toolchain; bump `keyring` 3→4; `cfg(desktop)`-gate the CLI; `tauri android init` + commit `gen/android`; set minSdk 24 (compileSdk/targetSdk 36 are the template default — no edit). **`tauri android dev` launches the blank editor in an emulator; `cargo build` succeeds for all 4 ABIs; desktop `tauri dev` + `npm test` still green.** No storage/cloud/keyboard yet. |
 | **S2** | Responsive shell down to phone width | REQ-MOBILE-2 | Viewport meta + phone `<600` breakpoint (drawer), ≥48dp targets, safe-area insets. **Toolbar/drawer/editor usable by touch on a phone-sized emulator, no horizontal overflow, content clears system-bar insets; desktop layout unchanged.** Soft keyboard deferred to S3. |
 | **S3** | Soft-keyboard + IME correctness (on-device) | REQ-MOBILE-2 | `interactive-widget=resizes-content` + a `visualViewport` fallback; verify CM6 caret next to widgets + IME. **Typing a paragraph, editing a table cell / task item, and IME composition keep the caret visible above the keyboard on a physical phone.** |
 | **S4** | SAF local storage backend (offline open/save) | REQ-MOBILE-3 | Spike dialog+fs (`content://` via `FilePath::Url`); add `SafProvider` + persistable permissions + `DocumentFile` rev; settings via app-private `std::fs`. **On-device: pick a real `.md`, edit, save back (with conflict detection), reopen after app restart via the persisted URI — fully offline.** The milestone's core shippable. |
@@ -177,10 +179,13 @@ rustup Android targets, no `src-tauri/gen/android`.
    device + real IME only.
 4. Soft keyboard: whether `interactive-widget=resizes-content` shrinks the layout viewport and whether
    `visualViewport.height` updates for the OSK (Tauri #10631 open: doesn't; #7868: inconsistent).
-5. `env(safe-area-inset-*)` returns 0 on WebView <M136; Android 15 targetSdk 35 enforces edge-to-edge
-   (opt-out dead at targetSdk 36) — needs a JS/native inset fallback across WebView versions.
-6. `targetSdk` lives in the generated `gen/android` Gradle (not a first-class `tauri.conf.json` key) —
-   confirm the edit point after `init` (hand-edits are lost on regeneration).
+5. `env(safe-area-inset-*)` returns 0 on WebView <M136; **targetSdk 36 / Android 16 makes edge-to-edge
+   mandatory (the opt-out is dead)** — needs a JS/native inset fallback across WebView versions. (We
+   handle insets rather than opt out, so targeting 36 adds no work here.)
+6. **Resolved:** the SDK level needs **no hand-edit** — Tauri's `gen/android/app/build.gradle.kts`
+   template already defaults `compileSdk = 36` + `targetSdk = 36` (AGP 8.11.0 + Gradle 8.14 support it),
+   so only `minSdk` is set (via `tauri.conf.json`, not a Gradle hand-edit). Re-confirm the defaults hold
+   after `init`, since a future Tauri version could change the template.
 7. SAF durability: persisted URI permissions surviving restarts + `DocumentFile.lastModified()` as a
    trustworthy rev across document providers (may degrade `conflictDetection=false`).
 8. Deep-link redirect capture (`onOpenUrl` vs `getCurrent` cold-start) + the native GIS Picker have thin
@@ -202,8 +207,14 @@ rustup Android targets, no `src-tauri/gen/android`.
 4. **Distribution → sideload signed APK for M6.** The Play Store (AAB + Console + review) is kept open
    as its **own later milestone** — a real requirement (**REQ-PLAY-1**), not part of M6. See
    [roadmap.md](roadmap.md).
-5. **SDK levels → minSdk 24, targetSdk 35** (edge-to-edge); confirm the targetSdk edit point in
-   `gen/android` after `init`.
+5. **SDK levels → minSdk 24, compileSdk/targetSdk 36** (Android 16). _Updated 2026-07-19 (was
+   targetSdk 35)._ **36 is Tauri's out-of-the-box template default** — `gen/android/app/build.gradle.kts`
+   hardcodes `compileSdk = 36`/`targetSdk = 36`, and Tauri's bundled **AGP 8.11.0 + Gradle 8.14** clear
+   the compileSdk-36 minimum (AGP ≥ 8.9.1 / Gradle ≥ 8.11.1). So there's **no `gen/android` hand-edit**
+   for the SDK level — only `minSdk` (via `tauri.conf.json > bundle.android.minSdkVersion`). Chosen over
+   35 because: (a) we handle insets rather than opt out, so Android 16's mandatory edge-to-edge adds no
+   work; (b) NDK r28+ already covers the 16 KB page rule Android 16 wants; (c) it matches the installed
+   platform (android-36). Re-confirm the template default holds after `init`.
 
 ### App Link setup (decision 2)
 
