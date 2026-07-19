@@ -1,6 +1,6 @@
 {
   "name": "szmde",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Stephen Zhao MarkDown Editor — a fast, cross-platform WYSIWYG markdown editor",
   "type": "module",
   "scripts": {

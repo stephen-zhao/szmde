@@ -25,8 +25,9 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      # Sync the bundle version to the tag (v0.1.0 → 0.1.0) so the installer's
-      # version matches the GitHub Release instead of the placeholder 0.0.0.
+      # Sync the bundle version to the tag (e.g. v0.1.0 → 0.1.0) so the installer's
+      # version always matches the GitHub Release, regardless of the static value
+      # committed in tauri.conf.json.
       - name: Set bundle version from tag
         shell: bash
         env:

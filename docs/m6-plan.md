@@ -50,8 +50,10 @@ is already desktop-gated.
 
 The assistant **cannot** do these (they need the Android SDK + your machine + Google/Play accounts).
 szmde is the documented **Windows-native** exception to the WSL-first rule, so set these up
-Windows-native. Current machine state: **Java 1.8 (too old)**, no `ANDROID_HOME`/`NDK_HOME`, no NDK, no
-rustup Android targets, no `src-tauri/gen/android`.
+Windows-native. _Provisioned 2026-07-19 (S1): JDK 17 + `JAVA_HOME`, `ANDROID_HOME`/`NDK_HOME`, NDK 30, all
+4 rustup Android targets, and a committed `src-tauri/gen/android`. Still pending for on-device work:
+**Windows Developer Mode** (Tauri symlinks the built `.so` into `jniLibs` — the build fails without it) and
+an **AVD/physical device**._
 
 1. **Android Studio** → SDK Manager: install *SDK Platform* (**API 36** — we compile/target 36),
    *Platform-Tools*, *Build-Tools*, *Command-line Tools*, and *NDK (Side by side)* — **NDK r28+ is

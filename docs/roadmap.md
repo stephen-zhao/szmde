@@ -33,7 +33,7 @@ next:
 |------|-----|-------|
 | **Least-privilege Google Drive picker** — built (scope → `drive.file`, system-browser Picker, hardened loopback); remaining: the live pick→open→save round-trip in the dev app (**WF-28**, user-run) | REQ-CLOUD-3 | ✅ code + tests (catalogued in [requirements.md](requirements.md)); 🔜 live verify |
 | OneDrive live wiring (connect orchestration + UI, mirroring `gdrive-connect.ts`) | REQ-CLOUD-2 | ⬜ **deferred** (deprioritized 2026-07-11) — backend + unit tests done, not live-wired |
-| **M6 — Android** (current milestone) | REQ-MOBILE-* | 🔜 planning — [m6-plan.md](m6-plan.md) (needs toolchain setup) |
+| **M6 — Android** (current milestone) | REQ-MOBILE-* | 🚧 in progress — S1 cross-compiles on all 4 ABIs + `gen/android` committed; [m6-plan.md](m6-plan.md) |
 
 _Parked (specced-lite, unscheduled):_ keyboard entry into the inline table-cell editor; Google Docs →
 markdown export (native Google Docs return `403` on `alt=media`, so only true `.md` / binary Drive
@@ -118,7 +118,10 @@ keyboard → SAF file open/save → signed **APK** → Drive **sign-in** (deep-l
 an **https App Link** redirect + a separate Android OAuth client). Needs a real toolchain setup
 (JDK 17, Android SDK/NDK, rustup targets — see the plan). **Scope decided 2026-07-18:** M6 = S1–S6;
 the Drive **Picker** (opening pre-existing files) is deferred to **M6.1**; Play Store is its own later
-milestone (REQ-PLAY-1). Progress: `keyring` 3→4 (S1 prep, PR #13) + responsive shell (S2, PR #14).
+milestone (REQ-PLAY-1). Progress: `keyring` 3→4 (S1 prep, PR #13) + responsive shell (S2, PR #14) +
+**S1 landed** — `cfg(desktop)`-gated the CLI + loopback OAuth, `tauri android init` (`gen/android`
+committed), and the app cross-compiles on all 4 ABIs. On-device emulator boot pending a test device;
+APK packaging pending Windows Developer Mode.
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
 | REQ-MOBILE-1 | Tauri 2 mobile build → sideload signed **APK** (Play Store = REQ-PLAY-1, later) | §2 |
