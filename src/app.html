@@ -3,7 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- viewport-fit=cover exposes safe-area insets (notch/nav bar); interactive-widget
+         shrinks the layout viewport when the soft keyboard opens so the caret scrolls
+         into view (Chromium 108+ default is resizes-visual, which does not — M6 REQ-MOBILE-2).
+         Both are no-ops on desktop. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <title>szmde</title>
     %sveltekit.head%
   </head>

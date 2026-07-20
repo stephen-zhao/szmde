@@ -150,8 +150,12 @@
 <style>
   .menu-root {
     position: fixed;
-    top: 10px;
-    left: 10px;
+    /* ADDITIVE, not max(): clear the status bar / cutout and THEN add the design
+       margin. max(10px, env()) resolves to exactly the inset on a phone, leaving the
+       button flush against the system bar with no breathing room (M6 S1 on-device).
+       env() is 0 on desktop (and WebView <M136), so this degrades to a plain 10px. */
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    left: calc(env(safe-area-inset-left, 0px) + 10px);
     z-index: 20;
   }
 
@@ -167,6 +171,7 @@
     background: transparent;
     color: var(--muted);
     cursor: pointer;
+    touch-action: manipulation; /* no 300ms double-tap-zoom delay on touch */
     transition: background 0.15s, color 0.15s;
   }
   .hamburger:hover {
@@ -210,6 +215,7 @@
     font-size: 14px;
     text-align: left;
     cursor: pointer;
+    touch-action: manipulation;
   }
   .dropdown button:hover:not(:disabled) {
     background: var(--bg-hover);
@@ -246,5 +252,69 @@
     margin: 6px 4px;
     border: none;
     border-top: 1px solid var(--border);
+  }
+
+  /* Phone (M6 REQ-MOBILE-2): ≥48dp tap targets, a wider menu that can't overflow
+     the screen, and a scrollable dropdown so a tall menu stays reachable. */
+  @media (max-width: 600px) {
+    .dropdown {
+      min-width: 260px;
+      max-width: calc(100vw - 20px);
+      /* Also clamp for a NARROW DESKTOP window (minWidth is 480px, below this 600px
+         breakpoint), where `pointer: coarse` never matches. env() is 0 there, so the
+         touch rule below simply supersedes this one on a phone. */
+      max-height: calc(100dvh - 96px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    .dropdown button {
+      min-height: 44px;
+      padding: 10px 12px;
+      font-size: 15px;
+    }
+    .section-label {
+      font-size: 12px;
+      padding: 6px 12px 3px;
+    }
+  }
+
+  /* Touch sizing + safe-area clearance key off the DEVICE, not the viewport width: a
+     phone rotated to landscape is ~952px wide, so a max-width breakpoint would drop the
+     48dp target and the inset while the system bars are still very much there. */
+  @media (pointer: coarse) {
+    .menu-root {
+      /* Pull further out of the corner. env() only models RECTANGULAR insets — it
+         knows nothing about a phone's rounded display corners, so a control sitting
+         at the inset origin lands inside the corner arc: clipped-looking and awkward
+         to hit one-handed. The extra 6px clears the arc. */
+      top: calc(env(safe-area-inset-top, 0px) + 16px);
+      left: calc(env(safe-area-inset-left, 0px) + 16px);
+    }
+    .hamburger {
+      /* 48dp — Material's minimum touch target (the m6-plan's "≥48dp" bar). */
+      width: 48px;
+      height: 48px;
+      /* Touch has no hover, so the desktop muted→text hover reveal NEVER fires and
+         the icon would stay permanently dim. Render at full contrast by default. */
+      color: var(--text);
+    }
+    .hamburger svg {
+      width: 24px;
+      height: 24px;
+    }
+    .dropdown {
+      /* follows the taller 48px button + gap */
+      top: 56px;
+      /* Subtract the REAL insets, not just a constant: the menu is anchored below a
+         button that already sits at env(top) + 16, so a flat `100dvh - 96px` clamp
+         overshoots by the top inset and runs the menu off the bottom of the screen.
+         Scrolling lives here too (not in the width query) so a landscape phone keeps a
+         reachable menu. */
+      max-height: calc(
+        100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 96px
+      );
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
   }
 </style>
