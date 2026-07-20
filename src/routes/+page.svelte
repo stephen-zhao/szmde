@@ -770,6 +770,14 @@
   @media (max-width: 600px) {
     .statusbar {
       left: calc(env(safe-area-inset-left, 0px) + 8px);
+      /* FLOOR the bottom inset. Measured on a Pixel 9 Pro / Android 16 WebView
+         (M6 S1): env(safe-area-inset-top) correctly reports 52px, but
+         env(safe-area-inset-BOTTOM) reports 0px even though a gesture nav bar is
+         present — so additive math alone leaves the chips under the gesture pill.
+         max() guarantees we clear the ~24dp gesture area, while still deferring to
+         env() on devices/WebViews that do report a larger real inset.
+         (The general JS/native inset fallback is tracked as M6 risk #5.) */
+      bottom: max(32px, calc(env(safe-area-inset-bottom, 0px) + 8px));
       max-width: calc(100vw - 16px);
       flex-wrap: wrap;
       justify-content: flex-end;
