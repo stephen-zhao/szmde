@@ -531,6 +531,11 @@
   {#if settings.value.appearance.showStatusWidgets}
   <div class="statusbar">
     <span class="status-name">{fileName}{dirty ? " •" : ""}</span>
+    <!-- Zero-height flex line-break: on phones it forces the filename onto its own row
+         above the chips. A `flex-basis:100%` on .status-name itself would stretch its
+         PILL BACKGROUND across the full width; breaking with a sibling lets the pill keep
+         hugging its text. Display:none (inert) on desktop. -->
+    <span class="status-row-break" aria-hidden="true"></span>
     {#if settings.value.appearance.showWordCount}
       <span class="chip chip-readonly" title="{wordCount.chars.toLocaleString()} characters">
         {wordCount.words.toLocaleString()} words
@@ -626,6 +631,10 @@
     border-radius: 6px;
     background: color-mix(in srgb, var(--bg-raised) 78%, transparent);
     user-select: none;
+  }
+  /* Inert on desktop — otherwise it would still be a flex item and add a `gap`. */
+  .status-row-break {
+    display: none;
   }
   .chip {
     pointer-events: auto;
@@ -770,21 +779,25 @@
   @media (max-width: 600px) {
     .statusbar {
       left: calc(env(safe-area-inset-left, 0px) + 8px);
-      /* FLOOR the bottom inset. Measured on a Pixel 9 Pro / Android 16 WebView
-         (M6 S1): env(safe-area-inset-top) correctly reports 52px, but
-         env(safe-area-inset-BOTTOM) reports 0px even though a gesture nav bar is
-         present — so additive math alone leaves the chips under the gesture pill.
-         max() guarantees we clear the ~24dp gesture area, while still deferring to
-         env() on devices/WebViews that do report a larger real inset.
-         (The general JS/native inset fallback is tracked as M6 risk #5.) */
-      bottom: max(32px, calc(env(safe-area-inset-bottom, 0px) + 8px));
       max-width: calc(100vw - 16px);
       flex-wrap: wrap;
       justify-content: flex-end;
       gap: 5px;
     }
+    /* The filename gets its OWN row above the chips, via the .status-row-break sibling.
+       Two reasons: it is not a .chip, so it never picks up the chips' min-height and
+       sitting inline beside them read as a mismatched pill; and a real filename is far
+       longer than the 45vw it used to be squeezed into. On its own row it keeps its
+       natural pill height/width and can use the full width before ellipsing. */
+    .status-row-break {
+      display: block;
+      flex-basis: 100%;
+      height: 0;
+      margin: 0;
+    }
     .status-name {
-      max-width: 45vw;
+      min-width: 0;
+      max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -808,6 +821,32 @@
     }
     .modal {
       max-width: calc(100vw - 24px);
+    }
+  }
+
+  /* Safe-area clearance is a property of the DEVICE (it has system bars), not of the
+     viewport width — so it must NOT live in the max-width breakpoint above. A phone
+     rotated to landscape is ~952px wide: the width query stops matching, but the
+     gesture nav bar is still there. Keying this on `pointer: coarse` keeps the floor in
+     both orientations while leaving mouse-driven desktop (env()=0 anyway) untouched.
+     FLOOR rationale, measured on a Pixel 9 Pro / Android 16 WebView (M6 S1/S2):
+     env(safe-area-inset-top) correctly reports 52px but env(safe-area-inset-BOTTOM)
+     reports 0px despite a gesture bar being present, so additive math alone leaves the
+     chips under the pill. max() guarantees ~24dp of clearance while still deferring to
+     env() where it reports a larger real inset. (General fallback = M6 risk #5.) */
+  @media (pointer: coarse) {
+    .statusbar {
+      bottom: max(32px, calc(env(safe-area-inset-bottom, 0px) + 8px));
+    }
+    /* Scroll clamping belongs here too — a landscape phone is short, so this is exactly
+       when a popover most needs to stay on-screen. Subtract the real insets rather than
+       a flat constant. */
+    .chip-menu {
+      max-height: calc(
+        100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 120px
+      );
+      overflow-y: auto;
+      overscroll-behavior: contain;
     }
   }
 </style>

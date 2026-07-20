@@ -55,7 +55,15 @@ export const baseTheme = EditorView.theme(
       // width) keeps all three columns on-screen (REQ-ZOOM-4).
       maxWidth: "var(--reading-width, 740px)",
       margin: "0 auto",
-      paddingTop: "72px",
+      // Clear the floating hamburger so the FIRST line's fold chevron is clickable.
+      // The chevron lives in the --fold-col lane at the content's left edge, which on a
+      // phone (full-width column) sits directly under the fixed hamburger — making it
+      // permanently untappable (verified on a Pixel 9 Pro, M6 S2).
+      //   desktop: env()=0        -> 72px   (hamburger bottom = 10 + 36 = 46px)  unchanged
+      //   phone:   env(top)=52px  -> 124px  (hamburger bottom = 52 + 16 + 48 = 116px)
+      // Deliberately env-driven rather than a media query: it tracks the real inset and
+      // is a byte-for-byte no-op on desktop.
+      paddingTop: "calc(env(safe-area-inset-top, 0px) + 72px)",
       paddingRight: "28px",
       paddingBottom: "40vh",
       paddingLeft: "calc(28px + var(--fold-col) + var(--marker-gutter))",

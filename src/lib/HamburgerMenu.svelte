@@ -257,6 +257,31 @@
   /* Phone (M6 REQ-MOBILE-2): ≥48dp tap targets, a wider menu that can't overflow
      the screen, and a scrollable dropdown so a tall menu stays reachable. */
   @media (max-width: 600px) {
+    .dropdown {
+      min-width: 260px;
+      max-width: calc(100vw - 20px);
+      /* Also clamp for a NARROW DESKTOP window (minWidth is 480px, below this 600px
+         breakpoint), where `pointer: coarse` never matches. env() is 0 there, so the
+         touch rule below simply supersedes this one on a phone. */
+      max-height: calc(100dvh - 96px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    .dropdown button {
+      min-height: 44px;
+      padding: 10px 12px;
+      font-size: 15px;
+    }
+    .section-label {
+      font-size: 12px;
+      padding: 6px 12px 3px;
+    }
+  }
+
+  /* Touch sizing + safe-area clearance key off the DEVICE, not the viewport width: a
+     phone rotated to landscape is ~952px wide, so a max-width breakpoint would drop the
+     48dp target and the inset while the system bars are still very much there. */
+  @media (pointer: coarse) {
     .menu-root {
       /* Pull further out of the corner. env() only models RECTANGULAR insets — it
          knows nothing about a phone's rounded display corners, so a control sitting
@@ -278,21 +303,18 @@
       height: 24px;
     }
     .dropdown {
+      /* follows the taller 48px button + gap */
       top: 56px;
-      min-width: 260px;
-      max-width: calc(100vw - 20px);
-      max-height: calc(100dvh - 96px);
+      /* Subtract the REAL insets, not just a constant: the menu is anchored below a
+         button that already sits at env(top) + 16, so a flat `100dvh - 96px` clamp
+         overshoots by the top inset and runs the menu off the bottom of the screen.
+         Scrolling lives here too (not in the width query) so a landscape phone keeps a
+         reachable menu. */
+      max-height: calc(
+        100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 96px
+      );
       overflow-y: auto;
       overscroll-behavior: contain;
-    }
-    .dropdown button {
-      min-height: 44px;
-      padding: 10px 12px;
-      font-size: 15px;
-    }
-    .section-label {
-      font-size: 12px;
-      padding: 6px 12px 3px;
     }
   }
 </style>
