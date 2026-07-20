@@ -389,6 +389,11 @@ widgets, VS Code-style:
 - **Indentation widget** — shows e.g. `Spaces: 2` or `Tab`; click for a small menu to switch
   Spaces ⇄ Tab and pick the width, plus a "convert existing indentation" action (§4.4).
 
+**Command reachability (all platforms).** No shipped command may be reachable *only* by keyboard
+shortcut, hover, or right-click — those don't exist on a touch device, and a feature that can't be
+invoked is a feature that isn't shipped there. Every command needs at least one pointer-agnostic
+entry point (the hamburger menu, a status widget, or an on-canvas control). `REQ-UI-4`.
+
 Reconciling with requirement 9 (blank canvas, hamburger-only): these widgets are
 deliberately tiny, low-contrast, and tucked in the corner — closer to the cursor-position
 hint in a clean editor than to a full status bar. They are **shown by default** (they're
@@ -470,6 +475,13 @@ pipe tables**. Requirements:
   (Exact keybindings TBD; must not collide with text editing or the §4.2 formatting keys.)
 - **Auto-tidy source.** Cells re-pad/realign as you edit so the saved GFM stays clean; per-column
   alignment (`:--`, `:-:`, `--:`) is settable from the editing UI.
+- **Usable while still EMPTY.** A freshly inserted _N×M_ scaffold is all empty cells, so cell size
+  must not be driven by content alone: empty tables/rows/columns/cells keep a **minimum rendered
+  size** with visible boundaries, so they can be seen and targeted before anything is typed
+  (`REQ-TBLED-8`).
+- **Reachable with a coarse pointer.** Every structural action must be available **without hover or
+  right-click** — neither exists on touch. Hover-revealed gizmos and a `contextmenu` menu are a
+  fine-pointer *enhancement*, not the only path (`REQ-TBLED-9`).
 
 Scope note: GFM table _rendering_ is M2 (§5.1). This rich _editing_ experience was a larger,
 later effort — block-widget interaction work in the §9 decoration/widget layer — **not required for
