@@ -199,6 +199,23 @@ Both are per-document, editable via a small status widget (§7.1) and defaulted 
 - Changing the setting affects subsequent edits; an explicit "convert existing indentation"
   action (spaces↔tabs across the file) is available from the widget menu.
 
+### 4.5 Typewriter scrolling — the active line never sinks to the bottom
+
+The line you are typing on must stay in a **comfortable reading position**, not pinned to the
+bottom edge of the viewport. CodeMirror's default `scrollIntoView` performs the *minimum*
+scroll, so a caret moving downward comes to rest one line inside the bottom edge — the worst
+place to work: on a phone it lands hard against the soft keyboard and underneath the
+bottom-right status chips, so most of the line being edited is obscured.
+
+Requirement: **by default, keep the active line vertically centred** (classic "typewriter"
+scrolling), so there is always context visible both above and below the cursor. A settings
+flag can turn it off for people who prefer minimal scrolling. This is a **general editor
+behavior on every platform**, not a phone-only affordance — it is simply most acute on a
+phone, where the keyboard leaves only ~60% of the screen. (`REQ-SCROLL-1`.)
+
+Note it also removes the status-chip overlap as a side effect: a centred caret sits far above
+the chips, so no extra chip hiding/fading logic is needed.
+
 ---
 
 ## 5. Markdown feature coverage
