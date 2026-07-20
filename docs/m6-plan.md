@@ -187,8 +187,23 @@ an **AVD/physical device**._
    default store, then verify the round-trip on device. Fallback remains `tauri-plugin-keyring`.
 3. CM6 caret invisible next to inline widgets during IME composition (widget-heavy editor) — physical
    device + real IME only.
-4. Soft keyboard: whether `interactive-widget=resizes-content` shrinks the layout viewport and whether
-   `visualViewport.height` updates for the OSK (Tauri #10631 open: doesn't; #7868: inconsistent).
+4. ⚠️ **PARTLY RESOLVED — the CSS-only approach is disproven (measured 2026-07-20, S3 spike).** On a
+   Pixel 9 Pro AVD / Android 16, with the IME up (`mInputShown=true`) and CM focused, the web layer is
+   told **nothing** — `innerHeight` 952→952, `visualViewport.height` 952→952, `offsetTop` 0→0. Neither
+   `interactive-widget=resizes-content` (confirms Tauri #10631) **nor the planned `visualViewport`
+   fallback** reacts, and `android:windowSoftInputMode="adjustResize"` is **also inert**: a targetSdk 35+
+   edge-to-edge app no longer gets automatic IME resizing — it must consume `WindowInsets.ime()` itself.
+   **So S3 needs native code, not CSS/JS.** Implemented as a bridge in `MainActivity.kt` (an
+   editable, committed file — `TauriActivity.kt` is auto-generated, don't touch) overriding
+   `WryActivity.onWebViewCreate` to publish the IME inset as the CSS var `--kb-inset`.
+   `adjustResize` is **kept** in the manifest anyway: it is inert on 35+ but still works on API 24–34,
+   which is most of our minSdk-24 range, and there `--kb-inset` simply stays 0 while `100dvh` does the
+   right thing. The two are complementary.
+   **Still unverified:** the bridge's *value*. The AVD has a **hardware keyboard**, so forcing the IME
+   yields Gboard's **floating mini-toolbar**, which does not occlude the window — `ime=0` is then
+   *correct* and the measurement says nothing about a docked keyboard. The inset callbacks themselves do
+   fire (9× `animProgress` + `animEnd`), so the plumbing is proven; only the magnitude is untested.
+   **This is exactly why S3's acceptance demands a physical phone** (or an AVD with `hw.keyboard=no`).
 5. `env(safe-area-inset-*)` returns 0 on WebView <M136; **targetSdk 36 / Android 16 makes edge-to-edge
    mandatory (the opt-out is dead)** — needs a JS/native inset fallback across WebView versions. (We
    handle insets rather than opt out, so targeting 36 adds no work here.)
