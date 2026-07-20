@@ -772,24 +772,25 @@ pub fn run() {
     // so Android sign-in will use a deep-link redirect (a later M6 slice). The
     // mobile handler is the same command surface minus those three.
     #[cfg(desktop)]
-    let builder = builder
-        .manage(Loopback(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![
-            read_file,
-            write_file,
-            read_file_meta,
-            stat_file,
-            get_launch_file,
-            read_settings_file,
-            write_settings_file,
-            secure_get,
-            secure_set,
-            secure_delete,
-            read_gdrive_config,
-            oauth_loopback_reserve,
-            oauth_loopback_await,
-            oauth_pick_await
-        ]);
+    let builder =
+        builder
+            .manage(Loopback(Mutex::new(None)))
+            .invoke_handler(tauri::generate_handler![
+                read_file,
+                write_file,
+                read_file_meta,
+                stat_file,
+                get_launch_file,
+                read_settings_file,
+                write_settings_file,
+                secure_get,
+                secure_set,
+                secure_delete,
+                read_gdrive_config,
+                oauth_loopback_reserve,
+                oauth_loopback_await,
+                oauth_pick_await
+            ]);
     #[cfg(mobile)]
     let builder = builder.invoke_handler(tauri::generate_handler![
         read_file,
