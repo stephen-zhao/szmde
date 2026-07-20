@@ -150,12 +150,17 @@
 <style>
   .menu-root {
     position: fixed;
-    /* ADDITIVE, not max(): clear the status bar / cutout and THEN add the design
-       margin. max(10px, env()) resolves to exactly the inset on a phone, leaving the
-       button flush against the system bar with no breathing room (M6 S1 on-device).
-       env() is 0 on desktop (and WebView <M136), so this degrades to a plain 10px. */
-    top: calc(env(safe-area-inset-top, 0px) + 10px);
-    left: calc(env(safe-area-inset-left, 0px) + 10px);
+    /* ADDITIVE, not max(margin, inset): clear the status bar / cutout and THEN add the
+       design margin. `max(10px, inset)` would resolve to exactly the inset on a phone,
+       leaving the button flush against the system bar with no breathing room (M6 S1).
+
+       The inset itself is `max(env(...), var(--sat))` because NEITHER source is reliable
+       alone (measured 2026-07-20, same build): the Pixel 9 Pro AVD reports env top = 52px,
+       while a PHYSICAL Pixel 9 Pro reports env = 0px on every edge and only the native
+       `--sat` (pushed from WindowInsets by MainActivity.kt) is correct. On desktop/web
+       both are 0, so this degrades to a plain 10px. */
+    top: calc(max(env(safe-area-inset-top, 0px), var(--sat, 0px)) + 10px);
+    left: calc(max(env(safe-area-inset-left, 0px), var(--sal, 0px)) + 10px);
     z-index: 20;
   }
 
@@ -287,8 +292,8 @@
          knows nothing about a phone's rounded display corners, so a control sitting
          at the inset origin lands inside the corner arc: clipped-looking and awkward
          to hit one-handed. The extra 6px clears the arc. */
-      top: calc(env(safe-area-inset-top, 0px) + 16px);
-      left: calc(env(safe-area-inset-left, 0px) + 16px);
+      top: calc(max(env(safe-area-inset-top, 0px), var(--sat, 0px)) + 16px);
+      left: calc(max(env(safe-area-inset-left, 0px), var(--sal, 0px)) + 16px);
     }
     .hamburger {
       /* 48dp — Material's minimum touch target (the m6-plan's "≥48dp" bar). */
@@ -311,7 +316,7 @@
          Scrolling lives here too (not in the width query) so a landscape phone keeps a
          reachable menu. */
       max-height: calc(
-        100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 96px
+        100dvh - max(env(safe-area-inset-top, 0px), var(--sat, 0px)) - max(env(safe-area-inset-bottom, 0px), var(--sab, 0px)) - 96px
       );
       overflow-y: auto;
       overscroll-behavior: contain;

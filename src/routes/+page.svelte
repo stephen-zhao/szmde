@@ -606,7 +606,15 @@
 <style>
   .app {
     position: relative;
-    height: 100dvh;
+    /* Shrink above the soft keyboard. `--kb-inset` is pushed in natively by
+       MainActivity.kt from WindowInsets.ime() — on Android the web layer gets NO other
+       signal that the keyboard exists (measured on a Pixel 9 Pro: innerHeight and
+       visualViewport.height both stay at their full-screen value, and neither
+       interactive-widget=resizes-content nor windowSoftInputMode=adjustResize changes
+       that on a targetSdk 35+ edge-to-edge app). Shrinking here is what gives CodeMirror
+       a correct visible height, so its own caret scrollIntoView keeps the cursor above
+       the keyboard. Unset everywhere else (desktop, web) -> 0 -> plain 100dvh. */
+    height: calc(100dvh - var(--kb-inset, 0px));
     width: 100%;
   }
 
@@ -616,8 +624,8 @@
        base margin. max() resolves to exactly the inset on a phone, parking the chips
        right on top of the gesture pill (M6 S1 on-device). env() is 0 on desktop, so
        this degrades to the plain base px. */
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
-    right: calc(env(safe-area-inset-right, 0px) + 14px);
+    bottom: calc(max(env(safe-area-inset-bottom, 0px), var(--sab, 0px)) + 8px);
+    right: calc(max(env(safe-area-inset-right, 0px), var(--sar, 0px)) + 14px);
     z-index: 15;
     display: flex;
     align-items: center;
@@ -778,7 +786,7 @@
      so it's full-width here without extra rules. */
   @media (max-width: 600px) {
     .statusbar {
-      left: calc(env(safe-area-inset-left, 0px) + 8px);
+      left: calc(max(env(safe-area-inset-left, 0px), var(--sal, 0px)) + 8px);
       max-width: calc(100vw - 16px);
       flex-wrap: wrap;
       justify-content: flex-end;
@@ -836,14 +844,25 @@
      env() where it reports a larger real inset. (General fallback = M6 risk #5.) */
   @media (pointer: coarse) {
     .statusbar {
-      bottom: max(32px, calc(env(safe-area-inset-bottom, 0px) + 8px));
+      /* Three candidates, no branching needed — whichever is largest wins:
+           32px .......................... the gesture-bar floor (env bottom lies; see above)
+           env(bottom) + 8 ............... a device that DOES report a real bottom inset
+           --kb-inset + 8 ................ sit just above the soft keyboard when it is up
+         The statusbar is position:fixed, so shrinking .app does NOT move it — it has to
+         account for the keyboard itself. With the keyboard closed --kb-inset is 0 and the
+         third candidate collapses to 8px, leaving the floor in charge. */
+      bottom: max(
+        32px,
+        calc(max(env(safe-area-inset-bottom, 0px), var(--sab, 0px)) + 8px),
+        calc(var(--kb-inset, 0px) + 8px)
+      );
     }
     /* Scroll clamping belongs here too — a landscape phone is short, so this is exactly
        when a popover most needs to stay on-screen. Subtract the real insets rather than
        a flat constant. */
     .chip-menu {
       max-height: calc(
-        100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 120px
+        100dvh - max(env(safe-area-inset-top, 0px), var(--sat, 0px)) - max(env(safe-area-inset-bottom, 0px), var(--sab, 0px)) - 120px
       );
       overflow-y: auto;
       overscroll-behavior: contain;

@@ -35,23 +35,51 @@ class MainActivity : TauriActivity() {
    * thing. The two mechanisms are complementary across our minSdk-24 range.
    */
   override fun onWebViewCreate(webView: WebView) {
-    val push = { imePx: Int, src: String ->
-      val cssPx = (imePx / resources.displayMetrics.density).toInt()
-      android.util.Log.d("szmde-ime", "push src=$src imePx=$imePx cssPx=$cssPx")
+    val d = resources.displayMetrics.density
+    val px = { v: Int -> (v / d).toInt() }
+
+    // Publish the IME inset only (cheap path, used by the IME animation callback).
+    val pushIme = { imePx: Int ->
       webView.post {
         webView.evaluateJavascript(
-          "document.documentElement.style.setProperty('--kb-inset','${cssPx}px')",
+          "document.documentElement.style.setProperty('--kb-inset','${px(imePx)}px')",
+          null,
+        )
+      }
+    }
+
+    // Publish the system-bar / cutout insets too, as --sat/--sab/--sal/--sar.
+    //
+    // WHY: `env(safe-area-inset-*)` is NOT reliable here. Measured 2026-07-20 on the SAME
+    // app build: the Pixel 9 Pro AVD (WebView 134) reports env top = 52px, but a physical
+    // Pixel 9 Pro (WebView 150) reports **0px on every edge** — so the CSS-only inset
+    // strategy silently no-ops on real hardware and the hamburger lands on the status bar.
+    // (This is not the documented "WebView < M136 returns 0" case; 150 is far newer.)
+    // These vars are the trustworthy source; CSS takes max(env(...), var(--sa*)) so
+    // whichever side actually reports a value wins, and desktop stays at 0.
+    val pushAll = { insets: WindowInsetsCompat ->
+      val bars = insets.getInsets(
+        WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
+      )
+      val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+      webView.post {
+        webView.evaluateJavascript(
+          """
+          (function(s){
+            s.setProperty('--sat','${px(bars.top)}px');
+            s.setProperty('--sab','${px(bars.bottom)}px');
+            s.setProperty('--sal','${px(bars.left)}px');
+            s.setProperty('--sar','${px(bars.right)}px');
+            s.setProperty('--kb-inset','${px(ime)}px');
+          })(document.documentElement.style)
+          """.trimIndent(),
           null,
         )
       }
     }
 
     ViewCompat.setOnApplyWindowInsetsListener(webView) { _, insets ->
-      val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-      val vis = insets.isVisible(WindowInsetsCompat.Type.ime())
-      val sys = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
-      android.util.Log.d("szmde-ime", "applyInsets ime=$ime visible=$vis sysBars=$sys")
-      push(ime, "applyInsets")
+      pushAll(insets)
       // Return the insets unconsumed so the system bars keep laying out normally.
       insets
     }
@@ -66,16 +94,14 @@ class MainActivity : TauriActivity() {
           running: MutableList<WindowInsetsAnimationCompat>,
         ): WindowInsetsCompat {
           val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-          android.util.Log.d("szmde-ime", "animProgress ime=$ime")
-          push(ime, "animProgress")
+          pushIme(ime)
           return insets
         }
 
         override fun onEnd(animation: WindowInsetsAnimationCompat) {
           val root = ViewCompat.getRootWindowInsets(webView)
           val ime = root?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0
-          android.util.Log.d("szmde-ime", "animEnd ime=$ime")
-          push(ime, "animEnd")
+          pushIme(ime)
         }
       },
     )

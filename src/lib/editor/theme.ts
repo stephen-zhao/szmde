@@ -63,7 +63,7 @@ export const baseTheme = EditorView.theme(
       //   phone:   env(top)=52px  -> 124px  (hamburger bottom = 52 + 16 + 48 = 116px)
       // Deliberately env-driven rather than a media query: it tracks the real inset and
       // is a byte-for-byte no-op on desktop.
-      paddingTop: "calc(env(safe-area-inset-top, 0px) + 72px)",
+      paddingTop: "calc(max(env(safe-area-inset-top, 0px), var(--sat, 0px)) + 72px)",
       paddingRight: "28px",
       paddingBottom: "40vh",
       paddingLeft: "calc(28px + var(--fold-col) + var(--marker-gutter))",
