@@ -378,6 +378,12 @@ and file-watching over the WSL share may be unreliable, so treat `watch` as best
 A minimal, unobtrusive status area in the **bottom-right corner** holds small click-to-edit
 widgets, VS Code-style:
 
+- **Document-name widget** — shows the current document's name (plus a dirty marker); click
+  to **rename** it in place. The rename commits through the `StorageProvider` seam (§6), so
+  it renames the real artifact rather than just the in-app label — a local file is renamed on
+  disk, a cloud file via its backend's rename (e.g. the Drive `name` field). Backends that
+  can't rename advertise that through the provider's capabilities and the widget stays
+  read-only there. (`REQ-FILE-3`; see [docs/roadmap.md](docs/roadmap.md).)
 - **EOL widget** — shows `LF` or `CRLF`; click to toggle (immediately rewrites the file's
   line endings, §4.4).
 - **Indentation widget** — shows e.g. `Spaces: 2` or `Tab`; click for a small menu to switch
