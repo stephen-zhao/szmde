@@ -607,9 +607,12 @@
 
   .statusbar {
     position: fixed;
-    /* clear the home indicator / nav bar on mobile; == the base px on desktop (M6) */
-    bottom: max(8px, env(safe-area-inset-bottom));
-    right: max(14px, env(safe-area-inset-right));
+    /* ADDITIVE, not max(): clear the gesture bar / home indicator and THEN add the
+       base margin. max() resolves to exactly the inset on a phone, parking the chips
+       right on top of the gesture pill (M6 S1 on-device). env() is 0 on desktop, so
+       this degrades to the plain base px. */
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+    right: calc(env(safe-area-inset-right, 0px) + 14px);
     z-index: 15;
     display: flex;
     align-items: center;
@@ -766,7 +769,7 @@
      so it's full-width here without extra rules. */
   @media (max-width: 600px) {
     .statusbar {
-      left: max(8px, env(safe-area-inset-left));
+      left: calc(env(safe-area-inset-left, 0px) + 8px);
       max-width: calc(100vw - 16px);
       flex-wrap: wrap;
       justify-content: flex-end;
