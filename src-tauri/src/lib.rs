@@ -186,12 +186,14 @@ fn read_gdrive_config(app: tauri::AppHandle) -> Result<Option<GdriveConfig>, Str
 /// Holds the reserved loopback listener between `oauth_loopback_reserve` (which
 /// binds it to learn the port) and `oauth_loopback_await` (which accepts the
 /// redirect on it).
+#[cfg(desktop)]
 struct Loopback(Mutex<Option<std::net::TcpListener>>);
 
 /// A parsed OAuth loopback redirect: the auth `code`, the CSRF `state`, and —
 /// for the Google Picker flow (REQ-CLOUD-3, `trigger_onepick`) — the ids of the
 /// files the user picked (`picked_file_ids`, comma-separated as Google sends it;
 /// `None` on a plain sign-in redirect).
+#[cfg(desktop)]
 #[derive(Debug, PartialEq, serde::Serialize)]
 struct Redirect {
     code: String,
@@ -202,6 +204,7 @@ struct Redirect {
 
 /// Parse the redirect params from a raw loopback HTTP request. Pure →
 /// cargo-testable. Expects a request line like `GET /?code=X&state=Y HTTP/1.1`.
+#[cfg(desktop)]
 fn parse_redirect(request: &str) -> Option<Redirect> {
     let target = request.lines().next()?.split_whitespace().nth(1)?; // "/?code=..&state=.."
     let query = target.split_once('?')?.1;
@@ -227,6 +230,7 @@ fn parse_redirect(request: &str) -> Option<Redirect> {
 
 /// Extract one percent-decoded query param from a raw request's request line.
 /// Pure → cargo-testable.
+#[cfg(desktop)]
 fn query_param(request: &str, key: &str) -> Option<String> {
     let target = request.lines().next()?.split_whitespace().nth(1)?;
     let query = target.split_once('?')?.1;
@@ -238,6 +242,7 @@ fn query_param(request: &str, key: &str) -> Option<String> {
 
 /// The `error` param of a redirect, if Google sent one (e.g. `access_denied`
 /// when the user cancels the consent/Picker). Pure → cargo-testable.
+#[cfg(desktop)]
 fn parse_error(request: &str) -> Option<String> {
     query_param(request, "error")
 }
@@ -247,6 +252,7 @@ fn parse_error(request: &str) -> Option<String> {
 /// 127.0.0.1, but the browser still sends that hostname in `Host` — so anything
 /// other than `127.0.0.1:<port>` / `localhost:<port>` is rejected (403). A
 /// request with no Host header is rejected too. Pure → cargo-testable.
+#[cfg(desktop)]
 fn host_allowed(request: &str, port: u16) -> bool {
     let host = request.lines().find_map(|l| {
         let (k, v) = l.split_once(':')?;
@@ -260,6 +266,7 @@ fn host_allowed(request: &str, port: u16) -> bool {
 
 /// What to do with an accepted loopback request. A pure decision (→ cargo-testable),
 /// so the security-critical gating is unit-covered while the socket loop stays thin.
+#[cfg(desktop)]
 #[derive(Debug, PartialEq)]
 enum Disposition {
     /// The genuine, state-matched redirect — serve "signed in" and finish.
@@ -277,6 +284,7 @@ enum Disposition {
 /// `state`, is IGNORED rather than aborting a real sign-in — so a localhost
 /// port-probe or a forged `error=`/`code=` can't DoS the flow. Only a request whose
 /// `state` equals ours is honored (as the redirect, or as a genuine cancel).
+#[cfg(desktop)]
 fn classify_request(request: &str, expected_state: &str, port: u16) -> Disposition {
     if !host_allowed(request, port) {
         return Disposition::Ignore("403 Forbidden");
@@ -293,6 +301,7 @@ fn classify_request(request: &str, expected_state: &str, port: u16) -> Dispositi
     Disposition::Ignore("404 Not Found")
 }
 
+#[cfg(desktop)]
 fn hex_val(b: u8) -> Option<u8> {
     match b {
         b'0'..=b'9' => Some(b - b'0'),
@@ -305,6 +314,7 @@ fn hex_val(b: u8) -> Option<u8> {
 /// Minimal percent-decoding for the redirect query (pure → cargo-testable).
 /// Operates on BYTES (never slices the &str) so a `%` followed by a multi-byte
 /// UTF-8 char can't panic on a non-char-boundary slice.
+#[cfg(desktop)]
 fn urldecode(s: &str) -> String {
     let b = s.as_bytes();
     let mut out = Vec::with_capacity(b.len());
@@ -335,6 +345,7 @@ fn urldecode(s: &str) -> String {
 }
 
 /// One tiny HTTP response for the loopback (status line + html body).
+#[cfg(desktop)]
 fn http_response(status: &str, body: &str) -> String {
     format!(
         "HTTP/1.1 {}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -350,6 +361,7 @@ fn http_response(status: &str, body: &str) -> String {
 /// stream's 5 s read timeout bounds a slow/stalled sender. Returns whatever was
 /// read on EOF/cap (the caller classifies it); an I/O error propagates so the
 /// caller can drop the connection and keep waiting. Generic over `Read` → testable.
+#[cfg(desktop)]
 fn read_request<R: std::io::Read>(stream: &mut R) -> std::io::Result<String> {
     let mut buf: Vec<u8> = Vec::new();
     let mut chunk = [0u8; 4096];
@@ -375,6 +387,7 @@ fn read_request<R: std::io::Read>(stream: &mut R) -> std::io::Result<String> {
 /// accept error all `continue` the wait; a state-matched `error=` (user cancelled)
 /// ends it with a clear reason; the `deadline_secs` cap (checked every iteration)
 /// stops an abandoned consent — or continuous stray traffic — blocking forever.
+#[cfg(desktop)]
 fn capture_one_redirect(
     listener: std::net::TcpListener,
     port: u16,
@@ -429,6 +442,7 @@ fn capture_one_redirect(
 
 /// Reserve a one-shot loopback listener on an OS-assigned ephemeral port; returns
 /// the port so the frontend can build `redirect_uri=http://127.0.0.1:<port>`.
+#[cfg(desktop)]
 #[tauri::command]
 fn oauth_loopback_reserve(state: tauri::State<'_, Loopback>) -> Result<u16, String> {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
@@ -438,6 +452,7 @@ fn oauth_loopback_reserve(state: tauri::State<'_, Loopback>) -> Result<u16, Stri
 }
 
 /// Take the reserved listener (or error if none was reserved).
+#[cfg(desktop)]
 fn take_listener(state: &tauri::State<'_, Loopback>) -> Result<std::net::TcpListener, String> {
     state.0.lock().unwrap().take().ok_or_else(|| {
         "no reserved loopback listener (call oauth_loopback_reserve first)".to_string()
@@ -448,6 +463,7 @@ fn take_listener(state: &tauri::State<'_, Loopback>) -> Result<std::net::TcpList
 /// CSRF `state` check happens INSIDE `capture_one_redirect` (so a mismatched state
 /// is ignored-and-kept-waiting, not fatal); this just wires the browser open to the
 /// capture. `deadline_secs` bounds the wait (longer for the interactive Picker).
+#[cfg(desktop)]
 async fn open_and_capture(
     app: tauri::AppHandle,
     listener: std::net::TcpListener,
@@ -471,6 +487,7 @@ async fn open_and_capture(
 
 /// Sign-in: open the browser, capture the loopback redirect, and return the
 /// authorization `code`. 180 s deadline (a quick, non-interactive consent).
+#[cfg(desktop)]
 #[tauri::command]
 async fn oauth_loopback_await(
     app: tauri::AppHandle,
@@ -490,6 +507,7 @@ async fn oauth_loopback_await(
 /// redirect so the caller also gets `pickedFileIds` from the Google desktop Picker
 /// (`trigger_onepick`) flow. 300 s deadline — the user is interactively BROWSING
 /// their Drive in the Picker, which takes longer than a plain sign-in.
+#[cfg(desktop)]
 #[tauri::command]
 async fn oauth_pick_await(
     app: tauri::AppHandle,
@@ -535,7 +553,9 @@ fn secure_delete(service: String, account: String) -> Result<(), String> {
     }
 }
 
+#[cfg(desktop)]
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+#[cfg(desktop)]
 const HELP: &str = "\
 szmde — Stephen Zhao MarkDown Editor
 
@@ -555,11 +575,13 @@ OPTIONS:
     --help          Print this help and exit
 ";
 
+#[cfg(desktop)]
 const RENDER_MODES: [&str; 3] = ["clean", "markers-rendered", "markers-syntax"];
 
 /// Parsed CLI. `new_window`/`render_mode` are recognized (so they aren't treated
 /// as a file or rejected as unknown) but not yet acted on — multi-window and the
 /// render-mode engine are later-milestone work.
+#[cfg(desktop)]
 #[allow(dead_code)]
 #[derive(Debug)]
 struct Cli {
@@ -570,6 +592,7 @@ struct Cli {
 
 /// Parse argv (program name already stripped). `Err(code)` means the caller
 /// should exit with that process code (0 for --help/--version, non-zero on bad args).
+#[cfg(desktop)]
 fn parse_cli<I: Iterator<Item = String>>(args: I, cwd: Option<&str>) -> Result<Cli, i32> {
     let mut cli = Cli {
         file: None,
@@ -621,6 +644,7 @@ fn parse_cli<I: Iterator<Item = String>>(args: I, cwd: Option<&str>) -> Result<C
 /// Resolve a CLI path argument to something std::fs can open: translate a
 /// WSL/Linux absolute path to UNC, and make a relative path absolute against
 /// `cwd` (the invoking shell's working directory — critical for forwarded opens).
+#[cfg(desktop)]
 fn resolve_path(arg: &str, cwd: Option<&str>) -> String {
     #[cfg(windows)]
     if arg.starts_with('/') {
@@ -690,73 +714,99 @@ fn attach_parent_console() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    #[cfg(windows)]
-    attach_parent_console();
-
-    // First-launch CLI: this process runs in the invoking shell's cwd, so
-    // current_dir() is the right base for relative paths.
-    let cwd = std::env::current_dir()
-        .ok()
-        .map(|p| p.to_string_lossy().into_owned());
-    let cli = match parse_cli(std::env::args().skip(1), cwd.as_deref()) {
-        Ok(c) => c,
-        Err(code) => std::process::exit(code),
+    // First-launch CLI (desktop only): this process runs in the invoking shell's
+    // cwd, so current_dir() is the right base for relative paths. Mobile has no
+    // argv/cwd — the OS launches the app, never with a file argument.
+    #[cfg(desktop)]
+    let launch_file = {
+        #[cfg(windows)]
+        attach_parent_console();
+        let cwd = std::env::current_dir()
+            .ok()
+            .map(|p| p.to_string_lossy().into_owned());
+        match parse_cli(std::env::args().skip(1), cwd.as_deref()) {
+            Ok(c) => c.file,
+            Err(code) => std::process::exit(code),
+        }
     };
-    let launch_file = cli.file;
+    #[cfg(mobile)]
+    let launch_file: Option<String> = None;
 
-    let mut builder = tauri::Builder::default();
+    let builder = tauri::Builder::default();
 
     // Single-instance must be the FIRST plugin registered (Tauri requirement).
     // Desktop only — mobile has no second process to forward args from.
     #[cfg(desktop)]
-    {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
-            use tauri::Emitter;
-            // Resolve the forwarded path against the FORWARDING shell's cwd (not
-            // the running instance's), so `szmde notes.md` works from any dir.
-            // This runs OFF the UI thread: resolve_path may invoke wsl.exe for a
-            // WSL path, and this callback fires on the running instance's main
-            // thread — a cold/stuck WSL must not freeze the window.
-            let handle = app.clone();
-            std::thread::spawn(move || {
-                if let Ok(cli) = parse_cli(argv.into_iter().skip(1), Some(&cwd)) {
-                    if let Some(path) = cli.file {
-                        let _ = handle.emit("open-file", path);
-                    }
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+        use tauri::Emitter;
+        // Resolve the forwarded path against the FORWARDING shell's cwd (not
+        // the running instance's), so `szmde notes.md` works from any dir.
+        // This runs OFF the UI thread: resolve_path may invoke wsl.exe for a
+        // WSL path, and this callback fires on the running instance's main
+        // thread — a cold/stuck WSL must not freeze the window.
+        let handle = app.clone();
+        std::thread::spawn(move || {
+            if let Ok(cli) = parse_cli(argv.into_iter().skip(1), Some(&cwd)) {
+                if let Some(path) = cli.file {
+                    let _ = handle.emit("open-file", path);
                 }
-            });
-            // Surface the running instance (fast; no WSL). set_focus() alone
-            // no-ops on a minimized Windows window, so unminimize + show first.
-            if let Some(win) = app.get_webview_window("main") {
-                let _ = win.unminimize();
-                let _ = win.show();
-                let _ = win.set_focus();
             }
-        }));
-    }
+        });
+        // Surface the running instance (fast; no WSL). set_focus() alone
+        // no-ops on a minimized Windows window, so unminimize + show first.
+        if let Some(win) = app.get_webview_window("main") {
+            let _ = win.unminimize();
+            let _ = win.show();
+            let _ = win.set_focus();
+        }
+    }));
 
-    builder
+    let builder = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
-        .manage(LaunchFile(Mutex::new(launch_file)))
-        .manage(Loopback(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![
-            read_file,
-            write_file,
-            read_file_meta,
-            stat_file,
-            get_launch_file,
-            read_settings_file,
-            write_settings_file,
-            secure_get,
-            secure_set,
-            secure_delete,
-            read_gdrive_config,
-            oauth_loopback_reserve,
-            oauth_loopback_await,
-            oauth_pick_await
-        ])
+        .manage(LaunchFile(Mutex::new(launch_file)));
+
+    // The loopback OAuth capture (reserve/await/pick) + its listener state are
+    // desktop-only: Google deprecated the 127.0.0.1 loopback redirect for mobile,
+    // so Android sign-in will use a deep-link redirect (a later M6 slice). The
+    // mobile handler is the same command surface minus those three.
+    #[cfg(desktop)]
+    let builder =
+        builder
+            .manage(Loopback(Mutex::new(None)))
+            .invoke_handler(tauri::generate_handler![
+                read_file,
+                write_file,
+                read_file_meta,
+                stat_file,
+                get_launch_file,
+                read_settings_file,
+                write_settings_file,
+                secure_get,
+                secure_set,
+                secure_delete,
+                read_gdrive_config,
+                oauth_loopback_reserve,
+                oauth_loopback_await,
+                oauth_pick_await
+            ]);
+    #[cfg(mobile)]
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        read_file,
+        write_file,
+        read_file_meta,
+        stat_file,
+        get_launch_file,
+        read_settings_file,
+        write_settings_file,
+        secure_get,
+        secure_set,
+        secure_delete,
+        read_gdrive_config
+    ]);
+
+    builder
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

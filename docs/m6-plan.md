@@ -50,8 +50,10 @@ is already desktop-gated.
 
 The assistant **cannot** do these (they need the Android SDK + your machine + Google/Play accounts).
 szmde is the documented **Windows-native** exception to the WSL-first rule, so set these up
-Windows-native. Current machine state: **Java 1.8 (too old)**, no `ANDROID_HOME`/`NDK_HOME`, no NDK, no
-rustup Android targets, no `src-tauri/gen/android`.
+Windows-native. _Provisioned 2026-07-19 (S1): JDK 17 + `JAVA_HOME`, `ANDROID_HOME`/`NDK_HOME`, NDK 30, all
+4 rustup Android targets, and a committed `src-tauri/gen/android`. Still pending for on-device work:
+**Windows Developer Mode** (Tauri symlinks the built `.so` into `jniLibs` — the build fails without it) and
+an **AVD/physical device**._
 
 1. **Android Studio** → SDK Manager: install *SDK Platform* (**API 36** — we compile/target 36),
    *Platform-Tools*, *Build-Tools*, *Command-line Tools*, and *NDK (Side by side)* — **NDK r28+ is
@@ -115,10 +117,14 @@ rustup Android targets, no `src-tauri/gen/android`.
    `drive.file`-only. **Deferred to M6.1** (out of the M6 line — decision 1, 2026-07-18).
 7. **Secure store — shared contract, Cargo bump only.** `secure_*` + `TauriSecureStore` stay
    byte-for-byte. Bump `keyring = { version = "3", features = ["apple-native","windows-native"] }` →
-   `keyring = "4"` (v4's default feature covers Windows/Apple/Linux; the companion
-   `android-native-keyring-store` — Android-Keystore-encrypted SharedPreferences over JNI, minSdk 24 —
-   auto-registers under `cfg(target_os="android")`). **This bump is required even to cross-compile for
-   Android** (v3 has no Android backend). Do **not** use Stronghold (deprecated) or androidx
+   `keyring = "4"`. **This bump is required even to cross-compile for Android** (v3 has no Android
+   backend). ⚠️ **Corrected 2026-07-19 (S1, on device):** v4's default `v1` feature covers
+   **Windows/Apple/Linux only** — the resolved tree has `apple-native` / `windows-native` /
+   `zbus-secret-service` stores and **no Android store**, and the companion
+   `android-native-keyring-store` (Android-Keystore-encrypted SharedPreferences over JNI, minSdk 24)
+   does **NOT** auto-register. It must be added as an explicit `cfg(target_os="android")` dependency
+   **and registered as keyring-core's default store**; otherwise every `secure_*` call fails at runtime
+   (see risk #2). Do **not** use Stronghold (deprecated) or androidx
    `EncryptedSharedPreferences` (deprecated 2025-04); fallback is `tauri-plugin-keyring` v0.2.0.
 8. **Responsive — shared CSS shell, additive.** The shell already sizes with `100dvh` and a bare
    viewport meta. Add `interactive-widget=resizes-content` + `viewport-fit=cover` (since Chromium 108
@@ -173,8 +179,12 @@ rustup Android targets, no `src-tauri/gen/android`.
 1. **Cross-compile is risk #1** — whether the existing desktop Rust actually builds for
    `aarch64-linux-android` after cfg-gating; the `keyring` 3→4 bump is a hard prerequisite just to
    compile. A real `cargo build` per ABI is the S1 gate.
-2. `keyring` v4 Android auto-registration + ndk-context init unverified on device (fallback:
-   `tauri-plugin-keyring`).
+2. ⚠️ **CONFIRMED on device (2026-07-19, S1) — this risk materialized.** `keyring` v4 does **not**
+   auto-register an Android store. The app boots fine, but any `secure_*` call rejects at runtime with
+   _"No default store has been set, so cannot search or create entries"_ (seen in logcat as
+   `E Tauri/Console` on first launch, from the startup Drive-connection check). **Fix (S6):** add
+   `android-native-keyring-store` as a `cfg(target_os="android")` dependency and register it as the
+   default store, then verify the round-trip on device. Fallback remains `tauri-plugin-keyring`.
 3. CM6 caret invisible next to inline widgets during IME composition (widget-heavy editor) — physical
    device + real IME only.
 4. Soft keyboard: whether `interactive-widget=resizes-content` shrinks the layout viewport and whether
