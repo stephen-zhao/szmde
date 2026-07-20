@@ -131,6 +131,15 @@ APK packaging pending Windows Developer Mode.
 _**M6.1** (after M6): the native Google Drive **Picker** on Android (open pre-existing files) —
 REQ-CLOUD-3 parity via the GIS `PICKER_OAUTH_TRIGGER` flow; deferred as the highest-uncertainty item._
 
+#### M6.2 — Touch UX pass ⬜  (SPEC §7, §7.4)
+_Scoped 2026-07-20 from Stephen's on-device Android review; parked out of the M6 line so the
+local-first S1–S6 ships first ([m6-plan.md](m6-plan.md#m62--touch-ux-pass))._ These share **one root
+cause**: szmde's interaction model assumes a **fine pointer (hover + right-click) and a keyboard**, so
+where that assumption fails, shipped features don't degrade — they become **unreachable**. M6 makes the
+app *run* on Android; **M6.2 makes it usable**.
+| REQ | Requirement | SPEC |
+|-----|-------------|------|
+
 ### M7 — Network storage + polish ⬜  (SPEC §6, §7)
 | REQ | Requirement | SPEC |
 |-----|-------------|------|

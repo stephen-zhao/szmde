@@ -28,6 +28,12 @@ item. **Distribution** for M6 is a **sideload signed APK**; the **Play Store** r
 milestone (**REQ-PLAY-1**). The Android OAuth redirect is an **https App Link**. See
 [Decisions](#decisions-resolved-2026-07-18--stephen).
 
+**Follow-ons (parked out of the M6 line):** **M6.1** = the native Drive Picker. **M6.2** =
+the [Touch UX pass](#m62--touch-ux-pass) (`REQ-UI-4`, `REQ-TBLED-8/9`), scoped 2026-07-20 from the
+first on-device review. Framing that matters: **M6 makes szmde _run_ on Android; M6.2 makes it
+_usable_.** M6's acceptance is deliberately "boots, is responsive, opens/saves files" — a shipped
+feature being *unreachable* by touch (Find, table editing) is out of M6's scope but is squarely M6.2's.
+
 ## The big shift: three desktop seams carry over, their tails change
 
 szmde's M3 architecture already isolated the platform-specific bits behind three seams, so **most of
@@ -173,6 +179,45 @@ an **AVD/physical device**._
 | **S5** | Signed release AAB/APK + Android CI | REQ-MOBILE-1 | Upload keystore + `signingConfigs`; a GitHub Actions job (setup-java 17 + SDK/NDK + the 4 targets, keystore from base64 secrets) building `--apk`/`--aab`. **CI produces a signed APK installable on a device + a signed AAB.** A local-only Android szmde is shippable here. |
 | **S6** | Cloud sign-in on Android (deep-link OAuth + keystore verify) | REQ-CLOUD-1 | Verify `keyring` v4 round-trip on device; add `tauri-plugin-deep-link` + the redirect (App Link recommended) + separate Android OAuth client; mobile-gate `gdrive-connect.ts`. **`connectGoogleDrive` completes in a Custom Tab, tokens persist in the Keystore, refresh works, read/write of a known Drive file ID succeeds.** |
 | **S7 → M6.1** | Android Drive Picker (open pre-existing files) — **deferred out of M6** (decision 1) | REQ-CLOUD-3 | Native GIS `AuthorizationRequest` Kotlin plugin (`PICKER_OAUTH_TRIGGER`, `drive.file`) → `picked_file_ids` via deep link; mobile-gate `pickGoogleDriveFiles`. **On-device: pick a pre-existing Drive file via the native Picker and open it read/write.** Highest uncertainty — lands in **M6.1**, after the M6 local + Drive-sign-in line ships. |
+
+## M6.2 — Touch UX pass
+
+_Scoped 2026-07-20 from Stephen's first on-device Android review. Parked out of the M6 line so the
+local-first S1–S6 ships first._
+
+**One root cause.** szmde's interaction model was built for a **fine pointer (hover + right-click) and
+a keyboard**. On a coarse pointer those inputs simply don't exist, so affected features don't degrade
+gracefully — they become **completely unreachable**. Every gap below was verified in code, not assumed:
+
+| Assumed input | Where it's load-bearing | Consequence on touch |
+|---------------|-------------------------|----------------------|
+| Keyboard (`Mod-f`) | Find & Replace has **no** hamburger entry — only `searchKeymap` | REQ-FR-1 (shipped M4) **cannot be opened at all** |
+| `:hover` | Table insert/delete gizmos are `display:none` until `th:hover`/`td:hover`; drag handles hover-revealed (`theme.ts`) | gizmos **never appear** |
+| Right-click | Table action menu is bound to `contextmenu` (`tables.ts`, `table-source-gizmos.ts`) | menu **never opens** |
+| Content width | Cell size is content-driven; `tables.ts` sets no min width/height | an empty N×M scaffold **collapses to untappable slivers** |
+
+### Slices
+
+| Slice | Title | REQ | Acceptance |
+|-------|-------|-----|-----------|
+| **T1** | Command reachability (Find entry + audit) | REQ-UI-4 | Add **Find & Replace** to the hamburger, then audit the *whole* command surface for keyboard-/hover-/right-click-only paths and give each a pointer-agnostic entry. **On a touch-only device every shipped command can be invoked without a keyboard, hover or right-click.** ⚠️ Do T1's Find entry **together with** the `.cm-panels-top` inset below — opening Find on a phone is what first *exposes* that bug. |
+| **T2** | Empty tables/cells stay targetable | REQ-TBLED-8 | Minimum rendered cell width/height + visible empty-cell boundaries + placeholder affordances for empty cells/rows/columns. **A freshly inserted N×M scaffold is visible and tappable before anything is typed**, on both pointer types. Also re-size the `TableSizePicker` grid cells (16×16px today, hover-only preview). |
+| **T3** | Coarse-pointer table structural editing | REQ-TBLED-9 | The redesign: a touch-first path to insert/delete/move rows+columns (e.g. tap-to-select-cell → persistent action bar, or long-press → action sheet), with hover/right-click kept as a fine-pointer *enhancement*, not the only route. **Every REQ-TBLED-3/4/5 action is reachable by touch alone on a phone.** Largest slice — treat as its own design spike first. |
+
+### Also folded into M6.2 (open findings from the S2 adversarial review, 2026-07-20)
+
+- **`.cm-panels-top` has no top safe-area inset** — the Find panel lays out at viewport y=0, inside the
+  measured 52px status-bar band. Currently masked because Find is keyboard-only; **T1 unmasks it**, so
+  fix both together. Belongs on `.cm-panels.cm-panels-top` (additive `env()` padding), *not* on
+  `.cm-editor`/`.app` — insetting the container would double-count against `.cm-content`'s top padding.
+- **Conflict-modal action row overflows at ≤375px** — the primary "Overwrite" button can be clipped
+  off-screen at small display sizes.
+- **Text scrolls under the status bar** — `.cm-content`'s top padding clears the *first* screen only
+  (M6 S2). A genuine design call for M6.2: immersive edge-to-edge vs. inset content.
+
+_Reviewed and **accepted as-is by Stephen** (2026-07-20) — not defects, do not "fix" without asking:
+the current control sizes, i.e. status chips at 34px and dropdown / chip-menu rows at 44px, below the
+≥48dp guidance._
 
 ## Risks (need on-device verification)
 
