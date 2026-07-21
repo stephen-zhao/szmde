@@ -16,14 +16,16 @@ type Geometry = {
   scrollHeight?: number;
   clientWidth?: number;
   scrollWidth?: number;
-  /** Caret coords, in px from the top of the scroller's box. null = unmeasurable. */
-  caret?: { top: number; bottom: number } | null;
+  /** The active line's block, in px from the top of the scroller's box. */
+  line?: { top: number; bottom: number };
+  lineHeight?: number;
 };
 
 /**
- * happy-dom reports 0 for every layout box and has no caret geometry, so the
- * scroller metrics and `coordsAtPos` have to be stubbed. Everything above them —
- * the facet, the handler registration, the branch logic — is the real thing.
+ * happy-dom reports 0 for every layout box, so the scroller metrics and the height-map
+ * readings (`lineBlockAt` / `documentTop` / `defaultLineHeight`) have to be stubbed.
+ * Everything above them — the facet, the handler registration, the branch logic — is
+ * the real thing.
  */
 function build(typewriter = true, geom: Geometry = {}): EditorView {
   const v = new EditorView({
@@ -39,7 +41,8 @@ function build(typewriter = true, geom: Geometry = {}): EditorView {
     scrollHeight = 10000,
     clientWidth = 600,
     scrollWidth = 600,
-    caret = { top: 700, bottom: 720 },
+    line = { top: 700, bottom: 720 },
+    lineHeight = 20,
   } = geom;
   let top = scrollTop;
   Object.defineProperties(v.scrollDOM, {
@@ -51,7 +54,19 @@ function build(typewriter = true, geom: Geometry = {}): EditorView {
   });
   v.scrollDOM.getBoundingClientRect = () =>
     ({ top: 0, bottom: clientHeight, height: clientHeight }) as DOMRect;
-  v.coordsAtPos = () => (caret ? { top: caret.top, bottom: caret.bottom, left: 0, right: 1 } : null);
+  Object.defineProperties(v, {
+    // documentTop is a client coordinate; 0 keeps block coords == scroller-box coords.
+    documentTop: { configurable: true, get: () => 0 },
+    defaultLineHeight: { configurable: true, get: () => lineHeight },
+  });
+  v.lineBlockAt = () =>
+    ({
+      from: 0,
+      to: 0,
+      top: line.top,
+      bottom: line.bottom,
+      height: line.bottom - line.top,
+    }) as ReturnType<EditorView["lineBlockAt"]>;
   view = v;
   return v;
 }
@@ -75,7 +90,7 @@ describe("[REQ-SCROLL-1] typewriter scroll handler", () => {
   });
 
   it("declines when the caret is at or above the midpoint", () => {
-    const v = build(true, { caret: { top: 100, bottom: 120 } });
+    const v = build(true, { line: { top: 100, bottom: 120 } });
     expect(runScrollHandlers(v)).toBe(false);
     expect(v.scrollDOM.scrollTop).toBe(1000); // untouched — CM's minimal scrolling runs
   });
@@ -111,10 +126,28 @@ describe("[REQ-SCROLL-1] typewriter scroll handler", () => {
     expect(v.scrollDOM.scrollTop).toBe(1000);
   });
 
-  it("declines when the caret has no coordinates", () => {
-    const v = build(true, { caret: null });
-    expect(runScrollHandlers(v)).toBe(false);
-    expect(v.scrollDOM.scrollTop).toBe(1000);
+  it("never calls view.coordsAtPos — it throws inside CodeMirror's update", () => {
+    // THE bug the first scrollHandler shipped with: coordsAtPos() goes through
+    // readMeasured(), which throws "Reading the editor layout isn't allowed during an
+    // update" when called from a scroll handler. docView.scrollIntoView catches it and
+    // treats the handler as declined, so typewriter scrolling silently never ran in the
+    // real app while every unit test passed. Simulate the guard and require centring.
+    const v = build(true);
+    v.coordsAtPos = () => {
+      throw new Error("Reading the editor layout isn't allowed during an update");
+    };
+    expect(runScrollHandlers(v)).toBe(true);
+    expect(v.scrollDOM.scrollTop).toBe(1310);
+  });
+
+  it("measures a wrapped line by its LAST visual row", () => {
+    // lineBlockAt returns the whole document line, so a paragraph wrapped over many
+    // rows would otherwise be centred by its middle and drag the row being typed on
+    // below the fold. The reference is bottom, back-limited to one line height.
+    const v = build(true, { line: { top: 300, bottom: 720 }, lineHeight: 20 });
+    expect(runScrollHandlers(v)).toBe(true);
+    // reference row 700..720 -> centre 710, target 400 -> +310
+    expect(v.scrollDOM.scrollTop).toBe(1310);
   });
 
   it("setTypewriter reconfigures a live editor in both directions", () => {
@@ -129,6 +162,25 @@ describe("[REQ-SCROLL-1] typewriter scroll handler", () => {
     expect(v.state.facet(typewriterEnabled)).toBe(true);
     expect(runScrollHandlers(v)).toBe(true);
     expect(v.scrollDOM.scrollTop).toBe(1310);
+  });
+
+  it("only depends on public CodeMirror APIs that are safe during an update", () => {
+    // The three readings the handler makes are public and, unlike coordsAtPos, do not
+    // go through readMeasured(). Asserted against an UNSTUBBED view so a CodeMirror
+    // upgrade that renames or guards one of them fails here instead of silently
+    // disabling the feature at runtime.
+    const v = new EditorView({
+      state: EditorState.create({
+        doc: "a\nb",
+        extensions: editorExtensions(true, "clean", { style: "spaces", width: 2 }, true, undefined, true),
+      }),
+      parent: document.body,
+    });
+    view = v;
+    expect(typeof v.lineBlockAt).toBe("function");
+    expect(typeof v.lineBlockAt(0).bottom).toBe("number");
+    expect(typeof v.documentTop).toBe("number");
+    expect(typeof v.defaultLineHeight).toBe("number");
   });
 
   it("contributes NO scrollMargins — that facet also drives paging and drag-select", () => {

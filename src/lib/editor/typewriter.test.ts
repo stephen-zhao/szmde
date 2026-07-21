@@ -6,29 +6,29 @@ const base = {
   scrollTop: 1000,
   viewportHeight: 800,
   scrollHeight: 10000,
-  caretTop: 700,
-  caretBottom: 720,
+  lineTop: 700,
+  lineBottom: 720,
 };
 
 describe("[REQ-SCROLL-1] typewriterScrollTop", () => {
-  it("scrolls exactly enough to put the caret line on the vertical midpoint", () => {
+  it("scrolls exactly enough to put the active line on the vertical midpoint", () => {
     // caret centre 710, target centre 400 -> scroll a further 310px.
     expect(typewriterScrollTop(base)).toBe(1310);
   });
 
-  it("centres a caret that has already fallen off the bottom of the viewport", () => {
+  it("centres a line that has already fallen off the bottom of the viewport", () => {
     // Typing at the bottom edge moves the caret below the visible box before the
     // measure phase runs; it is off-screen, not merely low in the viewport.
-    expect(typewriterScrollTop({ ...base, caretTop: 900, caretBottom: 920 })).toBe(1510);
+    expect(typewriterScrollTop({ ...base, lineTop: 900, lineBottom: 920 })).toBe(1510);
   });
 
-  it("returns null for a caret at or above the midpoint, leaving CodeMirror's minimal scrolling", () => {
+  it("returns null for a line at or above the midpoint, leaving CodeMirror's minimal scrolling", () => {
     // The invariant is one-directional: the active line never rests BELOW the centre.
     // Above it we must not scroll at all, or moving the cursor up would yank the
     // document down to re-centre — the "lurch" the requirement rejects.
-    expect(typewriterScrollTop({ ...base, caretTop: 390, caretBottom: 410 })).toBeNull(); // dead centre
-    expect(typewriterScrollTop({ ...base, caretTop: 100, caretBottom: 120 })).toBeNull();
-    expect(typewriterScrollTop({ ...base, caretTop: -500, caretBottom: -480 })).toBeNull(); // off the top
+    expect(typewriterScrollTop({ ...base, lineTop: 390, lineBottom: 410 })).toBeNull(); // dead centre
+    expect(typewriterScrollTop({ ...base, lineTop: 100, lineBottom: 120 })).toBeNull();
+    expect(typewriterScrollTop({ ...base, lineTop: -500, lineBottom: -480 })).toBeNull(); // off the top
   });
 
   it("clamps to the end of the scrollable range instead of over-scrolling", () => {
@@ -54,9 +54,9 @@ describe("[REQ-SCROLL-1] typewriterScrollTop", () => {
     expect(typewriterScrollTop({ ...base, viewportHeight: Number.POSITIVE_INFINITY })).toBeNull();
   });
 
-  it("returns null for caret coordinates that are not finite numbers", () => {
-    expect(typewriterScrollTop({ ...base, caretTop: Number.NaN, caretBottom: 720 })).toBeNull();
-    expect(typewriterScrollTop({ ...base, caretBottom: Number.POSITIVE_INFINITY })).toBeNull();
+  it("returns null for line coordinates that are not finite numbers", () => {
+    expect(typewriterScrollTop({ ...base, lineTop: Number.NaN, lineBottom: 720 })).toBeNull();
+    expect(typewriterScrollTop({ ...base, lineBottom: Number.POSITIVE_INFINITY })).toBeNull();
   });
 
   it("returns null for a non-finite scrollTop or scrollHeight", () => {
@@ -65,12 +65,12 @@ describe("[REQ-SCROLL-1] typewriterScrollTop", () => {
   });
 
   it("never returns a scrollTop below 0 or above the scrollable maximum", () => {
-    for (const caretTop of [401, 500, 799, 1200, 5000]) {
+    for (const lineTop of [401, 500, 799, 1200, 5000]) {
       for (const scrollHeight of [900, 1600, 10000]) {
         const next = typewriterScrollTop({
           ...base,
-          caretTop,
-          caretBottom: caretTop + 20,
+          lineTop,
+          lineBottom: lineTop + 20,
           scrollHeight,
         });
         if (next === null) continue;
@@ -84,12 +84,12 @@ describe("[REQ-SCROLL-1] typewriterScrollTop", () => {
     // --kb-inset (M6 S3) shrinks .app 952 -> 579 on a Pixel 9 Pro; the midpoint must
     // follow, or the caret would be centred on a viewport that no longer exists.
     // caret centre 553.5, target 289.5 -> +264
-    const phone = { scrollTop: 400, viewportHeight: 579, scrollHeight: 5000, caretTop: 540, caretBottom: 567 };
+    const phone = { scrollTop: 400, viewportHeight: 579, scrollHeight: 5000, lineTop: 540, lineBottom: 567 };
     expect(typewriterScrollTop(phone)).toBe(664);
   });
 
   it("returns whole pixels", () => {
-    const g = { ...base, caretTop: 701, caretBottom: 722 }; // centre 711.5 -> delta 311.5
+    const g = { ...base, lineTop: 701, lineBottom: 722 }; // centre 711.5 -> delta 311.5
     const next = typewriterScrollTop(g);
     expect(Number.isInteger(next)).toBe(true);
     expect(next).toBe(1312);
