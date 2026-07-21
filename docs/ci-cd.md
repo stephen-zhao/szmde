@@ -38,7 +38,9 @@ creates the Release with the `.msi` + `.exe` assets attached.
 one-time "unknown publisher" warning on first run (*More info → Run anyway*). Signing can be
 added later by supplying a cert + repo secrets and wiring them into the action.
 
-**Not yet built:** macOS / Linux installers (Windows-only by choice), auto-update, signing.
+**Not yet built:** macOS / Linux installers, auto-update, signing. The *release* pipeline is
+Windows-only today; **Android is a live target** (M6 — `gen/android` committed, all four ABIs
+cross-compile), but its APK is built locally rather than in CI — that is M6 S5 (`REQ-MOBILE-1`).
 Add a runner to the release matrix when those are wanted.
 
 ## Branch & PR workflow
@@ -50,6 +52,8 @@ Once CI is in place we **stop committing directly to `main`**:
 3. Merge only when CI is green.
 
 **Branch protection** (enforces the above) is a GitHub repo setting — enable it under
-*Settings → Branches → Add rule* for `main`: require the `gate` and `rust` status checks to pass
+*Settings → Branches → Add rule* for `main`: require both status checks to pass. **Match them by the job's `name:`, not its YAML id** — GitHub
+lists them as `Frontend gate (typecheck · build · tests · coverage · traceability)` and
+`Rust (fmt · clippy · test)`, which is what `gh pr checks` prints too. Require them
 before merging, and require a PR. (A maintainer sets this; it's a repo-access setting, not part of
 the workflow files.)

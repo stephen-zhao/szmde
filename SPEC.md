@@ -3,7 +3,7 @@
 _**szmde** = **S**tephen **Z**hao **M**ark**D**own **E**ditor._
 
 _Status: accepted vision / foundation. Originally drafted 2026-06-24; last reconciled with the
-as-built app 2026-07-07. This is the stable "what"; current build status lives in
+as-built app 2026-07-21. This is the stable "what"; current build status lives in
 [docs/roadmap.md](docs/roadmap.md)._
 
 A minimal, fast, cross-platform **WYSIWYG markdown editor** for local and cloud-stored
@@ -37,7 +37,7 @@ orthogonal features to prioritize iteratively.
 |----------|---------------|-------|
 | Windows  | Native app (Tauri) | Single `.msi`/`.exe`. |
 | macOS    | Native app (Tauri) | Universal binary (Apple Silicon + Intel). |
-| Android  | Native app (Tauri 2 mobile) | APK / Play Store. |
+| Android  | Native app (Tauri 2 mobile) | APK / Play Store. **In progress (M6):** cross-compiles for all four ABIs, responsive shell and soft-keyboard handling shipped; SAF storage is next. |
 | Web      | PWA | Installable; works offline; File System Access API. |
 | _(iOS)_  | _Deferred_ | Tauri 2 supports it; out of initial scope unless requested. |
 
@@ -222,8 +222,9 @@ moves the resting point (0.5 restores classic centring). This is a **general edi
 affordance — it is simply most acute on a phone, where the keyboard leaves only ~60% of the
 screen. (`REQ-SCROLL-1`.)
 
-Note it also removes the status-chip overlap as a side effect: a centred caret sits far above
-the chips, so no extra chip hiding/fading logic is needed.
+Note it also removes the status-chip overlap as a side effect: a caret resting on the two-thirds
+anchor sits clear of the chips (measured on a Pixel 9 Pro with the keyboard up: line at 67% of the
+579px visible strip, chips 114px below it), so no extra chip hiding/fading logic is needed.
 
 ---
 
@@ -525,6 +526,70 @@ This keeps the canvas clean by default (§7, "canvas-first") while making shortc
 on demand. Post-v1.
 
 ---
+
+### 7.6 Left-edge lanes — display strategies (`REQ-LANE-*`; M6.2)
+
+The editor's left edge is a stack of **lanes** running down the page beside the text. Today there are
+two, both permanently reserved as `.cm-content` left padding (`REQ-RENDER-12`): the **fold chevron**
+lane and the **syntax marker** lane. Line numbers are an obvious third, later.
+
+That model is fine at desktop widths and wrong on a phone: on a ~412px viewport the two lanes consume
+a large share of the line before a single character is drawn, and in Formatted mode the marker lane is
+usually *empty* — it is reserved for markers that are not being shown. **The requirement is that a lane
+earns its width.**
+
+**The generalisable part first.** A lane is a named region with a declared **display strategy**, and the
+strategy — not the lane — is what varies by viewport and by taste:
+
+| Strategy | Meaning |
+|----------|---------|
+| `reserved` | Permanent column, always holds its width (today's behaviour for both lanes) |
+| `compact` | Permanent column, but rendered in an abbreviated form that fits a much narrower width |
+| `on-demand` | Reserves **no** width; content appears over/beside the text when relevant, then leaves |
+| `off` | Hidden entirely |
+
+Each lane declares which strategies it supports and its default per breakpoint; the choice is
+**per-lane configurable** in settings, so a user who wants line numbers `reserved` and chevrons `off`
+gets exactly that. Lanes are individually toggleable, with one carve-out: the **syntax marker lane is
+mandatory for now** — markers are real text (§1 principle 5) and modes 2/3 are unusable without room
+to show them. Whatever the strategy, the invariants of `REQ-RENDER-12` hold: lanes never overlap the
+content column, and the reading column stays symmetric.
+
+**Per-lane intent:**
+
+- **Syntax marker lane → `compact` on narrow viewports (`REQ-LANE-2`).** Collapse the repeated marker
+  to a level indicator: `#` → `#1`, `##` → `#2`, `###` → `#3`, `####` → `#4`. The lane then never needs
+  more than **two characters**, and is sized to exactly that rather than to the widest possible marker
+  run. Applies at narrow *widths*, not to "mobile" — a narrowed desktop window gets it too. The full
+  marker text remains the truth in the document; only its rendering in the lane is abbreviated, and
+  only in the modes where the lane is showing markers at all.
+- **Fold chevron lane → `on-demand` (`REQ-LANE-3`).** Rather than holding a permanent column, chevrons
+  fly in from the left edge with a smooth animation when they are relevant — the affordance Google Docs
+  uses for its outline headings on scroll. Exactly *when* they appear (cursor in a foldable section,
+  pointer near the left edge, recent scroll, always-on for already-folded sections) is deliberately left
+  open here; that is a UX design pass, not a spec decision.
+
+_Not yet decided:_ the trigger set for `on-demand`, whether `compact` also applies to blockquote `>`
+runs and list markers, and the settings shape (per-lane object vs. a named preset per breakpoint).
+
+### 7.7 Editing actions a soft keyboard cannot reach (`REQ-UI-5`; M6.2)
+
+**Soft keyboards have no Tab key.** On desktop, Tab carries three distinct editing actions — insert a
+soft tab (§4.4), nest the current list item, and commit-and-move in the inline table-cell editor
+(§7.4) — and Shift+Tab outdents. On a phone none of them can be invoked at all: the key does not exist,
+and Android's IME action key is Enter/Done.
+
+This is the same failure mode as `REQ-UI-4` (commands reachable only by keyboard, hover or right-click),
+so it belongs to the same pass — but its answer is different in kind. `REQ-UI-4` is about *commands*,
+which a menu entry can fix; Tab is a **high-frequency editing gesture**, and burying indent in a menu
+would be unusable. The requirement is therefore: **every action Tab and Shift+Tab perform on desktop has
+a touch-reachable equivalent that is fast enough for repeated use, without a keyboard.**
+
+Candidate directions, none chosen yet (this needs a design pass, and probably a live trial on device):
+a small editing accessory bar above the keyboard; a swipe gesture on the active line; a long-press
+affordance in the marker lane; or context-specific inline controls (a "next cell" chip while the cell
+editor is open). Whatever wins must not steal vertical space from an already-short phone viewport
+permanently — see §7.6's `on-demand` strategy for the same tension solved horizontally.
 
 ## 8. Settings & preferences (requirement 10)
 

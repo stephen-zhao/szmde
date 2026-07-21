@@ -499,7 +499,7 @@ to read computed values (`adb shell cat /proc/net/unix | grep webview_devtools`)
 
 ### WF-31 · Typewriter scrolling — the active line rests on the anchor · `REQ-SCROLL-1` _(SPEC §4.5)_
 **Why:** the unit tests pin the scroll-target arithmetic and the handler's decline paths, but "does typing
-*feel* centred" is a layout + scroll-animation property happy-dom cannot express. This is also the half of
+*feel* right" is a layout + scroll-animation property happy-dom cannot express. This is also the half of
 WF-30 that makes the keyboard usable rather than merely un-occluding. The last three steps exist because
 the **first** implementation used an `EditorView.scrollMargins` facet, and that facet is shared with paging
 and drag-select — the adversarial review caught it, and these steps are the live guard.

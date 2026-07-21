@@ -9,7 +9,7 @@ one place.
 |-----|---------|
 | [../CLAUDE.md](../CLAUDE.md) | Project guide for contributors/agents — stack, the no-ad-hoc-work + REQ/traceability/coverage process, storage & editor conventions, current-state summary |
 | [SPEC.md](../SPEC.md) | The specification — product principles, decisions, the "what" (§-numbered, referenced throughout these docs) |
-| [roadmap.md](roadmap.md) | The authoritative milestone tracker — **shipped (M0–M5)** / next (M5 S7, then M6 Android) / backlog + engineering-infra, each item tied to a SPEC § and a `REQ-*` |
+| [roadmap.md](roadmap.md) | The authoritative milestone tracker — **shipped (M0–M5, plus REQ-CLOUD-3 and REQ-SCROLL-1)** / **in progress (M6 Android — S1–S3 merged, S4 next)** / backlog + engineering-infra, each item tied to a SPEC § and a `REQ-*` |
 
 ## Central registries (the two "single sources of truth")
 
@@ -36,7 +36,7 @@ was under-specified. Each round's classification is recorded in a triage doc.
 
 ## Archive (historical — completed-milestone plans)
 
-Per-milestone build plans (`m<N>-plan.md`) for shipped milestones live in [archive/](archive/) —
+Per-milestone build plans (`m<N>-plan.md`) for shipped milestones live in [archive/](archive/), alongside per-round feedback triage docs (e.g. `m4-feedback-triage.md`) —
 kept as provenance, **not** current-state tracking. See [archive/README.md](archive/README.md); the
 folder listing itself is the index.
 
