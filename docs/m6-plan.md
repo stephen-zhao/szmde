@@ -174,7 +174,7 @@ an **AVD/physical device**._
 |-------|-------|-----|-----------|
 | **S1** | Boots on emulator (toolchain + `android init` + cross-compile) | REQ-MOBILE-1 | Provision the toolchain; bump `keyring` 3→4; `cfg(desktop)`-gate the CLI; `tauri android init` + commit `gen/android`; set minSdk 24 (compileSdk/targetSdk 36 are the template default — no edit). **`tauri android dev` launches the blank editor in an emulator; `cargo build` succeeds for all 4 ABIs; desktop `tauri dev` + `npm test` still green.** No storage/cloud/keyboard yet. |
 | **S2** | Responsive shell down to phone width | REQ-MOBILE-2 | Viewport meta + phone `<600` breakpoint (drawer), ≥48dp targets, safe-area insets. **Toolbar/drawer/editor usable by touch on a phone-sized emulator, no horizontal overflow, content clears system-bar insets; desktop layout unchanged.** Soft keyboard deferred to S3. |
-| **S3** ✅ | Soft-keyboard + IME correctness (on-device) | REQ-MOBILE-2 | **Done 2026-07-20.** The planned CSS-only route (`interactive-widget=resizes-content` + `visualViewport`) could not work as specced — see risk #4 — so it shipped as a **native IME-inset bridge** in `MainActivity.kt` publishing `--kb-inset`, with CSS shrinking `.app` and lifting `.statusbar`. **Verified on a physical Pixel 9 Pro:** `--kb-inset` 373px, `.app` 952→579, statusbar 32→381px, and after typing 18 lines the caret sits at y=578 in a 579px visible area. _Not yet exercised: IME **composition** (CJK/predictive) next to inline widgets, and table-cell editing with the keyboard up — carry into S4/M6.2 testing._ |
+| **S3** ✅ | Soft-keyboard + IME correctness (on-device) | REQ-MOBILE-2 | **Done 2026-07-20.** The planned CSS-only route (`interactive-widget=resizes-content` + `visualViewport`) could not work as specced — see risk #4 — so it shipped as a **native IME-inset bridge** in `MainActivity.kt` publishing `--kb-inset`, with CSS shrinking `.app` and lifting `.statusbar`. **Verified on a physical Pixel 9 Pro:** `--kb-inset` 373px, `.app` 952→579, statusbar 32→381px. ⚠️ **The acceptance is only PARTLY met, and the original claim here was wrong** (caught by the S3 adversarial review): after typing 18 lines the active line rests at y=555–578, while the fixed status chips occupy y=509–571 — so the caret clears the *keyboard* but the line being typed is **overpainted by the chips**. That is exactly the complaint that prompted `REQ-SCROLL-1`, and the measurement I originally quoted as a pass is precisely the failing case. **S3 delivers the mechanism; the UX is not usable until REQ-SCROLL-1 (typewriter scrolling) lands** — centring the active line resolves it, which is why that REQ is a prerequisite for calling REQ-MOBILE-2 done, not optional polish. _Also not exercised: IME **composition** (CJK/predictive) next to inline widgets, and table-cell editing with the keyboard up — see WF-30._ |
 | **S4** | SAF local storage backend (offline open/save) | REQ-MOBILE-3 | Spike dialog+fs (`content://` via `FilePath::Url`); add `SafProvider` + persistable permissions + `DocumentFile` rev; settings via app-private `std::fs`. **On-device: pick a real `.md`, edit, save back (with conflict detection), reopen after app restart via the persisted URI — fully offline.** The milestone's core shippable. |
 | **S5** | Signed release AAB/APK + Android CI | REQ-MOBILE-1 | Upload keystore + `signingConfigs`; a GitHub Actions job (setup-java 17 + SDK/NDK + the 4 targets, keystore from base64 secrets) building `--apk`/`--aab`. **CI produces a signed APK installable on a device + a signed AAB.** A local-only Android szmde is shippable here. |
 | **S6** | Cloud sign-in on Android (deep-link OAuth + keystore verify) | REQ-CLOUD-1 | Verify `keyring` v4 round-trip on device; add `tauri-plugin-deep-link` + the redirect (App Link recommended) + separate Android OAuth client; mobile-gate `gdrive-connect.ts`. **`connectGoogleDrive` completes in a Custom Tab, tokens persist in the Keystore, refresh works, read/write of a known Drive file ID succeeds.** |
@@ -244,8 +244,8 @@ the current control sizes, i.e. status chips at 34px and dropdown / chip-menu ro
    gets a correct visible height and its own caret `scrollIntoView` works) and lifts `.statusbar`.
    `adjustResize` is kept for API 24–34, where the framework still resizes and `--kb-inset` stays 0.
    **Verified on device:** `--kb-inset` 373px, `.app` 952→579, `.cm-scroller` 579, statusbar bottom
-   32→381px; after typing 18 lines the active line sits at y=578 inside a 579px visible area, i.e. the
-   caret stays above the keyboard (the S3 acceptance).
+   32→381px. The caret clears the keyboard — but see the S3 slice row: the active line lands UNDER the
+   fixed status chips, so REQ-SCROLL-1 is required before REQ-MOBILE-2 can be called done.
 
    ⚠️ **TWO FALSE LEADS — recorded so nobody re-derives them.**
    (a) *"`visualViewport` is inert too"* — **WRONG.** It reports 952→**578** on the phone (≈ the same
@@ -340,6 +340,16 @@ _Gotcha: verification only succeeds once `assetlinks.json` is live AND the insta
 SHA-256 is listed — validate with the debug cert first, add the release cert before shipping._
 
 ## Process
+
+⚠️ **Known traceability gap (recorded 2026-07-20, S3 review).** `REQ-MOBILE-1/2/3` are **not** in
+[requirements.md](requirements.md), so `npm run test:trace` passing is **not** evidence that the Android
+milestone is covered — those REQs are simply outside the audit's universe. The gate is green over an
+untested requirement. That is defensible while the REQs are still being built (requirements.md tracks
+BUILT requirements with linked tests), but it must not be mistaken for coverage: the real verification
+for M6 is the on-device workflow suite (**WF-29** layout, **WF-30** keyboard), which is judgement-run,
+not CI-gated. Fold the REQs into requirements.md — or into the tracked-gaps list — as each slice's
+behavior stabilises, so the audit universe eventually includes them.
+
 
 Built requirements move into [requirements.md](requirements.md) with linked tests as each slice lands;
 device-only behavior (keyboard/IME, SAF round-trip, deep-link capture) gets an LLM workflow in

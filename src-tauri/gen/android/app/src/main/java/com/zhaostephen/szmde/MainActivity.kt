@@ -17,34 +17,43 @@ class MainActivity : TauriActivity() {
    * Publish the IME (soft-keyboard) inset to the web layer as the CSS custom property
    * `--kb-inset`, in CSS pixels.
    *
-   * WHY THIS EXISTS (measured on a physical Pixel 9 Pro / Android 16, M6 S3): when the
-   * keyboard opens, the web layer is told *nothing*. `window.innerHeight`,
-   * `visualViewport.height` and `visualViewport.offsetTop` all stay at their full-screen
-   * values (952/952/0):
+   * WHY THIS EXISTS (measured on a physical Pixel 9 Pro / Android 16, M6 S3): the LAYOUT
+   * viewport never resizes for the keyboard — `window.innerHeight` stays 952 with the IME
+   * up. `interactive-widget=resizes-content` does not change that (Tauri #10631), and
+   * neither does `android:windowSoftInputMode="adjustResize"`: `enableEdgeToEdge()` above
+   * makes this an edge-to-edge window, and such a window is expected to consume
+   * `WindowInsets.ime()` itself rather than being auto-resized. So `100dvh` can never
+   * shrink on its own. CSS subtracts `--kb-inset` instead, which gives CodeMirror a correct
+   * visible height so its own caret scrollIntoView works, and lifts the status chips.
    *
-   *   - `interactive-widget=resizes-content` in the viewport meta does not resize the
-   *     layout viewport here (Tauri #10631),
-   *   - `visualViewport` — the documented fallback — does not react either, and
-   *   - `android:windowSoftInputMode="adjustResize"` is ALSO inert, because a targetSdk 35+
-   *     edge-to-edge app no longer gets automatic IME resizing from the framework; it is
-   *     expected to consume `WindowInsets.ime()` itself.
+   * NOT a reason this exists: `visualViewport`. It DOES react (952 -> 578, matching this
+   * bridge's 373 CSS px). An earlier revision of this comment claimed otherwise; that was
+   * an artifact of the WebView-listener bug described below. Replacing this native bridge
+   * with a `visualViewport` listener is a live, deliberately-deferred follow-up
+   * (would also cover web/PWA) — see docs/m6-plan.md risk #4.
    *
-   * So this native push is the only signal the frontend can get. CSS subtracts
-   * `--kb-inset` so the editor shrinks (giving CodeMirror a correct visible height for its
-   * own caret scrollIntoView) and the status chips sit above the keyboard.
+   * `enableEdgeToEdge()` is called on EVERY api level, so the edge-to-edge reasoning above
+   * is not specific to targetSdk 35+; `adjustResize` was therefore removed from the
+   * manifest rather than kept as a "fallback for API 24-34" (it is inert across the whole
+   * minSdk-24 range for the same reason, and if some OEM build DID honour it the window
+   * would shrink AND `--kb-inset` would be subtracted — double-counting the keyboard).
+   * Note `--kb-inset` is live on every API level, not just 35+: `Type.ime()` maps to the
+   * platform type on 30+, and WindowInsetsCompat synthesises it from the system-window
+   * insets on 24-29.
    *
-   * The manifest keeps `adjustResize` anyway: inert on 35+, but still functional on
-   * API 24-34, most of our minSdk-24 range. There `--kb-inset` stays 0 and `100dvh`
-   * already does the right thing. The two are complementary, not redundant.
+   * ⚠️ NEVER ATTACH AN APPLY-INSETS LISTENER TO THE WebView.
+   * It REPLACES the WebView's own inset handling — precisely how Chrome derives
+   * `env(safe-area-inset-*)` and updates `visualViewport` — and silently zeroes both. That
+   * cost real debugging time: it presented as "the physical device reports env() = 0 while
+   * the emulator reports 52", a convincing-looking platform difference that was entirely
+   * self-inflicted. env() is in fact correct (68px top / 24px bottom here), so the CSS
+   * needs no safe-area bridge at all — only the IME one.
    *
-   * ⚠️ THE LISTENER MUST BE ON THE decorView, NEVER ON THE WebView.
-   * Registering an OnApplyWindowInsetsListener on the WebView REPLACES the WebView's own
-   * inset handling — which is precisely how Chrome derives `env(safe-area-inset-*)` — and
-   * silently zeroes all four safe-area edges. That cost real debugging time: it presented
-   * as "the physical device reports env() = 0 while the emulator reports 52", i.e. a
-   * convincing-looking platform difference that was entirely self-inflicted. With the
-   * listener on the decorView, env() reports correctly (68px top / 24px bottom on the
-   * Pixel 9 Pro), so the CSS needs no safe-area bridge at all — only the IME one.
+   * The listener is attached to android.R.id.content, NOT the decorView: a decorView
+   * listener likewise REPLACES `DecorView.onApplyWindowInsets`, which is what sizes the
+   * system-bar scrim views (`updateColorViews`). content is a direct child, so it still
+   * receives the full unconsumed insets including `Type.ime()`, while DecorView keeps its
+   * own handling.
    */
   override fun onWebViewCreate(webView: WebView) {
     val pushIme = { imePx: Int ->
@@ -58,8 +67,9 @@ class MainActivity : TauriActivity() {
     }
 
     // Catches IME changes that arrive without an animation (rotation, resume, hardware
-    // keyboard attach). On the decorView — see the warning above.
-    ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { _, insets ->
+    // keyboard attach). On android.R.id.content — see the warning above: neither the
+    // WebView nor the decorView is a safe attach point.
+    ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content)) { _, insets ->
       pushIme(insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
       // Return the insets unconsumed so the system bars keep laying out normally.
       insets

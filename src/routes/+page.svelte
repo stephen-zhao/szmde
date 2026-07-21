@@ -845,12 +845,15 @@
   @media (pointer: coarse) {
     .statusbar {
       /* Three candidates, no branching needed — whichever is largest wins:
-           32px .......................... the gesture-bar floor (env bottom lies; see above)
-           env(bottom) + 8 ............... a device that DOES report a real bottom inset
+           32px .......................... a floor, so a device reporting no bottom inset
+                                           still clears a ~24dp gesture area
+           env(bottom) + 8 ............... the real inset (24px on a Pixel 9 Pro — env() IS
+                                           reliable; an earlier comment claiming otherwise
+                                           was retracted, see m6-plan risk #5)
            --kb-inset + 8 ................ sit just above the soft keyboard when it is up
          The statusbar is position:fixed, so shrinking .app does NOT move it — it has to
          account for the keyboard itself. With the keyboard closed --kb-inset is 0 and the
-         third candidate collapses to 8px, leaving the floor in charge. */
+         third candidate collapses to 8px, leaving the floor/env in charge. */
       bottom: max(
         32px,
         calc(env(safe-area-inset-bottom, 0px) + 8px),
