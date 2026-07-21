@@ -199,6 +199,23 @@ Both are per-document, editable via a small status widget (§7.1) and defaulted 
 - Changing the setting affects subsequent edits; an explicit "convert existing indentation"
   action (spaces↔tabs across the file) is available from the widget menu.
 
+### 4.5 Typewriter scrolling — the active line never sinks to the bottom
+
+The line you are typing on must stay in a **comfortable reading position**, not pinned to the
+bottom edge of the viewport. CodeMirror's default `scrollIntoView` performs the *minimum*
+scroll, so a caret moving downward comes to rest one line inside the bottom edge — the worst
+place to work: on a phone it lands hard against the soft keyboard and underneath the
+bottom-right status chips, so most of the line being edited is obscured.
+
+Requirement: **by default, keep the active line vertically centred** (classic "typewriter"
+scrolling), so there is always context visible both above and below the cursor. A settings
+flag can turn it off for people who prefer minimal scrolling. This is a **general editor
+behavior on every platform**, not a phone-only affordance — it is simply most acute on a
+phone, where the keyboard leaves only ~60% of the screen. (`REQ-SCROLL-1`.)
+
+Note it also removes the status-chip overlap as a side effect: a centred caret sits far above
+the chips, so no extra chip hiding/fading logic is needed.
+
 ---
 
 ## 5. Markdown feature coverage
@@ -378,10 +395,21 @@ and file-watching over the WSL share may be unreliable, so treat `watch` as best
 A minimal, unobtrusive status area in the **bottom-right corner** holds small click-to-edit
 widgets, VS Code-style:
 
+- **Document-name widget** — shows the current document's name (plus a dirty marker); click
+  to **rename** it in place. The rename commits through the `StorageProvider` seam (§6), so
+  it renames the real artifact rather than just the in-app label — a local file is renamed on
+  disk, a cloud file via its backend's rename (e.g. the Drive `name` field). Backends that
+  can't rename advertise that through the provider's capabilities and the widget stays
+  read-only there. (`REQ-FILE-3`; see [docs/roadmap.md](docs/roadmap.md).)
 - **EOL widget** — shows `LF` or `CRLF`; click to toggle (immediately rewrites the file's
   line endings, §4.4).
 - **Indentation widget** — shows e.g. `Spaces: 2` or `Tab`; click for a small menu to switch
   Spaces ⇄ Tab and pick the width, plus a "convert existing indentation" action (§4.4).
+
+**Command reachability (all platforms).** No shipped command may be reachable *only* by keyboard
+shortcut, hover, or right-click — those don't exist on a touch device, and a feature that can't be
+invoked is a feature that isn't shipped there. Every command needs at least one pointer-agnostic
+entry point (the hamburger menu, a status widget, or an on-canvas control). `REQ-UI-4`.
 
 Reconciling with requirement 9 (blank canvas, hamburger-only): these widgets are
 deliberately tiny, low-contrast, and tucked in the corner — closer to the cursor-position
@@ -464,6 +492,13 @@ pipe tables**. Requirements:
   (Exact keybindings TBD; must not collide with text editing or the §4.2 formatting keys.)
 - **Auto-tidy source.** Cells re-pad/realign as you edit so the saved GFM stays clean; per-column
   alignment (`:--`, `:-:`, `--:`) is settable from the editing UI.
+- **Usable while still EMPTY.** A freshly inserted _N×M_ scaffold is all empty cells, so cell size
+  must not be driven by content alone: empty tables/rows/columns/cells keep a **minimum rendered
+  size** with visible boundaries, so they can be seen and targeted before anything is typed
+  (`REQ-TBLED-8`).
+- **Reachable with a coarse pointer.** Every structural action must be available **without hover or
+  right-click** — neither exists on touch. Hover-revealed gizmos and a `contextmenu` menu are a
+  fine-pointer *enhancement*, not the only path (`REQ-TBLED-9`).
 
 Scope note: GFM table _rendering_ is M2 (§5.1). This rich _editing_ experience was a larger,
 later effort — block-widget interaction work in the §9 decoration/widget layer — **not required for
