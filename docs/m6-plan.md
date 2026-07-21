@@ -9,8 +9,8 @@ _Status legend: ✅ done · 🔜 next · ⬜ planned._
 
 ## Scope (from roadmap "M6" / SPEC §2)
 
-Make szmde run as a **native Android app** on Tauri 2 mobile (GA since 2024-10-02; the local CLI
-2.11.3 already ships `tauri android {init,dev,build,run}`). Three requirements:
+Make szmde run as a **native Android app** on Tauri 2 mobile (GA since 2024-10-02; the local Tauri 2
+CLI already ships `tauri android {init,dev,build,run}`). The requirements:
 
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
@@ -263,7 +263,7 @@ the current control sizes, i.e. status chips at 34px and dropdown / chip-menu ro
    the full unconsumed insets including `Type.ime()` while DecorView keeps its own handling.
    **Rule: never attach an apply-insets listener to the Tauri WebView _or_ the decorView.** A decorView
    listener replaces `DecorView.onApplyWindowInsets`, which is what sizes the system-bar scrim views
-   (`updateColorViews`) — a different bug with the same shape. See the comment at `MainActivity.kt:44-56`.
+   (`updateColorViews`) — a different bug with the same shape. See the ⚠️ `NEVER ATTACH AN APPLY-INSETS LISTENER TO THE WebView` comment in `MainActivity.kt`.
    Also note the AVD is a poor IME test rig at all: with a hardware keyboard attached it shows Gboard's
    *floating* mini-toolbar, which occludes nothing, so `ime=0` there is correct and meaningless.
    **Follow-up (deliberately deferred, Stephen 2026-07-20):** since `visualViewport` does work, the ~40

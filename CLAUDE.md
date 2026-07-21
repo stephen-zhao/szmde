@@ -37,11 +37,16 @@ CodeMirror 6 · Svelte 5 / SvelteKit (`adapter-static`) · Tauri 2 · TypeScript
   a tagged test (or a tracked gap). CI-enforced ([docs/ci-cd.md](docs/ci-cd.md)).
 - **Live/interaction behavior** that happy-dom can't express (layout, clicks, caret, visuals) is
   covered by the LLM-driven workflow suite ([docs/llm-workflow-tests.md](docs/llm-workflow-tests.md),
-  `WF-1…WF-31`) — add a live workflow *before* fixing a live bug (TDD for interaction).
+  `WF-*`) — add a live workflow *before* fixing a live bug (TDD for interaction).
 - **Bugs vs requirements:** [docs/bugs.md](docs/bugs.md) is behavior that violates an *existing* REQ;
   an under-specified gap becomes a *new* REQ in requirements.md. Each review round is triaged.
 - **Substantial code changes** get the adversarial multi-agent ("ultracode") find→verify-by-refutation
   review before merge.
+- **No hardcoded counts in prose docs.** Test counts, file counts, requirement/gap tallies and
+  `WF-1…WF-n` ranges rot on the next commit and cost a doc edit every time. State the property and
+  name the command that prints the number (`npm run test:trace`, `npm run test:coverage`,
+  `cargo test`). Measurements with a device/date (`--kb-inset 373px on a Pixel 9 Pro`), enforced
+  thresholds (100% lines) and config values (minSdk 24) are NOT counts — keep those.
 
 ## Storage seam (current reality)
 

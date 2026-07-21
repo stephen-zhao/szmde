@@ -76,7 +76,7 @@ entry) is still pending — see [What's left](#whats-left)._
 ### M4 — Authoring essentials ✅  (SPEC §5.4, §7.3, §4.1)
 Daily-authoring + reading-experience power-features for the target user (Stephen).
 Pulled ahead of table editing on 2026-06-27. **Shipped 2026-06-28 (S1–S6,
-[m4-plan.md](archive/m4-plan.md)); all six REQs catalogued in [requirements.md](requirements.md).**
+[m4-plan.md](archive/m4-plan.md)); every REQ below is catalogued in [requirements.md](requirements.md).**
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
 | REQ-EMOJI-1 | Emoji shortcodes `:smile:` → rendered emoji | §5.4 |

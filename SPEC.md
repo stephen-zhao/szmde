@@ -529,9 +529,9 @@ on demand. Post-v1.
 
 ### 7.6 Left-edge lanes — display strategies (`REQ-LANE-*`; M6.2)
 
-The editor's left edge is a stack of **lanes** running down the page beside the text. Today there are
-two, both permanently reserved as `.cm-content` left padding (`REQ-RENDER-12`): the **fold chevron**
-lane and the **syntax marker** lane. Line numbers are an obvious third, later.
+The editor's left edge is a stack of **lanes** running down the page beside the text. Today: the **fold
+chevron** lane and the **syntax marker** lane, both permanently reserved as `.cm-content` left
+padding (`REQ-RENDER-12`). Line numbers are an obvious next one, later.
 
 That model is fine at desktop widths and wrong on a phone: on a ~412px viewport the two lanes consume
 a large share of the line before a single character is drawn, and in Formatted mode the marker lane is
@@ -710,9 +710,9 @@ _Shipped post-v1:_
 6. **M4 – Authoring essentials (§5.4, §7.3, §4.1):** emoji shortcodes, find & replace, word/character
    count, foldable sections, scroll-zoom/page-width, syntax-mode margin overhang. ✅
 7. **M5 – Rich table editing (§7.4):** structured editing over portable GFM tables (insert/reorder
-   rows & cols, drag handles, cursor-context shortcuts, inline cell editor). ✅ _(S7 header-toggle pending)_
+   rows & cols, drag handles, cursor-context shortcuts, inline cell editor). ✅
 
-_Scheduled (M6 next):_
+_In progress:_
 8. **M6 – Android:** Tauri mobile build; responsive UI; storage access framework.
 9. **M7 – Network storage + polish:** SMB/CIFS + WebDAV; light/system mode; a11y pass.
 10. **M8 – Workspace: tabs & splittable panes (§7.2):** document registry + serializable layout tree.
