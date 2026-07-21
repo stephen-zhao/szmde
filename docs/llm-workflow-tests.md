@@ -529,6 +529,10 @@ and drag-select — the adversarial review caught it, and these steps are the li
   scroll, so there is nothing to check there.)
 - Set `"editor": { "typewriterScrolling": false }` in the user settings file and restart → behaviour
   returns to CodeMirror's minimal scrolling (caret rests one line inside the bottom edge).
+- **Check the console** for `scroll handler: Error: …`. CodeMirror wraps scroll handlers in a
+  try/`logException` and treats a thrower as "declined", so a broken handler looks *exactly* like a
+  working editor with no centring — which is how the first version passed 100% of the unit suite while
+  doing nothing at all. A silent console is part of the pass criteria.
 - **On the phone, keyboard up:** the line being typed sits mid-screen, fully readable, clear of both the
   keyboard and the chips — the acceptance WF-30 could not meet on its own.
 
