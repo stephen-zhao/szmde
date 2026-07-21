@@ -624,8 +624,8 @@
        base margin. max() resolves to exactly the inset on a phone, parking the chips
        right on top of the gesture pill (M6 S1 on-device). env() is 0 on desktop, so
        this degrades to the plain base px. */
-    bottom: calc(max(env(safe-area-inset-bottom, 0px), var(--sab, 0px)) + 8px);
-    right: calc(max(env(safe-area-inset-right, 0px), var(--sar, 0px)) + 14px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+    right: calc(env(safe-area-inset-right, 0px) + 14px);
     z-index: 15;
     display: flex;
     align-items: center;
@@ -786,7 +786,7 @@
      so it's full-width here without extra rules. */
   @media (max-width: 600px) {
     .statusbar {
-      left: calc(max(env(safe-area-inset-left, 0px), var(--sal, 0px)) + 8px);
+      left: calc(env(safe-area-inset-left, 0px) + 8px);
       max-width: calc(100vw - 16px);
       flex-wrap: wrap;
       justify-content: flex-end;
@@ -853,7 +853,7 @@
          third candidate collapses to 8px, leaving the floor in charge. */
       bottom: max(
         32px,
-        calc(max(env(safe-area-inset-bottom, 0px), var(--sab, 0px)) + 8px),
+        calc(env(safe-area-inset-bottom, 0px) + 8px),
         calc(var(--kb-inset, 0px) + 8px)
       );
     }
@@ -862,7 +862,7 @@
        a flat constant. */
     .chip-menu {
       max-height: calc(
-        100dvh - max(env(safe-area-inset-top, 0px), var(--sat, 0px)) - max(env(safe-area-inset-bottom, 0px), var(--sab, 0px)) - 120px
+        100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 120px
       );
       overflow-y: auto;
       overscroll-behavior: contain;

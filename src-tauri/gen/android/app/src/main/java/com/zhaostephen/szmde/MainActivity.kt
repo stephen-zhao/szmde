@@ -17,75 +17,56 @@ class MainActivity : TauriActivity() {
    * Publish the IME (soft-keyboard) inset to the web layer as the CSS custom property
    * `--kb-inset`, in CSS pixels.
    *
-   * WHY THIS EXISTS (measured on a Pixel 9 Pro / Android 16, M6 S3): when the keyboard
-   * opens, the web layer is told *nothing*. `window.innerHeight`, `visualViewport.height`
-   * and `visualViewport.offsetTop` all stay at their full-screen values (952/952/0):
+   * WHY THIS EXISTS (measured on a physical Pixel 9 Pro / Android 16, M6 S3): when the
+   * keyboard opens, the web layer is told *nothing*. `window.innerHeight`,
+   * `visualViewport.height` and `visualViewport.offsetTop` all stay at their full-screen
+   * values (952/952/0):
    *
    *   - `interactive-widget=resizes-content` in the viewport meta does not resize the
-   *     layout viewport here (Tauri #10631), and
+   *     layout viewport here (Tauri #10631),
+   *   - `visualViewport` — the documented fallback — does not react either, and
    *   - `android:windowSoftInputMode="adjustResize"` is ALSO inert, because a targetSdk 35+
-   *     edge-to-edge app no longer gets automatic IME resizing from the framework — it is
+   *     edge-to-edge app no longer gets automatic IME resizing from the framework; it is
    *     expected to consume `WindowInsets.ime()` itself.
    *
-   * So this native push is the only signal the frontend can get. CSS then subtracts
-   * `--kb-inset` so the editor and the status chips sit above the keyboard.
+   * So this native push is the only signal the frontend can get. CSS subtracts
+   * `--kb-inset` so the editor shrinks (giving CodeMirror a correct visible height for its
+   * own caret scrollIntoView) and the status chips sit above the keyboard.
    *
-   * The manifest keeps `adjustResize` for API < 35, where the framework DOES still resize
-   * the window; there `--kb-inset` simply stays 0 and `100dvh` already does the right
-   * thing. The two mechanisms are complementary across our minSdk-24 range.
+   * The manifest keeps `adjustResize` anyway: inert on 35+, but still functional on
+   * API 24-34, most of our minSdk-24 range. There `--kb-inset` stays 0 and `100dvh`
+   * already does the right thing. The two are complementary, not redundant.
+   *
+   * ⚠️ THE LISTENER MUST BE ON THE decorView, NEVER ON THE WebView.
+   * Registering an OnApplyWindowInsetsListener on the WebView REPLACES the WebView's own
+   * inset handling — which is precisely how Chrome derives `env(safe-area-inset-*)` — and
+   * silently zeroes all four safe-area edges. That cost real debugging time: it presented
+   * as "the physical device reports env() = 0 while the emulator reports 52", i.e. a
+   * convincing-looking platform difference that was entirely self-inflicted. With the
+   * listener on the decorView, env() reports correctly (68px top / 24px bottom on the
+   * Pixel 9 Pro), so the CSS needs no safe-area bridge at all — only the IME one.
    */
   override fun onWebViewCreate(webView: WebView) {
-    val d = resources.displayMetrics.density
-    val px = { v: Int -> (v / d).toInt() }
-
-    // Publish the IME inset only (cheap path, used by the IME animation callback).
     val pushIme = { imePx: Int ->
+      val cssPx = (imePx / resources.displayMetrics.density).toInt()
       webView.post {
         webView.evaluateJavascript(
-          "document.documentElement.style.setProperty('--kb-inset','${px(imePx)}px')",
+          "document.documentElement.style.setProperty('--kb-inset','${cssPx}px')",
           null,
         )
       }
     }
 
-    // Publish the system-bar / cutout insets too, as --sat/--sab/--sal/--sar.
-    //
-    // WHY: `env(safe-area-inset-*)` is NOT reliable here. Measured 2026-07-20 on the SAME
-    // app build: the Pixel 9 Pro AVD (WebView 134) reports env top = 52px, but a physical
-    // Pixel 9 Pro (WebView 150) reports **0px on every edge** — so the CSS-only inset
-    // strategy silently no-ops on real hardware and the hamburger lands on the status bar.
-    // (This is not the documented "WebView < M136 returns 0" case; 150 is far newer.)
-    // These vars are the trustworthy source; CSS takes max(env(...), var(--sa*)) so
-    // whichever side actually reports a value wins, and desktop stays at 0.
-    val pushAll = { insets: WindowInsetsCompat ->
-      val bars = insets.getInsets(
-        WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
-      )
-      val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-      webView.post {
-        webView.evaluateJavascript(
-          """
-          (function(s){
-            s.setProperty('--sat','${px(bars.top)}px');
-            s.setProperty('--sab','${px(bars.bottom)}px');
-            s.setProperty('--sal','${px(bars.left)}px');
-            s.setProperty('--sar','${px(bars.right)}px');
-            s.setProperty('--kb-inset','${px(ime)}px');
-          })(document.documentElement.style)
-          """.trimIndent(),
-          null,
-        )
-      }
-    }
-
-    ViewCompat.setOnApplyWindowInsetsListener(webView) { _, insets ->
-      pushAll(insets)
+    // Catches IME changes that arrive without an animation (rotation, resume, hardware
+    // keyboard attach). On the decorView — see the warning above.
+    ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { _, insets ->
+      pushIme(insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
       // Return the insets unconsumed so the system bars keep laying out normally.
       insets
     }
 
-    // The apply-insets listener may not re-fire when the window does not resize, so also
-    // ride the IME animation, which is dispatched precisely for this case.
+    // The primary path: the IME animation, dispatched precisely when the window itself
+    // does not resize. Verified on-device (ime 0 -> 841px physical -> --kb-inset 373px).
     ViewCompat.setWindowInsetsAnimationCallback(
       webView,
       object : WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
@@ -93,15 +74,13 @@ class MainActivity : TauriActivity() {
           insets: WindowInsetsCompat,
           running: MutableList<WindowInsetsAnimationCompat>,
         ): WindowInsetsCompat {
-          val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-          pushIme(ime)
+          pushIme(insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
           return insets
         }
 
         override fun onEnd(animation: WindowInsetsAnimationCompat) {
           val root = ViewCompat.getRootWindowInsets(webView)
-          val ime = root?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0
-          pushIme(ime)
+          pushIme(root?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0)
         }
       },
     )

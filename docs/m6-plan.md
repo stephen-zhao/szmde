@@ -168,7 +168,7 @@ an **AVD/physical device**._
 |-------|-------|-----|-----------|
 | **S1** | Boots on emulator (toolchain + `android init` + cross-compile) | REQ-MOBILE-1 | Provision the toolchain; bump `keyring` 3→4; `cfg(desktop)`-gate the CLI; `tauri android init` + commit `gen/android`; set minSdk 24 (compileSdk/targetSdk 36 are the template default — no edit). **`tauri android dev` launches the blank editor in an emulator; `cargo build` succeeds for all 4 ABIs; desktop `tauri dev` + `npm test` still green.** No storage/cloud/keyboard yet. |
 | **S2** | Responsive shell down to phone width | REQ-MOBILE-2 | Viewport meta + phone `<600` breakpoint (drawer), ≥48dp targets, safe-area insets. **Toolbar/drawer/editor usable by touch on a phone-sized emulator, no horizontal overflow, content clears system-bar insets; desktop layout unchanged.** Soft keyboard deferred to S3. |
-| **S3** | Soft-keyboard + IME correctness (on-device) | REQ-MOBILE-2 | `interactive-widget=resizes-content` + a `visualViewport` fallback; verify CM6 caret next to widgets + IME. **Typing a paragraph, editing a table cell / task item, and IME composition keep the caret visible above the keyboard on a physical phone.** |
+| **S3** ✅ | Soft-keyboard + IME correctness (on-device) | REQ-MOBILE-2 | **Done 2026-07-20.** The planned CSS-only route (`interactive-widget=resizes-content` + `visualViewport`) could not work as specced — see risk #4 — so it shipped as a **native IME-inset bridge** in `MainActivity.kt` publishing `--kb-inset`, with CSS shrinking `.app` and lifting `.statusbar`. **Verified on a physical Pixel 9 Pro:** `--kb-inset` 373px, `.app` 952→579, statusbar 32→381px, and after typing 18 lines the caret sits at y=578 in a 579px visible area. _Not yet exercised: IME **composition** (CJK/predictive) next to inline widgets, and table-cell editing with the keyboard up — carry into S4/M6.2 testing._ |
 | **S4** | SAF local storage backend (offline open/save) | REQ-MOBILE-3 | Spike dialog+fs (`content://` via `FilePath::Url`); add `SafProvider` + persistable permissions + `DocumentFile` rev; settings via app-private `std::fs`. **On-device: pick a real `.md`, edit, save back (with conflict detection), reopen after app restart via the persisted URI — fully offline.** The milestone's core shippable. |
 | **S5** | Signed release AAB/APK + Android CI | REQ-MOBILE-1 | Upload keystore + `signingConfigs`; a GitHub Actions job (setup-java 17 + SDK/NDK + the 4 targets, keystore from base64 secrets) building `--apk`/`--aab`. **CI produces a signed APK installable on a device + a signed AAB.** A local-only Android szmde is shippable here. |
 | **S6** | Cloud sign-in on Android (deep-link OAuth + keystore verify) | REQ-CLOUD-1 | Verify `keyring` v4 round-trip on device; add `tauri-plugin-deep-link` + the redirect (App Link recommended) + separate Android OAuth client; mobile-gate `gdrive-connect.ts`. **`connectGoogleDrive` completes in a Custom Tab, tokens persist in the Keystore, refresh works, read/write of a known Drive file ID succeeds.** |
@@ -187,26 +187,45 @@ an **AVD/physical device**._
    default store, then verify the round-trip on device. Fallback remains `tauri-plugin-keyring`.
 3. CM6 caret invisible next to inline widgets during IME composition (widget-heavy editor) — physical
    device + real IME only.
-4. ⚠️ **PARTLY RESOLVED — the CSS-only approach is disproven (measured 2026-07-20, S3 spike).** On a
-   Pixel 9 Pro AVD / Android 16, with the IME up (`mInputShown=true`) and CM focused, the web layer is
-   told **nothing** — `innerHeight` 952→952, `visualViewport.height` 952→952, `offsetTop` 0→0. Neither
-   `interactive-widget=resizes-content` (confirms Tauri #10631) **nor the planned `visualViewport`
-   fallback** reacts, and `android:windowSoftInputMode="adjustResize"` is **also inert**: a targetSdk 35+
-   edge-to-edge app no longer gets automatic IME resizing — it must consume `WindowInsets.ime()` itself.
-   **So S3 needs native code, not CSS/JS.** Implemented as a bridge in `MainActivity.kt` (an
-   editable, committed file — `TauriActivity.kt` is auto-generated, don't touch) overriding
-   `WryActivity.onWebViewCreate` to publish the IME inset as the CSS var `--kb-inset`.
-   `adjustResize` is **kept** in the manifest anyway: it is inert on 35+ but still works on API 24–34,
-   which is most of our minSdk-24 range, and there `--kb-inset` simply stays 0 while `100dvh` does the
-   right thing. The two are complementary.
-   **Still unverified:** the bridge's *value*. The AVD has a **hardware keyboard**, so forcing the IME
-   yields Gboard's **floating mini-toolbar**, which does not occlude the window — `ime=0` is then
-   *correct* and the measurement says nothing about a docked keyboard. The inset callbacks themselves do
-   fire (9× `animProgress` + `animEnd`), so the plumbing is proven; only the magnitude is untested.
-   **This is exactly why S3's acceptance demands a physical phone** (or an AVD with `hw.keyboard=no`).
-5. `env(safe-area-inset-*)` returns 0 on WebView <M136; **targetSdk 36 / Android 16 makes edge-to-edge
-   mandatory (the opt-out is dead)** — needs a JS/native inset fallback across WebView versions. (We
-   handle insets rather than opt out, so targeting 36 adds no work here.)
+4. ✅ **RESOLVED (S3, 2026-07-20) — but read the correction below before trusting any of it.**
+   **What is true, measured on a PHYSICAL Pixel 9 Pro / Android 16 with a real docked keyboard:**
+   `interactive-widget=resizes-content` does **not** resize the layout viewport — `innerHeight` stays
+   952 with the IME up (confirms Tauri #10631). `android:windowSoftInputMode="adjustResize"` is **also**
+   inert, because a targetSdk 35+ edge-to-edge app no longer gets automatic IME resizing; it must
+   consume `WindowInsets.ime()` itself. So `100dvh` alone can never shrink for the keyboard.
+   **Shipped fix:** a native bridge in `MainActivity.kt` (editable + committed; `TauriActivity.kt` is
+   auto-generated — don't touch) overriding `WryActivity.onWebViewCreate` to publish the IME inset as
+   CSS `--kb-inset`, via a `WindowInsetsAnimation` callback. CSS shrinks `.app` by it (so CodeMirror
+   gets a correct visible height and its own caret `scrollIntoView` works) and lifts `.statusbar`.
+   `adjustResize` is kept for API 24–34, where the framework still resizes and `--kb-inset` stays 0.
+   **Verified on device:** `--kb-inset` 373px, `.app` 952→579, `.cm-scroller` 579, statusbar bottom
+   32→381px; after typing 18 lines the active line sits at y=578 inside a 579px visible area, i.e. the
+   caret stays above the keyboard (the S3 acceptance).
+
+   ⚠️ **TWO FALSE LEADS — recorded so nobody re-derives them.**
+   (a) *"`visualViewport` is inert too"* — **WRONG.** It reports 952→**578** on the phone (≈ the same
+   373px), so the plan's original Plan B does work. (b) *"`env(safe-area-inset-*)` returns 0 on physical
+   hardware while the AVD says 52"* — **WRONG, and self-inflicted.** Both came from the same mistake:
+   registering `ViewCompat.setOnApplyWindowInsetsListener` **on the WebView**, which REPLACES the
+   WebView's own inset handling — precisely how Chrome derives `env()` *and* updates `visualViewport`.
+   It silently zeroed both, and presented convincingly as a device/emulator platform difference. Moving
+   the listener to the **decorView** restores both (`env` 68px top / 24px bottom on the phone).
+   **Rule: never attach an apply-insets listener to the Tauri WebView.**
+   Also note the AVD is a poor IME test rig at all: with a hardware keyboard attached it shows Gboard's
+   *floating* mini-toolbar, which occludes nothing, so `ime=0` there is correct and meaningless.
+   **Follow-up (deliberately deferred, Stephen 2026-07-20):** since `visualViewport` does work, the ~40
+   lines of Kotlin could likely be replaced by ~4 lines of TS
+   (`visualViewport.addEventListener('resize', ...)` → set `--kb-inset`), which would also cover
+   web/PWA. Not swapped now: S3's acceptance is already met and demonstrable, and changing the
+   mechanism deserves its own tested change (100%-coverage gate applies) rather than being smuggled in
+   at the end of the slice.
+5. ✅ **RESOLVED (S3, 2026-07-20) — `env()` works; the danger is CLOBBERING it.** Measured with the
+   apply-insets listener correctly on the decorView: `env(safe-area-inset-top)` = **52px** on the AVD and
+   **68px** on a physical Pixel 9 Pro (bottom 24px = the gesture bar). So the S2 CSS inset strategy is
+   sound and **no native safe-area bridge is needed** — an earlier `--sat/--sab` bridge was built on the
+   false premise in risk #4(b) and has been reverted. targetSdk 36 still makes edge-to-edge mandatory,
+   which is why we handle insets rather than opt out. The one real hazard is documented in risk #4:
+   attaching an apply-insets listener to the **WebView** zeroes `env()` on all four edges.
 6. **Resolved:** the SDK level needs **no hand-edit** — Tauri's `gen/android/app/build.gradle.kts`
    template already defaults `compileSdk = 36` + `targetSdk = 36` (AGP 8.11.0 + Gradle 8.14 support it),
    so only `minSdk` is set (via `tauri.conf.json`, not a Gradle hand-edit). Re-confirm the defaults hold
