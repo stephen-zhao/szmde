@@ -17,10 +17,12 @@ import { EditorView } from "@codemirror/view";
  * do nothing at all, so moving the cursor UP keeps CodeMirror's minimal scrolling and
  * the document does not lurch to re-centre.
  *
- * Implemented as an `EditorView.scrollHandler`, which fires from exactly one place —
+ * Implemented as an `EditorView.scrollHandler` that never claims the scroll and instead
+ * schedules a measure-phase refinement. It fires from exactly one place —
  * `docView.scrollIntoView` — and therefore applies to every `scrollIntoView: true`
- * dispatch (10 of them, across keymap.ts, table-commands.ts, alerts.ts and hr.ts)
- * without editing any of them.
+ * dispatch (10 of them, across keymap.ts, table-commands.ts, alerts.ts and hr.ts) and to
+ * the `EditorView.scrollIntoView` effects @codemirror/search uses, without editing any of
+ * them.
  *
  * It is deliberately NOT an `EditorView.scrollMargins` facet, which was the first
  * implementation. That facet has four consumers, and reserving half the viewport as a
@@ -83,54 +85,73 @@ export function typewriterScrollTop(g: TypewriterGeometry): number | null {
   return next > scrollTop ? next : null;
 }
 
+/** Identity for `requestMeasure` de-duplication — at most one pending centring. */
+const measureKey = {};
+
+/**
+ * Measure phase READ: the scrollTop that would centre the caret's own visual row, or
+ * `null` for "leave it alone".
+ *
+ * `view.coordsAtPos` is legal HERE and nowhere near a scroll handler. Its
+ * `readMeasured()` guard throws only while CodeMirror is *updating*; measure requests
+ * run with `updateState = Measuring`, which is why CodeMirror's own `drawSelection`
+ * plugin calls `coordsAtPos` from its measure read too.
+ *
+ * The caret's visual ROW is what has to be measured. The height map (`lineBlockAt`) only
+ * knows whole document lines, and anchoring on a line block's bottom throws the caret
+ * off the TOP of the screen whenever it sits on an early row of a wrapped paragraph —
+ * e.g. a 13-row paragraph on a 579px phone viewport moved the caret from y=33 to y=-47
+ * and flickered on every keystroke. (Found by the round-2 adversarial review, reproduced
+ * live.) `coordsAtPos` gives the caret's row directly, so no such approximation is made.
+ */
+export function typewriterMeasureRead(view: EditorView): number | null {
+  if (!view.state.facet(typewriterEnabled)) return null;
+  const scroller = view.scrollDOM;
+  const coords = view.coordsAtPos(view.state.selection.main.head);
+  if (!coords) return null;
+
+  const boxTop = scroller.getBoundingClientRect().top;
+  return typewriterScrollTop({
+    scrollTop: scroller.scrollTop,
+    viewportHeight: scroller.clientHeight,
+    scrollHeight: scroller.scrollHeight,
+    lineTop: coords.top - boxTop,
+    lineBottom: coords.bottom - boxTop,
+  });
+}
+
+/** Measure phase WRITE: apply the centring, if the read asked for one. */
+export function typewriterMeasureWrite(target: number | null, view: EditorView) {
+  if (target !== null) view.scrollDOM.scrollTop = target;
+}
+
 /**
  * Centre the active line on every scroll-into-view request.
  *
- * Runs inside `docView.scrollIntoView`, before CodeMirror's own scrolling; returning
- * `true` means "handled". We decline (returning `false`) whenever the caller asked for
- * a specific placement (`y` other than `"nearest"`) so go-to-line and friends land
- * where they asked, and whenever the content can scroll horizontally — handling the
- * scroll suppresses CodeMirror's horizontal scrolling too, which would strand the caret
- * off the right edge. `EditorView.lineWrapping` is on today, so that never happens.
+ * This handler runs inside `docView.scrollIntoView`, which is the one place CodeMirror
+ * resolves a scroll target — so it sees every `scrollIntoView: true` dispatch (10 sites
+ * across keymap.ts, table-commands.ts, alerts.ts, hr.ts) AND the `EditorView.scrollIntoView`
+ * effects that @codemirror/search uses for find-next, without editing any of them.
  *
- * **`view.coordsAtPos()` must not be used here.** Scroll handlers run inside
- * CodeMirror's update, where its `readMeasured()` guard throws "Reading the editor
- * layout isn't allowed during an update"; `docView.scrollIntoView` catches that,
- * `logException`s it, and treats the handler as declined. That is how the first version
- * of this silently did nothing in the real app while every unit test passed — caught by
- * driving the live editor, not by the suite. `lineBlockAt` / `documentTop` /
- * `defaultLineHeight` are public, synchronous and unguarded (they read the height map).
+ * It deliberately **returns `false` every time**. Returning `true` would suppress
+ * CodeMirror's own scrolling — including the horizontal scroll and, critically, the
+ * corrective scroll that keeps the caret on screen when our arithmetic declines or is
+ * wrong. Instead it schedules a measure request: CodeMirror scrolls minimally first, then
+ * our write refines that to centred, both inside the same measure loop and therefore
+ * within one frame, before the browser paints. The worst failure mode this design admits
+ * is "no centring", never "caret off screen".
  *
- * Because the reference is a *line block*, a wrapped paragraph is measured by its LAST
- * visual row (`bottom`, back-limited to one line height). That is the row being typed
- * on, and it makes the guarantee slightly stronger: the whole tail of the line stays at
- * or above the midpoint.
+ * We decline for any `y` other than `"nearest"` so an explicit `y: "center"` / `"start"`
+ * / `"end"` request (go-to-line, the search panel's select-all) lands where it asked.
  *
  * Geometry is read live on every call, so it tracks window resizes, the REQ-ZOOM
  * font/width changes, and — on Android — the soft keyboard shrinking `.app` from 952 to
  * 579 via `--kb-inset` (M6 S3).
  */
-export const typewriterScrollHandler = EditorView.scrollHandler.of((view, range, options) => {
+export const typewriterScrollHandler = EditorView.scrollHandler.of((view, _range, options) => {
   if (!view.state.facet(typewriterEnabled)) return false;
   if (options.y !== "nearest") return false;
 
-  const scroller = view.scrollDOM;
-  if (scroller.scrollWidth > scroller.clientWidth) return false;
-
-  const block = view.lineBlockAt(range.head);
-  const boxTop = scroller.getBoundingClientRect().top;
-  const lineBottom = view.documentTop + block.bottom - boxTop;
-  const lineTop = Math.max(view.documentTop + block.top - boxTop, lineBottom - view.defaultLineHeight);
-
-  const next = typewriterScrollTop({
-    scrollTop: scroller.scrollTop,
-    viewportHeight: scroller.clientHeight,
-    scrollHeight: scroller.scrollHeight,
-    lineTop,
-    lineBottom,
-  });
-  if (next === null) return false;
-
-  scroller.scrollTop = next;
-  return true;
+  view.requestMeasure({ key: measureKey, read: typewriterMeasureRead, write: typewriterMeasureWrite });
+  return false;
 });

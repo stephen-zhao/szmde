@@ -508,8 +508,12 @@ and drag-select — the adversarial review caught it, and these steps are the li
 - Open a document longer than the viewport, click the last visible line, then hold Enter / type new
   lines → the caret **stops descending at the vertical midpoint** and the document scrolls under it. It
   must never sink into the bottom-right status chips.
-- Keep typing a long wrapped paragraph → the centring holds per *visual* line, and the scroll is smooth
+- Keep typing a long wrapped paragraph → the centring holds per *visual row*, and the scroll is smooth
   (no jitter, no double-scroll, no fighting between the caret and the scrollbar).
+- **Edit near the START of a paragraph that is taller than half the viewport** (on a phone, ~12 wrapped
+  rows) and type → the caret must stay exactly where it was. An implementation that measures the whole
+  line block instead of the caret's row flings it *above* the top edge here and flickers on every
+  keystroke — that regression shipped in this branch once and was caught live, never by a unit test.
 - Move the cursor **upward from a centred position** (↑, or click an earlier line) → the view does **not**
   yank the line back down to the middle; it keeps CodeMirror's minimal scrolling. The rule is
   one-directional. _Note the corollary: if you click a line **below** the midpoint (e.g. near the bottom)
