@@ -36,6 +36,12 @@ import { hrExtension } from "./hr";
 import { taskDecorations, taskAtomicRanges } from "./tasks";
 import { imageDecorations, imageAtomicRanges } from "./images";
 import { emojiDecorations, emojiAtomicRanges, emojiEnabled, emojiCompartment } from "./emoji";
+import {
+  DEFAULT_TYPEWRITER_ANCHOR,
+  typewriterCompartment,
+  typewriterConfig,
+  typewriterScrollHandler,
+} from "./typewriter";
 import { alertDecorations, alertAtomicRanges } from "./alerts";
 import { tableExtension } from "./tables";
 import { tableSourceGizmos } from "./table-source-gizmos";
@@ -361,6 +367,8 @@ export function editorExtensions(
   initialIndent: IndentConfig = { style: "spaces", width: 2 },
   initialEmoji = true,
   zoom?: ZoomConfig,
+  initialTypewriter = true,
+  initialTypewriterAnchor = DEFAULT_TYPEWRITER_ANCHOR,
 ): Extension[] {
   return [
     ...(zoom ? [zoomGestures(zoom)] : []),
@@ -389,6 +397,13 @@ export function editorExtensions(
     emojiCompartment.of(emojiEnabled.of(initialEmoji)),
     emojiDecorations,
     emojiAtomicRanges,
+    // REQ-SCROLL-1 (SPEC §4.5) — a scrollHandler, so it governs EVERY existing
+    // `scrollIntoView: true` dispatch without editing any of them, and without
+    // touching paging / drag-select / tooltips the way scrollMargins would.
+    typewriterCompartment.of(
+      typewriterConfig.of({ enabled: initialTypewriter, anchor: initialTypewriterAnchor }),
+    ),
+    typewriterScrollHandler,
     // Highest decoration precedence so the marker span is the INNERMOST DOM node
     // (CM nests higher-precedence decorations inside) — its absolute font-size
     // then wins over a heading's enclosing 1.9em span instead of compounding.

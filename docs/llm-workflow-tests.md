@@ -483,9 +483,9 @@ to read computed values (`adb shell cat /proc/net/unix | grep webview_devtools`)
   and the status chips lift to sit above the keyboard. `window.innerHeight` does **not** change — that
   is expected, and is why the native bridge exists.
 - Type past the bottom of the visible area → the caret stays **above the keyboard**.
-  ⚠️ **Known-failing until `REQ-SCROLL-1` lands:** the active line stops just *inside* the visible area,
-  which puts it **underneath the fixed status chips** — clearing the keyboard is necessary but not
-  sufficient. Check the line you are typing is actually *readable*, not merely above the keyboard.
+  Clearing the keyboard is necessary but not sufficient: before `REQ-SCROLL-1` the active line stopped
+  just *inside* the visible area, i.e. **underneath the fixed status chips**. Check the line you are
+  typing is actually *readable*, not merely above the keyboard — the centring itself is **WF-31**.
 - Dismiss the keyboard (back gesture / tap away) → `--kb-inset` returns to `0` and the layout restores
   fully; no residual shrink.
 - Rotate with the keyboard open, and background/foreground the app with it open → the inset is still
@@ -496,6 +496,53 @@ to read computed values (`adb shell cat /proc/net/unix | grep webview_devtools`)
   layout.
 - **IME composition** (not yet exercised): switch to a CJK or predictive keyboard and compose next to an
   inline widget (a task checkbox, a rendered table); also edit a **table cell** with the keyboard up.
+
+### WF-31 · Typewriter scrolling — the active line rests on the anchor · `REQ-SCROLL-1` _(SPEC §4.5)_
+**Why:** the unit tests pin the scroll-target arithmetic and the handler's decline paths, but "does typing
+*feel* centred" is a layout + scroll-animation property happy-dom cannot express. This is also the half of
+WF-30 that makes the keyboard usable rather than merely un-occluding. The last three steps exist because
+the **first** implementation used an `EditorView.scrollMargins` facet, and that facet is shared with paging
+and drag-select — the adversarial review caught it, and these steps are the live guard.
+**Setup:** desktop dev app or `localhost:1420`; repeat on the phone with the keyboard up (WF-30 setup).
+**Steps:**
+- Open a document longer than the viewport, click the last visible line, then hold Enter / type new
+  lines → the caret **stops descending about two thirds down** and the document scrolls under it. It
+  must never sink into the bottom-right status chips.
+- Set `"editor": { "typewriterAnchor": 0.5 }` in the user settings file and restart → the resting
+  point moves to the middle; `0.9` parks it near the bottom edge. Out-of-range values fall back to 2/3
+  rather than misbehaving.
+- Keep typing a long wrapped paragraph → the anchoring holds per *visual row*, and the scroll is smooth
+  (no jitter, no double-scroll, no fighting between the caret and the scrollbar).
+- **Edit near the START of a paragraph that is taller than half the viewport** (on a phone, ~12 wrapped
+  rows) and type → the caret must stay exactly where it was. An implementation that measures the whole
+  line block instead of the caret's row flings it *above* the top edge here and flickers on every
+  keystroke — that regression shipped in this branch once and was caught live, never by a unit test.
+- Move the cursor **upward from the anchor** (↑, or click an earlier line) → the view does **not** yank
+  the line back down; it keeps CodeMirror's minimal scrolling. The rule is one-directional. _Note the
+  corollary: if you click a line **below** the anchor (e.g. near the bottom) and then press ↑, the
+  document **does** scroll to bring that line up to the anchor — that is the invariant "never rests
+  below the anchor" doing its job, not a bug._
+- Near the **end of the document** the caret ends up above the anchor (the 40vh bottom padding runs out,
+  so there is nothing left to scroll) — expected, not a failure. Same at the very top.
+- Resize the window / `Ctrl+scroll` zoom / `Shift+scroll` width → the anchor tracks the new height with
+  no reload.
+- **PageDown then PageUp** → each moves a *full* screen and returns you to where you started (a shared
+  scroll-margin implementation would have halved both).
+- **Drag-select**: press in the upper half and drag to just below the vertical midpoint, then hold the
+  pointer still → nothing scrolls and the selection stops growing. Auto-scroll must only start within a
+  few px of the actual bottom edge.
+- Cross-check the other scroll paths still land their target on screen: **find-next** (`REQ-FR-1`), table
+  row/column insert, and clicking an alert or horizontal rule to edit it. (Folding does **not** dispatch a
+  scroll, so there is nothing to check there.)
+- Set `"editor": { "typewriterScrolling": false }` in the user settings file and restart → behaviour
+  returns to CodeMirror's minimal scrolling (caret rests one line inside the bottom edge).
+- **Check the console** for `scroll handler: Error: …`. CodeMirror wraps scroll handlers in a
+  try/`logException` and treats a thrower as "declined", so a broken handler looks *exactly* like a
+  working editor with no centring — which is how the first version passed 100% of the unit suite while
+  doing nothing at all. A silent console is part of the pass criteria.
+- **On the phone, keyboard up:** the line being typed sits about two thirds down the visible strip, fully
+  readable, clear of both the keyboard and the chips, with as much written context above it as fits —
+  the acceptance WF-30 could not meet on its own.
 
 ---
 
@@ -538,6 +585,7 @@ to read computed values (`adb shell cat /proc/net/unix | grep webview_devtools`)
 | REQ-RENDER-12 | structure (`markers.dom.test.ts`, `fold.dom.test.ts`) | WF-24 (3-column layout, no overlap) |
 | REQ-RENDER-11 | structure (`editor/markers.dom.test.ts`) | WF-25 (reveal = syntax style) |
 | REQ-RENDER-7 | unit (`render-mode.test.ts`, `render-mode-cycle.test.ts`) | WF-26 (toggle survives focus drift) |
+| REQ-SCROLL-1 | arithmetic + facet wiring ( `editor/typewriter.test.ts`, `typewriter.dom.test.ts`, `settings/schema.test.ts`) | WF-31 (centring feel; asymmetry; settings off) |
 
 The three former [requirements.md](requirements.md) gaps with no automated test
 (REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest
