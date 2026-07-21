@@ -12,10 +12,10 @@ import { EditorView } from "@codemirror/view";
  * not the chips).
  *
  * The invariant, stated exactly: **the active line never comes to rest BELOW the
- * vertical centre.** When a scroll-into-view would leave it lower than that, we scroll
- * so its centre lands on the midpoint. When it is already at or above the midpoint we
- * do nothing at all, so moving the cursor UP keeps CodeMirror's minimal scrolling and
- * the document does not lurch to re-centre.
+ * anchor** — two thirds down the visible height by default (`editor.typewriterAnchor`).
+ * When a scroll-into-view would leave it lower, we scroll so it lands on the anchor.
+ * When it is already at or above the anchor we do nothing at all, so moving the cursor
+ * UP keeps CodeMirror's minimal scrolling and the document does not lurch to re-settle.
  *
  * Implemented as an `EditorView.scrollHandler` that never claims the scroll and instead
  * schedules a measure-phase refinement. It fires from exactly one place —
@@ -40,15 +40,42 @@ import { EditorView } from "@codemirror/view";
  * Nor is it an `updateListener` that dispatches its own scroll effect — that re-enters.
  */
 
-/** Whether typewriter scrolling is on (settings `editor.typewriterScrolling`). */
-export const typewriterEnabled = Facet.define<boolean, boolean>({
-  combine: (values) => (values.length ? values[values.length - 1] : true),
+/**
+ * Where the active line comes to rest, as a fraction of the visible height.
+ *
+ * **Two thirds down, not centred.** Centring was the first shipped behaviour and user
+ * testing on a phone rejected it: with the keyboard up the line sat too high, wasting
+ * the readable strip above it on text already written. Two thirds keeps roughly a
+ * screenful of context above the cursor while still clearing the keyboard and the
+ * status chips (on a Pixel 9 Pro with the keyboard open: line at ~386px of a 579px
+ * viewport, chips at 509).
+ */
+export const DEFAULT_TYPEWRITER_ANCHOR = 2 / 3;
+
+export type TypewriterConfig = {
+  enabled: boolean;
+  /** Resting point as a fraction of the viewport height, 0 (top) to 1 (bottom). */
+  anchor: number;
+};
+
+/** Typewriter settings (`editor.typewriterScrolling`, `editor.typewriterAnchor`). */
+export const typewriterConfig = Facet.define<TypewriterConfig, TypewriterConfig>({
+  combine: (values) =>
+    values.length
+      ? values[values.length - 1]
+      : { enabled: true, anchor: DEFAULT_TYPEWRITER_ANCHOR },
 });
 
 export const typewriterCompartment = new Compartment();
 
-export function setTypewriter(view: EditorView, on: boolean) {
-  view.dispatch({ effects: typewriterCompartment.reconfigure(typewriterEnabled.of(on)) });
+export function setTypewriter(
+  view: EditorView,
+  enabled: boolean,
+  anchor = DEFAULT_TYPEWRITER_ANCHOR,
+) {
+  view.dispatch({
+    effects: typewriterCompartment.reconfigure(typewriterConfig.of({ enabled, anchor })),
+  });
 }
 
 /** Scroller + active-line geometry, all in px; line coords are relative to the scroller box. */
@@ -60,32 +87,39 @@ export type TypewriterGeometry = {
   scrollHeight: number;
   lineTop: number;
   lineBottom: number;
+  /** Resting point as a fraction of the viewport height; see DEFAULT_TYPEWRITER_ANCHOR. */
+  anchor: number;
 };
 
 /**
- * The scrollTop that parks the active line on the vertical midpoint, or `null` to leave
- * the scroll to CodeMirror.
+ * The scrollTop that parks the active line on the anchor, or `null` to leave the scroll
+ * to CodeMirror.
  *
  * Pure, so the whole decision is unit-testable without layout. `null` means "not ours":
  * an unmeasured viewport (`.cm-scroller` reports 0 before first layout and during some
- * Android IME transitions), a line already at or above the midpoint, or no room left to
+ * Android IME transitions), a line already at or above the anchor, or no room left to
  * scroll — in which case claiming the scroll would suppress CodeMirror's own.
  */
 export function typewriterScrollTop(g: TypewriterGeometry): number | null {
-  const { scrollTop, viewportHeight, scrollHeight, lineTop, lineBottom } = g;
+  const { scrollTop, viewportHeight, scrollHeight, lineTop, lineBottom, anchor } = g;
   if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) return null;
   if (!Number.isFinite(lineTop) || !Number.isFinite(lineBottom)) return null;
   if (!Number.isFinite(scrollTop) || !Number.isFinite(scrollHeight)) return null;
 
-  const delta = (lineTop + lineBottom) / 2 - viewportHeight / 2;
-  if (delta <= 0) return null; // at or above the midpoint — CodeMirror's default wins
+  // Settings validation bounds the anchor; this is the in-code backstop. An anchor of
+  // 0 or less would ask for a resting point at or above the top edge, which no scroll
+  // can satisfy, and above 1 is off the bottom of the viewport entirely.
+  const at = Number.isFinite(anchor) && anchor > 0 && anchor <= 1 ? anchor : DEFAULT_TYPEWRITER_ANCHOR;
+
+  const delta = (lineTop + lineBottom) / 2 - viewportHeight * at;
+  if (delta <= 0) return null; // at or above the anchor — CodeMirror's default wins
 
   const maxScrollTop = Math.max(0, scrollHeight - viewportHeight);
   const next = Math.round(Math.min(scrollTop + delta, maxScrollTop));
   return next > scrollTop ? next : null;
 }
 
-/** Identity for `requestMeasure` de-duplication — at most one pending centring. */
+/** Identity for `requestMeasure` de-duplication — at most one pending adjustment. */
 const measureKey = {};
 
 /**
@@ -105,7 +139,8 @@ const measureKey = {};
  * live.) `coordsAtPos` gives the caret's row directly, so no such approximation is made.
  */
 export function typewriterMeasureRead(view: EditorView): number | null {
-  if (!view.state.facet(typewriterEnabled)) return null;
+  const { enabled, anchor } = view.state.facet(typewriterConfig);
+  if (!enabled) return null;
   const scroller = view.scrollDOM;
   const coords = view.coordsAtPos(view.state.selection.main.head);
   if (!coords) return null;
@@ -117,6 +152,7 @@ export function typewriterMeasureRead(view: EditorView): number | null {
     scrollHeight: scroller.scrollHeight,
     lineTop: coords.top - boxTop,
     lineBottom: coords.bottom - boxTop,
+    anchor,
   });
 }
 
@@ -149,7 +185,7 @@ export function typewriterMeasureWrite(target: number | null, view: EditorView) 
  * 579 via `--kb-inset` (M6 S3).
  */
 export const typewriterScrollHandler = EditorView.scrollHandler.of((view, _range, options) => {
-  if (!view.state.facet(typewriterEnabled)) return false;
+  if (!view.state.facet(typewriterConfig).enabled) return false;
   if (options.y !== "nearest") return false;
 
   view.requestMeasure({ key: measureKey, read: typewriterMeasureRead, write: typewriterMeasureWrite });

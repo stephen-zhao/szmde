@@ -21,7 +21,7 @@
     getIndent(): IndentConfig;
     /** Enable/disable emoji-shortcode rendering (settings markdown.emoji). */
     setEmoji(on: boolean): void;
-    setTypewriter(on: boolean): void;
+    setTypewriter(on: boolean, anchor?: number): void;
     /** Convert all existing leading whitespace to the current indent style. */
     convertIndentation(): void;
     /** Insert a fresh `rows`×`cols` GFM table at the caret (REQ-TBLED-1). */
@@ -36,7 +36,10 @@
   import { editorExtensions, setGlobalWrap, wrapStateOf } from "./editor/setup";
   import { countText } from "./editor/count"; // TextCount type comes from the module script above
   import { setEmoji as applyEmoji } from "./editor/emoji";
-  import { setTypewriter as applyTypewriter } from "./editor/typewriter";
+  import {
+    DEFAULT_TYPEWRITER_ANCHOR,
+    setTypewriter as applyTypewriter,
+  } from "./editor/typewriter";
   import { insertTable as insertTableCmd } from "./editor/table-commands";
   import { renderModeOf, setRenderMode as applyRenderMode } from "./editor/render-mode";
   import {
@@ -72,6 +75,7 @@
   let indent: IndentConfig = { style: "spaces", width: 2 }; // editor-wide
   let emoji = true; // editor-wide; preserved across document loads
   let typewriter = true; // REQ-SCROLL-1; editor-wide, preserved across loads
+  let typewriterAnchor = DEFAULT_TYPEWRITER_ANCHOR;
   let lastWrapState: WrapState | "" = "";
   let lastRenderMode: RenderMode | "" = "";
   let lastIndentKey = "";
@@ -86,7 +90,7 @@
         ...editorExtensions(codeWrap, renderMode, indent, emoji, {
           onZoomFont: (s) => onzoomfont?.(s),
           onZoomWidth: (s) => onzoomwidth?.(s),
-        }, typewriter),
+        }, typewriter, typewriterAnchor),
         EditorView.updateListener.of((u) => {
           // Only real user transactions mark the document dirty; a setState
           // document load produces no transactions.
@@ -185,9 +189,10 @@
   }
 
   // REQ-SCROLL-1 — typewriter scrolling (SPEC §4.5).
-  function setTypewriter(on: boolean) {
+  function setTypewriter(on: boolean, anchor = DEFAULT_TYPEWRITER_ANCHOR) {
     typewriter = on;
-    if (view) applyTypewriter(view, on);
+    typewriterAnchor = anchor;
+    if (view) applyTypewriter(view, on, anchor);
   }
 
   function insertTable(rows: number, cols: number) {

@@ -207,15 +207,18 @@ scroll, so a caret moving downward comes to rest one line inside the bottom edge
 place to work: on a phone that line sits underneath the bottom-right status chips, so most of
 what is being edited is obscured (it clears the soft keyboard, but only just).
 
-Requirement: **by default, the active line never comes to rest below the vertical centre.**
-When a scroll would leave it lower, the document scrolls so the line lands on the midpoint —
-classic "typewriter" scrolling, with context visible above and below. The rule is deliberately
-**one-directional**: a line already at or above the centre is left exactly where it is, so
-moving the cursor *upward* keeps the editor's minimal scrolling instead of lurching the
-document down to re-centre. Near the top and the very end of a document the line may sit
-off-centre, because there is nothing left to scroll. A settings flag
-(`editor.typewriterScrolling`) turns the whole behaviour off for people who prefer minimal
-scrolling. This is a **general editor behavior on every platform**, not a phone-only
+Requirement: **by default, the active line never comes to rest below an anchor set two thirds
+of the way down the visible height.** When a scroll would leave it lower, the document scrolls
+so the line lands on that anchor. Two thirds rather than the middle: centring was tried first
+and read as *too high* in phone user-testing — it spends the readable strip above the cursor on
+text already written, when what a writer wants is the longest run of context above the line
+being composed, subject to still clearing the keyboard and the status chips. The rule is
+deliberately **one-directional**: a line already at or above the anchor is left exactly where
+it is, so moving the cursor *upward* keeps the editor's minimal scrolling instead of lurching
+the document down to re-settle. Near the top and the very end of a document the line may sit
+above the anchor, because there is nothing left to scroll. Two settings:
+`editor.typewriterScrolling` turns the behaviour off entirely, and `editor.typewriterAnchor`
+moves the resting point (0.5 restores classic centring). This is a **general editor behavior on every platform**, not a phone-only
 affordance — it is simply most acute on a phone, where the keyboard leaves only ~60% of the
 screen. (`REQ-SCROLL-1`.)
 

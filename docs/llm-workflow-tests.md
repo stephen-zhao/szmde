@@ -497,7 +497,7 @@ to read computed values (`adb shell cat /proc/net/unix | grep webview_devtools`)
 - **IME composition** (not yet exercised): switch to a CJK or predictive keyboard and compose next to an
   inline widget (a task checkbox, a rendered table); also edit a **table cell** with the keyboard up.
 
-### WF-31 · Typewriter scrolling — the active line stays centred · `REQ-SCROLL-1` _(SPEC §4.5)_
+### WF-31 · Typewriter scrolling — the active line rests on the anchor · `REQ-SCROLL-1` _(SPEC §4.5)_
 **Why:** the unit tests pin the scroll-target arithmetic and the handler's decline paths, but "does typing
 *feel* centred" is a layout + scroll-animation property happy-dom cannot express. This is also the half of
 WF-30 that makes the keyboard usable rather than merely un-occluding. The last three steps exist because
@@ -506,22 +506,25 @@ and drag-select — the adversarial review caught it, and these steps are the li
 **Setup:** desktop dev app or `localhost:1420`; repeat on the phone with the keyboard up (WF-30 setup).
 **Steps:**
 - Open a document longer than the viewport, click the last visible line, then hold Enter / type new
-  lines → the caret **stops descending at the vertical midpoint** and the document scrolls under it. It
+  lines → the caret **stops descending about two thirds down** and the document scrolls under it. It
   must never sink into the bottom-right status chips.
-- Keep typing a long wrapped paragraph → the centring holds per *visual row*, and the scroll is smooth
+- Set `"editor": { "typewriterAnchor": 0.5 }` in the user settings file and restart → the resting
+  point moves to the middle; `0.9` parks it near the bottom edge. Out-of-range values fall back to 2/3
+  rather than misbehaving.
+- Keep typing a long wrapped paragraph → the anchoring holds per *visual row*, and the scroll is smooth
   (no jitter, no double-scroll, no fighting between the caret and the scrollbar).
 - **Edit near the START of a paragraph that is taller than half the viewport** (on a phone, ~12 wrapped
   rows) and type → the caret must stay exactly where it was. An implementation that measures the whole
   line block instead of the caret's row flings it *above* the top edge here and flickers on every
   keystroke — that regression shipped in this branch once and was caught live, never by a unit test.
-- Move the cursor **upward from a centred position** (↑, or click an earlier line) → the view does **not**
-  yank the line back down to the middle; it keeps CodeMirror's minimal scrolling. The rule is
-  one-directional. _Note the corollary: if you click a line **below** the midpoint (e.g. near the bottom)
-  and then press ↑, the document **does** scroll to bring that line up to the centre — that is the
-  invariant "never rests below centre" doing its job, not a bug._
-- Near the **end of the document** the caret does go below the midpoint (there is nothing left to scroll)
-  — expected, not a failure. Same at the very top.
-- Resize the window / `Ctrl+scroll` zoom / `Shift+scroll` width → the centre tracks the new height with
+- Move the cursor **upward from the anchor** (↑, or click an earlier line) → the view does **not** yank
+  the line back down; it keeps CodeMirror's minimal scrolling. The rule is one-directional. _Note the
+  corollary: if you click a line **below** the anchor (e.g. near the bottom) and then press ↑, the
+  document **does** scroll to bring that line up to the anchor — that is the invariant "never rests
+  below the anchor" doing its job, not a bug._
+- Near the **end of the document** the caret ends up above the anchor (the 40vh bottom padding runs out,
+  so there is nothing left to scroll) — expected, not a failure. Same at the very top.
+- Resize the window / `Ctrl+scroll` zoom / `Shift+scroll` width → the anchor tracks the new height with
   no reload.
 - **PageDown then PageUp** → each moves a *full* screen and returns you to where you started (a shared
   scroll-margin implementation would have halved both).
@@ -537,8 +540,9 @@ and drag-select — the adversarial review caught it, and these steps are the li
   try/`logException` and treats a thrower as "declined", so a broken handler looks *exactly* like a
   working editor with no centring — which is how the first version passed 100% of the unit suite while
   doing nothing at all. A silent console is part of the pass criteria.
-- **On the phone, keyboard up:** the line being typed sits mid-screen, fully readable, clear of both the
-  keyboard and the chips — the acceptance WF-30 could not meet on its own.
+- **On the phone, keyboard up:** the line being typed sits about two thirds down the visible strip, fully
+  readable, clear of both the keyboard and the chips, with as much written context above it as fits —
+  the acceptance WF-30 could not meet on its own.
 
 ---
 

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { EditorView } from "@codemirror/view";
 import { EditorState, EditorSelection } from "@codemirror/state";
 import { editorExtensions } from "./setup";
-import { setTypewriter, typewriterEnabled } from "./typewriter";
+import { DEFAULT_TYPEWRITER_ANCHOR, setTypewriter, typewriterConfig } from "./typewriter";
 
 let view: EditorView | undefined;
 afterEach(() => {
@@ -87,10 +87,12 @@ function runScrollHandlers(
 }
 
 describe("[REQ-SCROLL-1] typewriter scroll handler", () => {
-  it("centres the caret's row when it is below the midpoint", () => {
+  it("settles the caret's row on the anchor when it is below it", () => {
+    // Default anchor 2/3: an 800px viewport puts the resting point at 533, and the
+    // caret's row (700..720, centre 710) is 177px below it.
     const v = build(true);
     expect(scrollIntoViewCycle(v)).toEqual({ handled: false, measured: true });
-    expect(v.scrollDOM.scrollTop).toBe(1310);
+    expect(v.scrollDOM.scrollTop).toBe(1177);
   });
 
   it("NEVER reports the scroll as handled, so CodeMirror always scrolls too", () => {
@@ -110,10 +112,26 @@ describe("[REQ-SCROLL-1] typewriter scroll handler", () => {
     }
   });
 
-  it("leaves the scroll alone when the caret's row is at or above the midpoint", () => {
+  it("leaves the scroll alone when the caret's row is at or above the anchor", () => {
     const v = build(true, { caret: { top: 100, bottom: 120 } });
     expect(scrollIntoViewCycle(v).measured).toBe(true);
     expect(v.scrollDOM.scrollTop).toBe(1000); // untouched — CM's minimal scrolling stands
+  });
+
+  it("honours a custom anchor set through setTypewriter", () => {
+    // 0.5 is the old centring behaviour; the setting exists so the resting point can
+    // be tuned per taste without a rebuild (`editor.typewriterAnchor`).
+    const v = build(true);
+    setTypewriter(v, true, 0.5);
+    expect(v.state.facet(typewriterConfig).anchor).toBe(0.5);
+    expect(scrollIntoViewCycle(v).measured).toBe(true);
+    expect(v.scrollDOM.scrollTop).toBe(1310);
+  });
+
+  it("defaults the anchor to two thirds when setTypewriter is given only a toggle", () => {
+    const v = build(true);
+    setTypewriter(v, true);
+    expect(v.state.facet(typewriterConfig).anchor).toBe(DEFAULT_TYPEWRITER_ANCHOR);
   });
 
   it("does not schedule any measurement when the setting is off", () => {
@@ -137,7 +155,7 @@ describe("[REQ-SCROLL-1] typewriter scroll handler", () => {
     // — so the vertical refinement applies here too.
     const v = build(true, { scrollWidth: 2000, clientWidth: 600 });
     expect(scrollIntoViewCycle(v).handled).toBe(false);
-    expect(v.scrollDOM.scrollTop).toBe(1310);
+    expect(v.scrollDOM.scrollTop).toBe(1177);
   });
 
   it("does nothing while the viewport is unmeasured (clientHeight 0)", () => {
@@ -151,7 +169,7 @@ describe("[REQ-SCROLL-1] typewriter scroll handler", () => {
     // PARAGRAPH's bottom, so a caret on an early row of a 13-row paragraph was flung off
     // the TOP of the screen (measured live: y=33 -> y=-47 on a 579px phone viewport,
     // flickering on every keystroke). Same paragraph here — block 33..386 — with the
-    // caret on its FIRST row, already above the midpoint: nothing may move.
+    // caret on its FIRST row, already above the anchor: nothing may move.
     const v = build(true, { caret: { top: 33, bottom: 60 } });
     expect(scrollIntoViewCycle(v).measured).toBe(true);
     expect(v.scrollDOM.scrollTop).toBe(1000);
@@ -174,17 +192,17 @@ describe("[REQ-SCROLL-1] typewriter scroll handler", () => {
 
   it("setTypewriter reconfigures a live editor in both directions", () => {
     const v = build(true);
-    expect(v.state.facet(typewriterEnabled)).toBe(true);
+    expect(v.state.facet(typewriterConfig).enabled).toBe(true);
 
     setTypewriter(v, false);
-    expect(v.state.facet(typewriterEnabled)).toBe(false);
+    expect(v.state.facet(typewriterConfig).enabled).toBe(false);
     expect(scrollIntoViewCycle(v).measured).toBe(false);
     expect(v.scrollDOM.scrollTop).toBe(1000);
 
     setTypewriter(v, true);
-    expect(v.state.facet(typewriterEnabled)).toBe(true);
+    expect(v.state.facet(typewriterConfig).enabled).toBe(true);
     expect(scrollIntoViewCycle(v).measured).toBe(true);
-    expect(v.scrollDOM.scrollTop).toBe(1310);
+    expect(v.scrollDOM.scrollTop).toBe(1177);
   });
 
   it("only depends on public CodeMirror APIs, checked on an unstubbed view", () => {
@@ -235,7 +253,7 @@ describe("[REQ-SCROLL-1] typewriter scroll handler", () => {
  * the cast; it is the only way to flush a measure cycle without an animation frame.
  */
 describe("[REQ-SCROLL-1] typewriter through CodeMirror's real scroll path", () => {
-  const CENTRED = 1310; // caret 1700px down a document, 800px viewport, 20px row
+  const ANCHORED = 1177; // caret 1700px down a document, 800px viewport, anchor 2/3
 
   function buildReal(caretDocY: number, boxTop: number) {
     const v = new EditorView({
@@ -279,13 +297,13 @@ describe("[REQ-SCROLL-1] typewriter through CodeMirror's real scroll path", () =
     (v as unknown as { measure(flush?: boolean): void }).measure(false);
   }
 
-  it("centres the caret through CodeMirror's own scroll machinery", () => {
+  it("settles the caret through CodeMirror's own scroll machinery", () => {
     const { view: v, writes } = buildReal(1700, 60);
     scrollIntoViewForReal(v);
-    expect(writes).toContain(CENTRED);
+    expect(writes).toContain(ANCHORED);
   });
 
-  it("catches a handler that throws — CodeMirror swallows it, so nothing centres", () => {
+  it("catches a handler that throws — CodeMirror swallows it, so nothing settles", () => {
     // Sanity-check that the assertion above can actually fail, by reproducing the
     // readMeasured exception the first scrollHandler version raised. CodeMirror logs it
     // and moves on, so the ONLY symptom is the missing centring.
@@ -294,12 +312,12 @@ describe("[REQ-SCROLL-1] typewriter through CodeMirror's real scroll path", () =
       throw new Error("Reading the editor layout isn't allowed during an update");
     }) as unknown as EditorView["coordsAtPos"];
     scrollIntoViewForReal(v);
-    expect(writes).not.toContain(CENTRED);
+    expect(writes).not.toContain(ANCHORED);
   });
 
-  it("writes nothing of its own when the caret's row is already above the midpoint", () => {
+  it("writes nothing of its own when the caret's row is already above the anchor", () => {
     // Caret 1100px down with scrollTop 1000 and a 60px box top -> row at 100..120,
-    // comfortably above the 400px midpoint. Our centring target for that geometry would
+    // comfortably above the 533px anchor. Our target for that geometry would
     // be 710; it must never appear.
     const { view: v, writes } = buildReal(1100, 60);
     scrollIntoViewForReal(v);

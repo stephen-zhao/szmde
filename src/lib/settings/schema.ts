@@ -41,8 +41,10 @@ export interface EditorSettings {
   autosave: boolean;
   autosaveIntervalMs: number;
   spellcheck: boolean;
-  /** REQ-SCROLL-1 — keep the active line vertically centred while typing (SPEC §4.5). */
+  /** REQ-SCROLL-1 — keep the active line off the bottom edge while typing (SPEC §4.5). */
   typewriterScrolling: boolean;
+  /** REQ-SCROLL-1 — where it rests, as a fraction of the visible height (0=top, 1=bottom). */
+  typewriterAnchor: number;
   defaultEol: Eol;
   indentStyle: IndentStyle;
   indentWidth: number;
@@ -104,6 +106,9 @@ export const DEFAULTS: Settings = {
     // downward-moving caret against the bottom edge, which on a phone means behind the
     // soft keyboard and under the status chips.
     typewriterScrolling: true,
+    // Two thirds down, not centred: user testing on a phone found centring left the
+    // line too high, spending the readable strip above it on text already written.
+    typewriterAnchor: 2 / 3,
     defaultEol: "lf",
     indentStyle: "spaces",
     indentWidth: 2,
@@ -132,6 +137,11 @@ const intInRange =
   (min: number, max: number): Guard =>
   (v) =>
     typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
+/** Fractional counterpart of intInRange (NaN/Infinity rejected by isFinite). */
+const numInRange =
+  (min: number, max: number): Guard =>
+  (v) =>
+    typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
 
 /** Leaf guards, grouped to mirror Settings (minus `version` + `storage`, which
  *  validate.ts handles specially). */
@@ -156,6 +166,7 @@ export const GUARDS: {
     autosaveIntervalMs: intInRange(250, 600000),
     spellcheck: isBool,
     typewriterScrolling: isBool,
+    typewriterAnchor: numInRange(0.2, 0.95),
     defaultEol: oneOf(["lf", "crlf"]),
     indentStyle: oneOf(["spaces", "tab"]),
     indentWidth: intInRange(1, 16),
