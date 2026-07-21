@@ -41,6 +41,8 @@ export interface EditorSettings {
   autosave: boolean;
   autosaveIntervalMs: number;
   spellcheck: boolean;
+  /** REQ-SCROLL-1 — keep the active line vertically centred while typing (SPEC §4.5). */
+  typewriterScrolling: boolean;
   defaultEol: Eol;
   indentStyle: IndentStyle;
   indentWidth: number;
@@ -98,6 +100,10 @@ export const DEFAULTS: Settings = {
     autosave: false,
     autosaveIntervalMs: 2000,
     spellcheck: false,
+    // REQ-SCROLL-1: ON by default (SPEC §4.5). CodeMirror's minimal scrolling parks a
+    // downward-moving caret against the bottom edge, which on a phone means behind the
+    // soft keyboard and under the status chips.
+    typewriterScrolling: true,
     defaultEol: "lf",
     indentStyle: "spaces",
     indentWidth: 2,
@@ -149,6 +155,7 @@ export const GUARDS: {
     autosave: isBool,
     autosaveIntervalMs: intInRange(250, 600000),
     spellcheck: isBool,
+    typewriterScrolling: isBool,
     defaultEol: oneOf(["lf", "crlf"]),
     indentStyle: oneOf(["spaces", "tab"]),
     indentWidth: intInRange(1, 16),

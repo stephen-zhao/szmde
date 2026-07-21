@@ -84,6 +84,7 @@
     editor.setRenderMode(e.renderMode);
     editor.setIndent({ style: e.indentStyle, width: e.indentWidth });
     editor.setEmoji(settings.value.markdown.emoji);
+    editor.setTypewriter(e.typewriterScrolling); // REQ-SCROLL-1
   }
 
   function cycleRenderMode() {

@@ -483,9 +483,9 @@ to read computed values (`adb shell cat /proc/net/unix | grep webview_devtools`)
   and the status chips lift to sit above the keyboard. `window.innerHeight` does **not** change — that
   is expected, and is why the native bridge exists.
 - Type past the bottom of the visible area → the caret stays **above the keyboard**.
-  ⚠️ **Known-failing until `REQ-SCROLL-1` lands:** the active line stops just *inside* the visible area,
-  which puts it **underneath the fixed status chips** — clearing the keyboard is necessary but not
-  sufficient. Check the line you are typing is actually *readable*, not merely above the keyboard.
+  Clearing the keyboard is necessary but not sufficient: before `REQ-SCROLL-1` the active line stopped
+  just *inside* the visible area, i.e. **underneath the fixed status chips**. Check the line you are
+  typing is actually *readable*, not merely above the keyboard — the centring itself is **WF-31**.
 - Dismiss the keyboard (back gesture / tap away) → `--kb-inset` returns to `0` and the layout restores
   fully; no residual shrink.
 - Rotate with the keyboard open, and background/foreground the app with it open → the inset is still
@@ -496,6 +496,30 @@ to read computed values (`adb shell cat /proc/net/unix | grep webview_devtools`)
   layout.
 - **IME composition** (not yet exercised): switch to a CJK or predictive keyboard and compose next to an
   inline widget (a task checkbox, a rendered table); also edit a **table cell** with the keyboard up.
+
+### WF-31 · Typewriter scrolling — the active line stays centred · `REQ-SCROLL-1` _(SPEC §4.5)_
+**Why:** the unit tests pin the arithmetic (half the measured scroller height) and the facet wiring, but
+"does typing *feel* centred" is a layout+scroll-animation property happy-dom cannot express. This is also
+the half of WF-30 that makes the keyboard usable rather than merely un-occluding.
+**Setup:** desktop dev app or `localhost:1420`; repeat on the phone with the keyboard up (WF-30 setup).
+**Steps:**
+- Open a document longer than the viewport, click the last visible line, then hold Enter / type new
+  lines → the caret **stops descending at roughly the vertical midpoint** and the document scrolls under
+  it. It must never sink into the bottom-right status chips.
+- Keep typing a long wrapped paragraph → the centring holds per *visual* line, and the scroll is smooth
+  (no jitter, no double-scroll, no fighting between the caret and the scrollbar).
+- Move the cursor **upward** (↑ / PageUp / click an earlier line) → the view does **not** yank the line
+  back to the middle; upward motion keeps CodeMirror's minimal scrolling. Asymmetry is intentional.
+- Near the **end of the document** the caret does go below the midpoint (there is nothing left to scroll)
+  — expected, not a failure. Same at the very top.
+- Resize the window / `Ctrl+scroll` zoom / `Shift+scroll` width → the centre tracks the new height with
+  no reload.
+- Cross-check the non-typing scroll paths still land the target on screen: **find-next** (`REQ-FR-1`),
+  fold/unfold jumps (`REQ-FOLD-1`), and table row/column insert — they share the same margin.
+- Set `"editor": { "typewriterScrolling": false }` in the user settings file and restart → behaviour
+  returns to CodeMirror's minimal scrolling (caret rests one line inside the bottom edge).
+- **On the phone, keyboard up:** the line being typed sits mid-screen, fully readable, clear of both the
+  keyboard and the chips — the acceptance WF-30 could not meet on its own.
 
 ---
 
@@ -538,6 +562,7 @@ to read computed values (`adb shell cat /proc/net/unix | grep webview_devtools`)
 | REQ-RENDER-12 | structure (`markers.dom.test.ts`, `fold.dom.test.ts`) | WF-24 (3-column layout, no overlap) |
 | REQ-RENDER-11 | structure (`editor/markers.dom.test.ts`) | WF-25 (reveal = syntax style) |
 | REQ-RENDER-7 | unit (`render-mode.test.ts`, `render-mode-cycle.test.ts`) | WF-26 (toggle survives focus drift) |
+| REQ-SCROLL-1 | arithmetic + facet wiring (`editor/typewriter.test.ts`, `typewriter.dom.test.ts`) | WF-31 (centring feel; asymmetry; settings off) |
 
 The three former [requirements.md](requirements.md) gaps with no automated test
 (REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest
