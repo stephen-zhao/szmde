@@ -204,14 +204,20 @@ Both are per-document, editable via a small status widget (§7.1) and defaulted 
 The line you are typing on must stay in a **comfortable reading position**, not pinned to the
 bottom edge of the viewport. CodeMirror's default `scrollIntoView` performs the *minimum*
 scroll, so a caret moving downward comes to rest one line inside the bottom edge — the worst
-place to work: on a phone it lands hard against the soft keyboard and underneath the
-bottom-right status chips, so most of the line being edited is obscured.
+place to work: on a phone that line sits underneath the bottom-right status chips, so most of
+what is being edited is obscured (it clears the soft keyboard, but only just).
 
-Requirement: **by default, keep the active line vertically centred** (classic "typewriter"
-scrolling), so there is always context visible both above and below the cursor. A settings
-flag can turn it off for people who prefer minimal scrolling. This is a **general editor
-behavior on every platform**, not a phone-only affordance — it is simply most acute on a
-phone, where the keyboard leaves only ~60% of the screen. (`REQ-SCROLL-1`.)
+Requirement: **by default, the active line never comes to rest below the vertical centre.**
+When a scroll would leave it lower, the document scrolls so the line lands on the midpoint —
+classic "typewriter" scrolling, with context visible above and below. The rule is deliberately
+**one-directional**: a line already at or above the centre is left exactly where it is, so
+moving the cursor *upward* keeps the editor's minimal scrolling instead of lurching the
+document down to re-centre. Near the top and the very end of a document the line may sit
+off-centre, because there is nothing left to scroll. A settings flag
+(`editor.typewriterScrolling`) turns the whole behaviour off for people who prefer minimal
+scrolling. This is a **general editor behavior on every platform**, not a phone-only
+affordance — it is simply most acute on a phone, where the keyboard leaves only ~60% of the
+screen. (`REQ-SCROLL-1`.)
 
 Note it also removes the status-chip overlap as a side effect: a centred caret sits far above
 the chips, so no extra chip hiding/fading logic is needed.

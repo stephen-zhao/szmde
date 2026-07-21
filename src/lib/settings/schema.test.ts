@@ -24,3 +24,19 @@ describe("[REQ-SET-2] schema DEFAULTS", () => {
     expect(DEFAULTS.editor.indentWidth).toBe(2);
   });
 });
+
+describe("[REQ-SCROLL-1] typewriterScrolling setting", () => {
+  it("is ON by default", () => {
+    // The requirement is "by default, keep the active line centred" — the editor seeds
+    // itself from this value on load (+page.svelte), so the default IS the behaviour.
+    expect(DEFAULTS.editor.typewriterScrolling).toBe(true);
+  });
+
+  it("only accepts booleans, falling back to the default", () => {
+    const withBad = { ...DEFAULTS, editor: { ...DEFAULTS.editor, typewriterScrolling: "yes" } };
+    expect(validate(withBad).editor.typewriterScrolling).toBe(true);
+
+    const off = { ...DEFAULTS, editor: { ...DEFAULTS.editor, typewriterScrolling: false } };
+    expect(validate(off).editor.typewriterScrolling).toBe(false);
+  });
+});

@@ -36,7 +36,7 @@ import { hrExtension } from "./hr";
 import { taskDecorations, taskAtomicRanges } from "./tasks";
 import { imageDecorations, imageAtomicRanges } from "./images";
 import { emojiDecorations, emojiAtomicRanges, emojiEnabled, emojiCompartment } from "./emoji";
-import { typewriterEnabled, typewriterCompartment, typewriterScrollMargins } from "./typewriter";
+import { typewriterEnabled, typewriterCompartment, typewriterScrollHandler } from "./typewriter";
 import { alertDecorations, alertAtomicRanges } from "./alerts";
 import { tableExtension } from "./tables";
 import { tableSourceGizmos } from "./table-source-gizmos";
@@ -391,10 +391,11 @@ export function editorExtensions(
     emojiCompartment.of(emojiEnabled.of(initialEmoji)),
     emojiDecorations,
     emojiAtomicRanges,
-    // REQ-SCROLL-1 (SPEC §4.5) — a scrollMargins facet, so it governs EVERY existing
-    // `scrollIntoView: true` dispatch without editing any of them.
+    // REQ-SCROLL-1 (SPEC §4.5) — a scrollHandler, so it governs EVERY existing
+    // `scrollIntoView: true` dispatch without editing any of them, and without
+    // touching paging / drag-select / tooltips the way scrollMargins would.
     typewriterCompartment.of(typewriterEnabled.of(initialTypewriter)),
-    typewriterScrollMargins,
+    typewriterScrollHandler,
     // Highest decoration precedence so the marker span is the INNERMOST DOM node
     // (CM nests higher-precedence decorations inside) — its absolute font-size
     // then wins over a heading's enclosing 1.9em span instead of compounding.

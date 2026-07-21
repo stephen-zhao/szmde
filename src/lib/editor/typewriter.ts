@@ -6,20 +6,36 @@ import { EditorView } from "@codemirror/view";
  *
  * CodeMirror's `scrollIntoView` performs the MINIMUM scroll, so a caret moving
  * downward comes to rest one line inside the bottom edge. That is the worst place to
- * work: on a phone it lands hard against the soft keyboard AND underneath the
- * bottom-right status chips, so most of the line being edited is obscured (measured on a
- * physical Pixel 9 Pro in M6 S3: active line at y=555-578 with the chips at y=509-571).
+ * work: on a phone the line being typed lands underneath the fixed bottom-right status
+ * chips, so most of it is unreadable (measured on a physical Pixel 9 Pro during M6 S3:
+ * active line at y=555-578 with the chips at y=509-571 — it cleared the keyboard but
+ * not the chips).
  *
- * The fix is a `scrollMargins` facet rather than explicit centre-scrolls. Two reasons:
- *   - it applies to EVERY existing `scrollIntoView: true` dispatch (there are ~14 across
- *     keymap.ts, tables, alerts, hr, …) without touching any of them, and
- *   - it cannot loop: an `updateListener` that dispatches its own scroll effect on every
- *     selection change would re-enter.
+ * The invariant, stated exactly: **the active line never comes to rest BELOW the
+ * vertical centre.** When a scroll-into-view would leave it lower than that, we scroll
+ * so its centre lands on the midpoint. When it is already at or above the midpoint we
+ * do nothing at all, so moving the cursor UP keeps CodeMirror's minimal scrolling and
+ * the document does not lurch to re-centre.
  *
- * Only a BOTTOM margin is reserved. A matching top margin would force a re-centre when
- * moving the cursor UP too, which reads as the document lurching under you; keeping the
- * caret from ever sinking below the midpoint is what the requirement actually asks for
- * ("the last line when typing is centred").
+ * Implemented as an `EditorView.scrollHandler`, which fires from exactly one place —
+ * `docView.scrollIntoView` — and therefore applies to every `scrollIntoView: true`
+ * dispatch (10 of them, across keymap.ts, table-commands.ts, alerts.ts and hr.ts)
+ * without editing any of them.
+ *
+ * It is deliberately NOT an `EditorView.scrollMargins` facet, which was the first
+ * implementation. That facet has four consumers, and reserving half the viewport as a
+ * bottom margin silently broke three of them:
+ *   - `pageInfo()` in @codemirror/commands subtracts the margins from the PageUp /
+ *     PageDown distance, so paging moved half a screen in BOTH directions;
+ *   - `MouseSelection.move()` uses `margins.bottom` as its drag-autoscroll trigger, so
+ *     drag-selecting anywhere past the midpoint auto-scrolled at 8px every 50ms;
+ *   - tooltip placement shrinks its available space by it;
+ *   - and the margin inflates the rect handed to explicit `y: "center"` scrolls, which
+ *     then land the target at ~25% height instead of centred.
+ * (Found by the adversarial review of the first implementation; the DOM test asserts
+ * the extension contributes no scroll margins at all.)
+ *
+ * Nor is it an `updateListener` that dispatches its own scroll effect — that re-enters.
  */
 
 /** Whether typewriter scrolling is on (settings `editor.typewriterScrolling`). */
@@ -33,32 +49,74 @@ export function setTypewriter(view: EditorView, on: boolean) {
   view.dispatch({ effects: typewriterCompartment.reconfigure(typewriterEnabled.of(on)) });
 }
 
+/** Scroller + caret geometry, all in px; caret coords are relative to the scroller box. */
+export type TypewriterGeometry = {
+  scrollTop: number;
+  /** Visible height of `.cm-scroller` (`clientHeight`). */
+  viewportHeight: number;
+  /** Total scrollable height (`scrollHeight`) — includes the theme's 40vh bottom pad. */
+  scrollHeight: number;
+  caretTop: number;
+  caretBottom: number;
+};
+
 /**
- * The bottom scroll margin, in px, for a scroller of `scrollerHeight`.
+ * The scrollTop that parks the caret line on the vertical midpoint, or `null` to leave
+ * the scroll to CodeMirror.
  *
- * Pure so the arithmetic is unit-testable without a live EditorView. Returns 0 for an
- * unmeasured or nonsensical height: `.cm-scroller` reports 0 before first layout, and a
- * negative margin would make `scrollIntoView` push the caret OFF screen rather than into
- * view. Half the height keeps the margin strictly below the viewport, so the target can
- * always still be satisfied.
+ * Pure, so the whole decision is unit-testable without layout. `null` means "not ours":
+ * an unmeasured viewport (`.cm-scroller` reports 0 before first layout and during some
+ * Android IME transitions), a caret already at or above the midpoint, or no room left
+ * to scroll — in which case claiming the scroll would suppress CodeMirror's own.
  */
-export function typewriterBottomMargin(scrollerHeight: number, enabled: boolean): number {
-  if (!enabled) return 0;
-  if (!Number.isFinite(scrollerHeight) || scrollerHeight <= 0) return 0;
-  return Math.round(scrollerHeight / 2);
+export function typewriterScrollTop(g: TypewriterGeometry): number | null {
+  const { scrollTop, viewportHeight, scrollHeight, caretTop, caretBottom } = g;
+  if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) return null;
+  if (!Number.isFinite(caretTop) || !Number.isFinite(caretBottom)) return null;
+  if (!Number.isFinite(scrollTop) || !Number.isFinite(scrollHeight)) return null;
+
+  const delta = (caretTop + caretBottom) / 2 - viewportHeight / 2;
+  if (delta <= 0) return null; // at or above the midpoint — CodeMirror's default wins
+
+  const maxScrollTop = Math.max(0, scrollHeight - viewportHeight);
+  const next = Math.round(Math.min(scrollTop + delta, maxScrollTop));
+  return next > scrollTop ? next : null;
 }
 
 /**
- * Reserve the bottom margin for every scrollIntoView in the editor.
+ * Centre the active line on every scroll-into-view request.
  *
- * Read from the live scroller each time (not cached) so it tracks window resizes, the
- * REQ-ZOOM font/width changes, and — on Android — the soft keyboard shrinking `.app` via
- * `--kb-inset` (M6 S3), where the visible height drops from 952 to 579.
+ * Runs inside `docView.scrollIntoView`, before CodeMirror's own scrolling; returning
+ * `true` means "handled". We decline (returning `false`) whenever the caller asked for
+ * a specific placement (`y` other than `"nearest"`) so go-to-line and friends land
+ * where they asked, and whenever the content can scroll horizontally — handling the
+ * scroll suppresses CodeMirror's horizontal scrolling too, which would strand the caret
+ * off the right edge. `EditorView.lineWrapping` is on today, so that never happens.
+ *
+ * Geometry is read live on every call, so it tracks window resizes, the REQ-ZOOM
+ * font/width changes, and — on Android — the soft keyboard shrinking `.app` from 952 to
+ * 579 via `--kb-inset` (M6 S3).
  */
-export const typewriterScrollMargins = EditorView.scrollMargins.of((view) => {
-  const bottom = typewriterBottomMargin(
-    view.scrollDOM.clientHeight,
-    view.state.facet(typewriterEnabled),
-  );
-  return bottom > 0 ? { bottom } : null;
+export const typewriterScrollHandler = EditorView.scrollHandler.of((view, range, options) => {
+  if (!view.state.facet(typewriterEnabled)) return false;
+  if (options.y !== "nearest") return false;
+
+  const scroller = view.scrollDOM;
+  if (scroller.scrollWidth > scroller.clientWidth) return false;
+
+  const coords = view.coordsAtPos(range.head);
+  if (!coords) return false;
+
+  const box = scroller.getBoundingClientRect();
+  const next = typewriterScrollTop({
+    scrollTop: scroller.scrollTop,
+    viewportHeight: scroller.clientHeight,
+    scrollHeight: scroller.scrollHeight,
+    caretTop: coords.top - box.top,
+    caretBottom: coords.bottom - box.top,
+  });
+  if (next === null) return false;
+
+  scroller.scrollTop = next;
+  return true;
 });
