@@ -92,30 +92,31 @@ Enter bug was reproduced by a failing test (the realistic "sibling above" struct
   needs the Svelte compiler/runes runtime this plain-vitest setup lacks; its logic lives in the
   100%-covered pure service it delegates to); `src-tauri` Rust (→ `cargo test`); generated/types/config.
 - **Backfill (testing-gate snapshot, after M1):** 71% → **100% lines** (statements 98.7%, functions
-  98.7%, branches 93.4%) across 124 unit/integration tests at that time. New suites: `setup`,
+  98.7%, branches 93.4%) at that time. New suites: `setup`,
   `frontmatter`, `render-mode`, `blocks`, `theme.dom`, `layout`, plus edge extensions to
-  `indent`/`markers.dom`/`editing`. _The suite has since grown through M2–M5 to **53 frontend
-  `*.test.ts` files** (15 `*.dom.test.ts`) across editor/settings/storage/tables; the 100%-lines
-  ratchet holds throughout._
+  `indent`/`markers.dom`/`editing`. _The suite has since grown substantially through M2–M6 S3 across
+  editor/settings/storage/tables — `npm run test:coverage` prints the current file and test
+  counts — and the 100%-lines ratchet holds throughout._
 - **Honest residual (not chased to 100%):** the sub-100% statement/branch/function gaps are
   defensive `state.field(_, false)` guards, single-line-fence edges, and CodeMirror widget-diff
   plumbing that only the real WebView exercises. The genuinely-unreachable bits carry explicit
   `/* v8 ignore */` with reasons; we hold ratchet floors (lines 100, stmts/funcs 98, branches 93)
   rather than fake the last few percent with contrived tests.
-- **Rust units (done):** **27** `cargo test` tests for the pure backend logic — `parse_cli`
+- **Rust units (done):** `cargo test` covers the pure backend logic — `parse_cli`
   (flags, render-mode validation, help/version exit codes, usage errors), `resolve_path`
   (absolute / relative-joins-cwd / no-cwd), atomic `write_file` + `read_file` (roundtrip,
   in-place overwrite, no temp residue, missing-file error), atomic settings-file IO
-  (absent→None vs I/O→Err, REQ-SET-3), and the `secure_*` keyring round-trip (REQ-SEC-1). Run via
+  (absent→None vs I/O→Err, REQ-SET-3), the `secure_*` keyring round-trip (REQ-SEC-1), and the loopback/redirect-capture family added for
+  REQ-CLOUD-3 (`parse_redirect`, `parse_error`, `host_allowed` — the DNS-rebinding defence). Run via
   `cargo test --manifest-path src-tauri/Cargo.toml --lib`. (`wsl_to_unc` shells out to
   `wsl.exe` → integration, not unit-tested. `cargo-llvm-cov` line coverage: optional, deferred.)
 
 ## Implementation order (the testing gate, after S6 / before M2)
 
 1. ✅ Add coverage tooling + reporting; set thresholds and ratchet toward 100% (T1).
-2. ✅ Backfill unit tests for existing modules to reach the threshold. ✅ `cargo test` for Rust units (14).
+2. ✅ Backfill unit tests for existing modules to reach the threshold. ✅ `cargo test` for Rust units.
 3. ✅ Build the requirement catalog + traceability matrix; tag tests with requirement IDs (T3).
-   → [requirements.md](requirements.md) (grown to 67 catalogued requirements + 12 tracked gaps
-   through M5, per `npm run test:trace`).
+   → [requirements.md](requirements.md) — every catalogued requirement has a tagged test or a
+   tracked gap; `npm run test:trace` prints the current counts.
 4. ✅ Integration tests for critical combinations in place (render-mode × markers × keymap ×
    blocks, code-block wrap); E2E + Tauri-IPC orchestration cases noted as deferred (T2).

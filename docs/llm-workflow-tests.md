@@ -499,8 +499,8 @@ to read computed values (`adb shell cat /proc/net/unix | grep webview_devtools`)
 
 ### WF-31 · Typewriter scrolling — the active line rests on the anchor · `REQ-SCROLL-1` _(SPEC §4.5)_
 **Why:** the unit tests pin the scroll-target arithmetic and the handler's decline paths, but "does typing
-*feel* centred" is a layout + scroll-animation property happy-dom cannot express. This is also the half of
-WF-30 that makes the keyboard usable rather than merely un-occluding. The last three steps exist because
+*feel* right" is a layout + scroll-animation property happy-dom cannot express. This is also the half of
+WF-30 that makes the keyboard usable rather than merely un-occluding. The PageUp/PageDown, drag-select and cross-check steps exist because
 the **first** implementation used an `EditorView.scrollMargins` facet, and that facet is shared with paging
 and drag-select — the adversarial review caught it, and these steps are the live guard.
 **Setup:** desktop dev app or `localhost:1420`; repeat on the phone with the keyboard up (WF-30 setup).
@@ -587,6 +587,6 @@ and drag-select — the adversarial review caught it, and these steps are the li
 | REQ-RENDER-7 | unit (`render-mode.test.ts`, `render-mode-cycle.test.ts`) | WF-26 (toggle survives focus drift) |
 | REQ-SCROLL-1 | arithmetic + facet wiring ( `editor/typewriter.test.ts`, `typewriter.dom.test.ts`, `settings/schema.test.ts`) | WF-31 (centring feel; asymmetry; settings off) |
 
-The three former [requirements.md](requirements.md) gaps with no automated test
+The former [requirements.md](requirements.md) gaps with no automated test
 (REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest
 gain a live-behavior layer on top of their structural unit tests.

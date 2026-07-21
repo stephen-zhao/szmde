@@ -9,8 +9,8 @@ _Status legend: ✅ done · 🔜 next · ⬜ planned._
 
 ## Scope (from roadmap "M6" / SPEC §2)
 
-Make szmde run as a **native Android app** on Tauri 2 mobile (GA since 2024-10-02; the local CLI
-2.11.3 already ships `tauri android {init,dev,build,run}`). Three requirements:
+Make szmde run as a **native Android app** on Tauri 2 mobile (GA since 2024-10-02; the local Tauri 2
+CLI already ships `tauri android {init,dev,build,run}`). The requirements:
 
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
@@ -172,13 +172,13 @@ an **AVD/physical device**._
 
 | Slice | Title | REQ | Acceptance |
 |-------|-------|-----|-----------|
-| **S1** | Boots on emulator (toolchain + `android init` + cross-compile) | REQ-MOBILE-1 | Provision the toolchain; bump `keyring` 3→4; `cfg(desktop)`-gate the CLI; `tauri android init` + commit `gen/android`; set minSdk 24 (compileSdk/targetSdk 36 are the template default — no edit). **`tauri android dev` launches the blank editor in an emulator; `cargo build` succeeds for all 4 ABIs; desktop `tauri dev` + `npm test` still green.** No storage/cloud/keyboard yet. |
-| **S2** | Responsive shell down to phone width | REQ-MOBILE-2 | Viewport meta + phone `<600` breakpoint (drawer), ≥48dp targets, safe-area insets. **Toolbar/drawer/editor usable by touch on a phone-sized emulator, no horizontal overflow, content clears system-bar insets; desktop layout unchanged.** Soft keyboard deferred to S3. |
-| **S3** ✅ | Soft-keyboard + IME correctness (on-device) | REQ-MOBILE-2 | **Done 2026-07-20.** The planned CSS-only route (`interactive-widget=resizes-content` + `visualViewport`) could not work as specced — see risk #4 — so it shipped as a **native IME-inset bridge** in `MainActivity.kt` publishing `--kb-inset`, with CSS shrinking `.app` and lifting `.statusbar`. **Verified on a physical Pixel 9 Pro:** `--kb-inset` 373px, `.app` 952→579, statusbar 32→381px. ⚠️ **The acceptance is only PARTLY met, and the original claim here was wrong** (caught by the S3 adversarial review): after typing 18 lines the active line rests at y=555–578, while the fixed status chips occupy y=509–571 — so the caret clears the *keyboard* but the line being typed is **overpainted by the chips**. That is exactly the complaint that prompted `REQ-SCROLL-1`, and the measurement I originally quoted as a pass is precisely the failing case. **S3 delivers the mechanism; the UX is not usable until REQ-SCROLL-1 (typewriter scrolling) lands** — centring the active line resolves it, which is why that REQ is a prerequisite for calling REQ-MOBILE-2 done, not optional polish. _Also not exercised: IME **composition** (CJK/predictive) next to inline widgets, and table-cell editing with the keyboard up — see WF-30._ |
-| **S4** | SAF local storage backend (offline open/save) | REQ-MOBILE-3 | Spike dialog+fs (`content://` via `FilePath::Url`); add `SafProvider` + persistable permissions + `DocumentFile` rev; settings via app-private `std::fs`. **On-device: pick a real `.md`, edit, save back (with conflict detection), reopen after app restart via the persisted URI — fully offline.** The milestone's core shippable. |
-| **S5** | Signed release AAB/APK + Android CI | REQ-MOBILE-1 | Upload keystore + `signingConfigs`; a GitHub Actions job (setup-java 17 + SDK/NDK + the 4 targets, keystore from base64 secrets) building `--apk`/`--aab`. **CI produces a signed APK installable on a device + a signed AAB.** A local-only Android szmde is shippable here. |
-| **S6** | Cloud sign-in on Android (deep-link OAuth + keystore verify) | REQ-CLOUD-1 | Verify `keyring` v4 round-trip on device; add `tauri-plugin-deep-link` + the redirect (App Link recommended) + separate Android OAuth client; mobile-gate `gdrive-connect.ts`. **`connectGoogleDrive` completes in a Custom Tab, tokens persist in the Keystore, refresh works, read/write of a known Drive file ID succeeds.** |
-| **S7 → M6.1** | Android Drive Picker (open pre-existing files) — **deferred out of M6** (decision 1) | REQ-CLOUD-3 | Native GIS `AuthorizationRequest` Kotlin plugin (`PICKER_OAUTH_TRIGGER`, `drive.file`) → `picked_file_ids` via deep link; mobile-gate `pickGoogleDriveFiles`. **On-device: pick a pre-existing Drive file via the native Picker and open it read/write.** Highest uncertainty — lands in **M6.1**, after the M6 local + Drive-sign-in line ships. |
+| **S1** ✅ | Boots on emulator (toolchain + `android init` + cross-compile) | REQ-MOBILE-1 | Provision the toolchain; bump `keyring` 3→4; `cfg(desktop)`-gate the CLI; `tauri android init` + commit `gen/android`; set minSdk 24 (compileSdk/targetSdk 36 are the template default — no edit). **`tauri android dev` launches the blank editor in an emulator; `cargo build` succeeds for all 4 ABIs; desktop `tauri dev` + `npm test` still green.** No storage/cloud/keyboard yet. **Done 2026-07-19** (5337110, PR #16): toolchain provisioned, `keyring` 3→4, CLI + loopback `cfg(desktop)`-gated, `gen/android` committed, minSdk 24, all four ABIs build clean. |
+| **S2** ✅ | Responsive shell down to phone width | REQ-MOBILE-2 | Viewport meta + phone `<600` breakpoint (drawer), ≥48dp targets, safe-area insets. **Toolbar/drawer/editor usable by touch on a phone-sized emulator, no horizontal overflow, content clears system-bar insets; desktop layout unchanged.** Soft keyboard deferred to S3. **Done 2026-07-19** (18cee48, PR #14); the on-device review that followed it is what scoped M6.2. |
+| **S3** ✅ | Soft-keyboard + IME correctness (on-device) | REQ-MOBILE-2 | **Done 2026-07-20.** The planned CSS-only route (`interactive-widget=resizes-content` + `visualViewport`) could not work as specced — see risk #4 — so it shipped as a **native IME-inset bridge** in `MainActivity.kt` publishing `--kb-inset`, with CSS shrinking `.app` and lifting `.statusbar`. **Verified on a physical Pixel 9 Pro:** `--kb-inset` 373px, `.app` 952→579, statusbar 32→381px. ⚠️ **The acceptance is only PARTLY met, and the original claim here was wrong** (caught by the S3 adversarial review): after typing 18 lines the active line rests at y=555–578, while the fixed status chips occupy y=509–571 — so the caret clears the *keyboard* but the line being typed is **overpainted by the chips**. That is exactly the complaint that prompted `REQ-SCROLL-1`, and the measurement I originally quoted as a pass is precisely the failing case. **S3 delivered the mechanism; the UX needed `REQ-SCROLL-1` on top of it** — which **landed 2026-07-21** (e18a7a8, PR #19) and structurally removes the overlap: the active line now rests on a **two-thirds anchor** (`editor.typewriterAnchor`), measured on the same Pixel 9 Pro at 67% of the 579px visible strip with 114px of clearance above the chips. ⚠️ Note the shipped behaviour is **not** centring — centring was the first implementation and was rejected in phone user-testing for leaving too little written context above the caret. _Still outstanding before REQ-MOBILE-2 can be called done: (a) risk #3 — IME **composition** (CJK/predictive) next to inline widgets, and table-cell editing with the keyboard up (WF-30); (b) REQ-MOBILE-1/2 are now catalogued in requirements.md, but their acceptance is the on-device WF suite, not the unit gate._ |
+| **S4** 🔜 | SAF local storage backend (offline open/save) | REQ-MOBILE-3 | Spike dialog+fs (`content://` via `FilePath::Url`); add `SafProvider` + persistable permissions + `DocumentFile` rev; settings via app-private `std::fs`. **On-device: pick a real `.md`, edit, save back (with conflict detection), reopen after app restart via the persisted URI — fully offline.** The milestone's core shippable. |
+| **S5** ⬜ | Signed release AAB/APK + Android CI | REQ-MOBILE-1 | Upload keystore + `signingConfigs`; a GitHub Actions job (setup-java 17 + SDK/NDK + the 4 targets, keystore from base64 secrets) building `--apk`/`--aab`. **CI produces a signed APK installable on a device + a signed AAB.** A local-only Android szmde is shippable here. |
+| **S6** ⬜ | Cloud sign-in on Android (deep-link OAuth + keystore verify) | REQ-CLOUD-1 | Verify `keyring` v4 round-trip on device; add `tauri-plugin-deep-link` + the redirect (App Link recommended) + separate Android OAuth client; mobile-gate `gdrive-connect.ts`. **`connectGoogleDrive` completes in a Custom Tab, tokens persist in the Keystore, refresh works, read/write of a known Drive file ID succeeds.** |
+| **S7 → M6.1** ⬜ | Android Drive Picker (open pre-existing files) — **deferred out of M6** (decision 1) | REQ-CLOUD-3 | Native GIS `AuthorizationRequest` Kotlin plugin (`PICKER_OAUTH_TRIGGER`, `drive.file`) → `picked_file_ids` via deep link; mobile-gate `pickGoogleDriveFiles`. **On-device: pick a pre-existing Drive file via the native Picker and open it read/write.** Highest uncertainty — lands in **M6.1**, after the M6 local + Drive-sign-in line ships. |
 
 ## M6.2 — Touch UX pass
 
@@ -221,7 +221,8 @@ the current control sizes, i.e. status chips at 34px and dropdown / chip-menu ro
 
 ## Risks (need on-device verification)
 
-1. **Cross-compile is risk #1** — whether the existing desktop Rust actually builds for
+1. ✅ **RETIRED by S1 (2026-07-19, 5337110).** `cargo build` is green for all four ABIs and `keyring` is
+   pinned at 4. _Original statement:_ **Cross-compile is risk #1** — whether the existing desktop Rust actually builds for
    `aarch64-linux-android` after cfg-gating; the `keyring` 3→4 bump is a hard prerequisite just to
    compile. A real `cargo build` per ABI is the S1 gate.
 2. ⚠️ **CONFIRMED on device (2026-07-19, S1) — this risk materialized.** `keyring` v4 does **not**
@@ -242,10 +243,13 @@ the current control sizes, i.e. status chips at 34px and dropdown / chip-menu ro
    auto-generated — don't touch) overriding `WryActivity.onWebViewCreate` to publish the IME inset as
    CSS `--kb-inset`, via a `WindowInsetsAnimation` callback. CSS shrinks `.app` by it (so CodeMirror
    gets a correct visible height and its own caret `scrollIntoView` works) and lifts `.statusbar`.
-   `adjustResize` is kept for API 24–34, where the framework still resizes and `--kb-inset` stays 0.
+   `adjustResize` was **removed**, not kept: `android:windowSoftInputMode` appears nowhere in the shipped
+   `AndroidManifest.xml`. Tauri calls `enableEdgeToEdge()` unconditionally, so the framework's automatic
+   IME resizing is off on every API level — `--kb-inset` is the only mechanism, and leaving `adjustResize`
+   in would have risked double-counting the inset.
    **Verified on device:** `--kb-inset` 373px, `.app` 952→579, `.cm-scroller` 579, statusbar bottom
-   32→381px. The caret clears the keyboard — but see the S3 slice row: the active line lands UNDER the
-   fixed status chips, so REQ-SCROLL-1 is required before REQ-MOBILE-2 can be called done.
+   32→381px. The caret clears the keyboard; the active line landing under the fixed
+   status chips was fixed separately by `REQ-SCROLL-1` (merged 2026-07-21) — see the S3 slice row.
 
    ⚠️ **TWO FALSE LEADS — recorded so nobody re-derives them.**
    (a) *"`visualViewport` is inert too"* — **WRONG.** It reports 952→**578** on the phone (≈ the same
@@ -254,8 +258,12 @@ the current control sizes, i.e. status chips at 34px and dropdown / chip-menu ro
    registering `ViewCompat.setOnApplyWindowInsetsListener` **on the WebView**, which REPLACES the
    WebView's own inset handling — precisely how Chrome derives `env()` *and* updates `visualViewport`.
    It silently zeroed both, and presented convincingly as a device/emulator platform difference. Moving
-   the listener to the **decorView** restores both (`env` 68px top / 24px bottom on the phone).
-   **Rule: never attach an apply-insets listener to the Tauri WebView.**
+   the listener **off the WebView** restores both (`env` 68px top / 24px bottom on the phone). The shipped
+   attach point is **`findViewById(android.R.id.content)`** — a direct child of DecorView, so it still sees
+   the full unconsumed insets including `Type.ime()` while DecorView keeps its own handling.
+   **Rule: never attach an apply-insets listener to the Tauri WebView _or_ the decorView.** A decorView
+   listener replaces `DecorView.onApplyWindowInsets`, which is what sizes the system-bar scrim views
+   (`updateColorViews`) — a different bug with the same shape. See the ⚠️ `NEVER ATTACH AN APPLY-INSETS LISTENER TO THE WebView` comment in `MainActivity.kt`.
    Also note the AVD is a poor IME test rig at all: with a hardware keyboard attached it shows Gboard's
    *floating* mini-toolbar, which occludes nothing, so `ime=0` there is correct and meaningless.
    **Follow-up (deliberately deferred, Stephen 2026-07-20):** since `visualViewport` does work, the ~40
@@ -346,7 +354,7 @@ SHA-256 is listed — validate with the debug cert first, add the release cert b
 milestone is covered — those REQs are simply outside the audit's universe. The gate is green over an
 untested requirement. That is defensible while the REQs are still being built (requirements.md tracks
 BUILT requirements with linked tests), but it must not be mistaken for coverage: the real verification
-for M6 is the on-device workflow suite (**WF-29** layout, **WF-30** keyboard), which is judgement-run,
+for M6 is the on-device workflow suite (**WF-29** layout, **WF-30** keyboard, **WF-31** typewriter anchor), which is judgement-run,
 not CI-gated. Fold the REQs into requirements.md — or into the tracked-gaps list — as each slice's
 behavior stabilises, so the audit universe eventually includes them.
 

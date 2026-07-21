@@ -33,8 +33,8 @@ next:
 |------|-----|-------|
 | **Least-privilege Google Drive picker** — built (scope → `drive.file`, system-browser Picker, hardened loopback); remaining: the live pick→open→save round-trip in the dev app (**WF-28**, user-run) | REQ-CLOUD-3 | ✅ code + tests (catalogued in [requirements.md](requirements.md)); 🔜 live verify |
 | OneDrive live wiring (connect orchestration + UI, mirroring `gdrive-connect.ts`) | REQ-CLOUD-2 | ⬜ **deferred** (deprioritized 2026-07-11) — backend + unit tests done, not live-wired |
-| **Typewriter scrolling** — active line centred while typing (unblocks REQ-MOBILE-2's keyboard UX) | REQ-SCROLL-1 | ✅ built + catalogued in [requirements.md](requirements.md); live feel → WF-31 |
-| **M6 — Android** (current milestone) | REQ-MOBILE-* | 🚧 in progress — S1 cross-compiles on all 4 ABIs + `gen/android` committed; [m6-plan.md](m6-plan.md) |
+| **Typewriter scrolling** — the active line rests on a **two-thirds anchor** while typing (`editor.typewriterAnchor`; unblocked REQ-MOBILE-2's keyboard UX) | REQ-SCROLL-1 | ✅ shipped 2026-07-21 (PR #19), catalogued in [requirements.md](requirements.md); WF-31 run on desktop + Pixel 9 Pro |
+| **M6 — Android** (current milestone) | REQ-MOBILE-* | 🚧 in progress — **S1** (cross-compile, all 4 ABIs + `gen/android` committed), **S2** (responsive shell) and **S3** (soft-keyboard/IME inset bridge) merged; **S4 (SAF storage) is next** — until it lands the Android app can only edit an unsaved buffer. [m6-plan.md](m6-plan.md) |
 
 _Parked (specced-lite, unscheduled):_ keyboard entry into the inline table-cell editor; Google Docs →
 markdown export (native Google Docs return `403` on `alt=media`, so only true `.md` / binary Drive
@@ -76,7 +76,7 @@ entry) is still pending — see [What's left](#whats-left)._
 ### M4 — Authoring essentials ✅  (SPEC §5.4, §7.3, §4.1)
 Daily-authoring + reading-experience power-features for the target user (Stephen).
 Pulled ahead of table editing on 2026-06-27. **Shipped 2026-06-28 (S1–S6,
-[m4-plan.md](archive/m4-plan.md)); all six REQs catalogued in [requirements.md](requirements.md).**
+[m4-plan.md](archive/m4-plan.md)); every REQ below is catalogued in [requirements.md](requirements.md).**
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
 | REQ-EMOJI-1 | Emoji shortcodes `:smile:` → rendered emoji | §5.4 |
@@ -132,14 +132,23 @@ APK packaging pending Windows Developer Mode.
 _**M6.1** (after M6): the native Google Drive **Picker** on Android (open pre-existing files) —
 REQ-CLOUD-3 parity via the GIS `PICKER_OAUTH_TRIGGER` flow; deferred as the highest-uncertainty item._
 
-#### M6.2 — Touch UX pass ⬜  (SPEC §7, §7.4)
+#### M6.2 — Touch & narrow-width UX pass ⬜  (SPEC §7, §7.4, §7.6)
 _Scoped 2026-07-20 from Stephen's on-device Android review; parked out of the M6 line so the
 local-first S1–S6 ships first ([m6-plan.md](m6-plan.md#m62--touch-ux-pass))._ These share **one root
 cause**: szmde's interaction model assumes a **fine pointer (hover + right-click) and a keyboard**, so
 where that assumption fails, shipped features don't degrade — they become **unreachable**. M6 makes the
-app *run* on Android; **M6.2 makes it usable**.
+app *run* on Android; **M6.2 makes it usable**. _Widened 2026-07-21_ with the second half of that
+story — **screen width**: on a phone the fixed left-edge lanes eat a large share of a ~412px viewport
+before a single character is drawn.
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
+| REQ-UI-4 | **Command reachability on touch** — every shipped command invocable without a keyboard, hover or right-click (starting with Find & Replace, which has no hamburger entry today) | §7 |
+| REQ-UI-5 | **A Tab affordance for touch** — soft keyboards have no Tab key, so indent / list-nesting / next-table-cell are unreachable on a phone | §7.7 |
+| REQ-TBLED-8 | Empty tables and cells stay targetable (minimum rendered cell size + placeholders) | §7.4 |
+| REQ-TBLED-9 | Coarse-pointer table structural editing (insert/delete/move rows+columns without hover or right-click) | §7.4 |
+| REQ-LANE-1 | **Lane display strategies** — the left-edge columns become named lanes, each with a declared strategy (reserved / compact / on-demand / off) and per-lane config | §7.6 |
+| REQ-LANE-2 | **Compact marker lane on narrow viewports** — `####` renders as `#4`, capping the lane at two characters | §7.6 |
+| REQ-LANE-3 | **On-demand fold-chevron lane** — chevrons fly in from the left when relevant instead of holding a permanent column | §7.6 |
 
 ### M7 — Network storage + polish ⬜  (SPEC §6, §7)
 | REQ | Requirement | SPEC |
