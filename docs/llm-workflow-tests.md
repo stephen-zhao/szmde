@@ -470,6 +470,33 @@ S2 is the layout half of REQ-MOBILE-2 (the soft-keyboard/IME half is WF-30, S3, 
 - On a **real device** (or with `viewport-fit=cover` emulated): the hamburger clears a notch/status bar
   and the status bar clears the home indicator (safe-area insets); no horizontal page scroll.
 
+### WF-30 · Soft keyboard / IME on a real device · `REQ-MOBILE-2` _(M6 S3 — physical phone only)_
+**Why:** the keyboard half of REQ-MOBILE-2 cannot be tested anywhere but a physical phone. happy-dom
+has no keyboard; and the **emulator is actively misleading** — an AVD with a hardware keyboard shows
+Gboard's *floating* mini-toolbar, which occludes nothing, so the IME inset is legitimately `0` and every
+measurement taken there is meaningless (M6 S3, 2026-07-20).
+**Setup:** a USB-debugging phone; `adb install` the debug APK; `adb forward` the WebView devtools socket
+to read computed values (`adb shell cat /proc/net/unix | grep webview_devtools`).
+**Steps:**
+- Tap into the editor to raise the keyboard → `--kb-inset` on `document.documentElement` becomes the
+  keyboard height in CSS px (≈373px on a Pixel 9 Pro), `.app`/`.cm-scroller` shrink by exactly that,
+  and the status chips lift to sit above the keyboard. `window.innerHeight` does **not** change — that
+  is expected, and is why the native bridge exists.
+- Type past the bottom of the visible area → the caret stays **above the keyboard**.
+  ⚠️ **Known-failing until `REQ-SCROLL-1` lands:** the active line stops just *inside* the visible area,
+  which puts it **underneath the fixed status chips** — clearing the keyboard is necessary but not
+  sufficient. Check the line you are typing is actually *readable*, not merely above the keyboard.
+- Dismiss the keyboard (back gesture / tap away) → `--kb-inset` returns to `0` and the layout restores
+  fully; no residual shrink.
+- Rotate with the keyboard open, and background/foreground the app with it open → the inset is still
+  correct afterwards (these paths bypass the IME *animation* callback and rely on the apply-insets
+  listener).
+- Reload / navigate the WebView with the keyboard up, if reachable → `--kb-inset` lives on
+  `documentElement` and is **not** re-published on load, so confirm no stale/missing value strands the
+  layout.
+- **IME composition** (not yet exercised): switch to a CJK or predictive keyboard and compose next to an
+  inline widget (a task checkbox, a rendered table); also edit a **table cell** with the keyboard up.
+
 ---
 
 ## Requirement coverage

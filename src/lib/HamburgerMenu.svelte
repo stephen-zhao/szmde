@@ -150,10 +150,16 @@
 <style>
   .menu-root {
     position: fixed;
-    /* ADDITIVE, not max(): clear the status bar / cutout and THEN add the design
-       margin. max(10px, env()) resolves to exactly the inset on a phone, leaving the
-       button flush against the system bar with no breathing room (M6 S1 on-device).
-       env() is 0 on desktop (and WebView <M136), so this degrades to a plain 10px. */
+    /* ADDITIVE, not max(margin, inset): clear the status bar / cutout and THEN add the
+       design margin. `max(10px, inset)` would resolve to exactly the inset on a phone,
+       leaving the button flush against the system bar with no breathing room (M6 S1).
+       env() is 0 on desktop/web, so this degrades to a plain 10px.
+
+       env() IS reliable here (52px on the AVD, 68px on a physical Pixel 9 Pro) — but only
+       as long as nothing installs an OnApplyWindowInsetsListener on the WebView itself.
+       Doing so REPLACES the WebView's own inset handling, which is how Chrome derives
+       env(safe-area-inset-*), and silently zeroes all four edges. See MainActivity.kt:
+       the IME listener is deliberately on the decorView for exactly this reason. */
     top: calc(env(safe-area-inset-top, 0px) + 10px);
     left: calc(env(safe-area-inset-left, 0px) + 10px);
     z-index: 20;

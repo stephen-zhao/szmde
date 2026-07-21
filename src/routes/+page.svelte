@@ -606,7 +606,15 @@
 <style>
   .app {
     position: relative;
-    height: 100dvh;
+    /* Shrink above the soft keyboard. `--kb-inset` is pushed in natively by
+       MainActivity.kt from WindowInsets.ime() — on Android the web layer gets NO other
+       signal that the keyboard exists (measured on a Pixel 9 Pro: innerHeight and
+       visualViewport.height both stay at their full-screen value, and neither
+       interactive-widget=resizes-content nor windowSoftInputMode=adjustResize changes
+       that on a targetSdk 35+ edge-to-edge app). Shrinking here is what gives CodeMirror
+       a correct visible height, so its own caret scrollIntoView keeps the cursor above
+       the keyboard. Unset everywhere else (desktop, web) -> 0 -> plain 100dvh. */
+    height: calc(100dvh - var(--kb-inset, 0px));
     width: 100%;
   }
 
@@ -836,7 +844,21 @@
      env() where it reports a larger real inset. (General fallback = M6 risk #5.) */
   @media (pointer: coarse) {
     .statusbar {
-      bottom: max(32px, calc(env(safe-area-inset-bottom, 0px) + 8px));
+      /* Three candidates, no branching needed — whichever is largest wins:
+           32px .......................... a floor, so a device reporting no bottom inset
+                                           still clears a ~24dp gesture area
+           env(bottom) + 8 ............... the real inset (24px on a Pixel 9 Pro — env() IS
+                                           reliable; an earlier comment claiming otherwise
+                                           was retracted, see m6-plan risk #5)
+           --kb-inset + 8 ................ sit just above the soft keyboard when it is up
+         The statusbar is position:fixed, so shrinking .app does NOT move it — it has to
+         account for the keyboard itself. With the keyboard closed --kb-inset is 0 and the
+         third candidate collapses to 8px, leaving the floor/env in charge. */
+      bottom: max(
+        32px,
+        calc(env(safe-area-inset-bottom, 0px) + 8px),
+        calc(var(--kb-inset, 0px) + 8px)
+      );
     }
     /* Scroll clamping belongs here too — a landscape phone is short, so this is exactly
        when a popover most needs to stay on-screen. Subtract the real insets rather than
