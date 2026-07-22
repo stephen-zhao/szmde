@@ -20,12 +20,14 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
-# SPIKE (M6 S4 Phase A, throwaway): Android SAF — file picker, read/write by
-# content:// URI, DocumentFile metadata, and *persistable* URI permissions (the
-# reopen-after-restart mechanism the official tauri-plugin-fs cannot supply).
-# Rust crate + its `-api` npm package are version-synced at 28.x; requires tauri
-# ^2.8.2 (we're on 2.11.3). Self-gates on non-android, but registered mobile-only.
-tauri-plugin-android-fs = "28"
+# Android SAF backend (REQ-MOBILE-3): file picker, read/write by content:// URI,
+# DocumentFile metadata, and *persistable* URI permissions (the reopen-after-restart
+# mechanism the official tauri-plugin-fs cannot supply — verified on-device, M6 S4
+# Phase A). We call only its **Rust** API from our `saf_*` commands, so
+# `default-features = false` drops the `commands` feature — its ~50 JS commands are
+# NOT registered and its broad capability is NOT needed (least-privilege: nothing
+# android-fs is reachable from the WebView). Requires tauri ^2.8.2 (we're on 2.11.3).
+tauri-plugin-android-fs = { version = "28", default-features = false }
 # Native HTTP (reqwest) for cloud egress that bypasses the webview CORS wall
 # (M3 L2, Google token + Drive endpoints), and the system-browser opener for the
 # OAuth consent page. Scoped by capabilities to only the googleapis hosts.

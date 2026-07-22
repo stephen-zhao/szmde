@@ -195,8 +195,21 @@
     return true; // discard
   }
 
+  // Android reopens the last SAF document on the next launch via its persisted
+  // content:// URI permission (REQ-MOBILE-3) — desktop has no such session restore
+  // (it opens files by CLI arg / file manager), so this is Android-only.
+  const LAST_FILE_KEY = "szmde:android:lastFile";
+  function rememberAndroidFile(path: string) {
+    if (isAndroid()) localStorage.setItem(LAST_FILE_KEY, path);
+  }
+  function forgetAndroidFile() {
+    if (isAndroid()) localStorage.removeItem(LAST_FILE_KEY);
+  }
+
   // --- File operations --------------------------------------------------------
-  async function openPath(path: string, pid = "local") {
+  // `silent` is the launch-time Android restore: a stale/revoked URI must not pop
+  // an error dialog on startup — it just forgets the remembered file.
+  async function openPath(path: string, pid = "local", silent = false) {
     try {
       const { content: raw, rev, name } = await providerFor(pid).read(path);
       const detected = detectEol(raw);
@@ -209,8 +222,13 @@
       displayName = name || null; // SAF supplies it; path/id backends don't
       baseRev = rev; // conflict baseline (REQ-SAVE-1)
       dirty = false;
+      if (pid === "local") rememberAndroidFile(path); // SAF URI → reopen next launch
       editor?.focus();
     } catch (e) {
+      if (silent) {
+        forgetAndroidFile(); // the restore target is gone — drop it quietly
+        return;
+      }
       await message(`Couldn't open the file:\n${path}\n\n${e}`, {
         title: "Open failed",
         kind: "error",
@@ -223,6 +241,7 @@
     editor?.setContent("");
     filePath = null;
     displayName = null;
+    forgetAndroidFile(); // a fresh unsaved buffer has no file to restore
     baseRev = null;
     providerId = "local"; // new docs are local until saved elsewhere
     dirty = false;
@@ -232,6 +251,13 @@
 
   async function doOpen() {
     if (!(await guardUnsaved())) return;
+    if (isAndroid()) {
+      // Android has no filesystem path dialog: the SAF picker returns a persisted
+      // content:// URI (as an opaque JSON handle) that reopens across app restarts.
+      const picked = await invoke<{ path: string; name: string } | null>("saf_pick");
+      if (picked) await openPath(picked.path);
+      return;
+    }
     const selected = await openDialog({ multiple: false, filters: MD_FILTERS });
     if (typeof selected === "string") await openPath(selected);
   }
@@ -244,6 +270,16 @@
   }
 
   async function doSaveAs(): Promise<boolean> {
+    if (isAndroid()) {
+      // SAF "create document" picker; the returned URI is persisted for reopen.
+      const picked = await invoke<{ path: string; name: string } | null>("saf_pick_save", {
+        filename: displayName ?? "Untitled.md",
+      });
+      if (!picked) return false;
+      providerId = "local";
+      displayName = picked.name || null;
+      return writeTo(picked.path, null);
+    }
     const path = await saveDialog({
       filters: MD_FILTERS,
       defaultPath: filePath ?? "Untitled.md",
@@ -268,6 +304,7 @@
     try {
       const { rev } = await storage.write(path, fromLf(snapshot, eol), expectedRev);
       filePath = path;
+      if (providerId === "local") rememberAndroidFile(path); // covers Save As → new SAF URI
       baseRev = rev; // on disk now == snapshot
       if ((editor?.getContent() ?? "") === snapshot) {
         dirty = false; // buffer unchanged since the snapshot → truly clean
@@ -453,9 +490,19 @@
       await getCurrentWindow().destroy();
     });
 
-    // File passed on the command line: `szmde notes.md` (SPEC §2.1).
+    // File passed on the command line: `szmde notes.md` (SPEC §2.1). On Android
+    // there is no launch arg, so fall back to reopening the last SAF document via
+    // its persisted URI (REQ-MOBILE-3) — silent, so a since-deleted file is just
+    // forgotten rather than popping an error on startup.
     invoke<string | null>("get_launch_file").then((launch) => {
-      if (launch) openPath(launch);
+      if (launch) {
+        openPath(launch);
+        return;
+      }
+      if (isAndroid()) {
+        const last = localStorage.getItem(LAST_FILE_KEY);
+        if (last) openPath(last, "local", true);
+      }
     });
 
     // Re-establish a previously connected Google Drive account (M3 L2).

@@ -1,8 +1,0 @@
-{
-  "$schema": "../gen/schemas/mobile-schema.json",
-  "identifier": "mobile",
-  "description": "SPIKE (M6 S4 Phase A, throwaway): grant the Android SAF plugin (picker, read/write by content:// URI, DocumentFile metadata, persistable URI permissions) to the main webview on Android only.",
-  "platforms": ["android"],
-  "windows": ["main"],
-  "permissions": ["android-fs:all"]
-}
