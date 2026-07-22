@@ -769,12 +769,17 @@ async fn saf_stat(app: tauri::AppHandle, uri: String) -> Result<Option<String>, 
     tauri::async_runtime::spawn_blocking(move || {
         use tauri_plugin_android_fs::AndroidFsExt;
         let u = saf_uri(&uri)?;
-        // A gone/inaccessible document → None (mirrors `file_rev`'s NotFound → None),
-        // so SafProvider treats it as a new write rather than a false conflict.
-        match app.android_fs().get_metadata(&u) {
-            Ok(meta) => Ok(Some(compose_rev(meta.modified().ok(), meta.len()))),
-            Err(_) => Ok(None),
-        }
+        // android-fs's error type has NO structured "not found", so we cannot safely
+        // tell a genuinely-deleted document from a transient/permission/provider error
+        // (both matter most on cloud/removable DocumentsProviders). A picked SAF URI
+        // always points at a real document, and a write to an inaccessible one cannot
+        // succeed anyway, so PROPAGATE the error (→ the shell's "Save failed" dialog)
+        // rather than collapse it to Ok(None). Collapsing would let SafProvider.write
+        // skip its pre-write conflict check and silently overwrite an external edit
+        // (and null the post-write baseline, disabling conflict detection thereafter).
+        // This mirrors the local `file_rev` returning Err on any non-NotFound error.
+        let meta = app.android_fs().get_metadata(&u).map_err(|e| e.to_string())?;
+        Ok(Some(compose_rev(meta.modified().ok(), meta.len())))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -786,6 +791,11 @@ async fn saf_write(app: tauri::AppHandle, uri: String, content: String) -> Resul
     tauri::async_runtime::spawn_blocking(move || {
         use tauri_plugin_android_fs::AndroidFsExt;
         let u = saf_uri(&uri)?;
+        // NOTE: unlike the local `write_atomic` (sibling temp file + rename), this is a
+        // truncate-and-replace against the content:// document — SAF/scoped storage has
+        // no portable atomic-rename across document providers, so an interrupted write
+        // (process kill / provider error / storage detached mid-write) can leave the file
+        // truncated. Tracked as a known limitation (docs/bugs.md, BUG-SAF-WRITE-ATOMIC).
         app.android_fs().write(&u, content.as_bytes()).map_err(|e| e.to_string())
     })
     .await
@@ -805,7 +815,12 @@ async fn saf_pick(app: tauri::AppHandle) -> Result<Option<SafPicked>, String> {
         match picked {
             None => Ok(None),
             Some(u) => {
-                // Persist so the URI reopens after an app restart (Phase A: verified).
+                // The reopen-last-file feature only needs the ONE most-recent URI
+                // persisted, so drop prior grants first (best-effort) to bound the
+                // accumulation — Android caps persisted URI permissions (~512) and we
+                // must not leak one per distinct file ever opened. Then persist so this
+                // URI reopens after an app restart (Phase A: verified).
+                let _ = picker.release_all_persisted_uri_permissions();
                 picker.persist_uri_permission(&u).map_err(|e| e.to_string())?;
                 let name = afs.get_name(&u).unwrap_or_default();
                 let path = u.to_json_string().map_err(|e| e.to_string())?;

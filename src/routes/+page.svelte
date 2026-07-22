@@ -277,8 +277,9 @@
       });
       if (!picked) return false;
       providerId = "local";
-      displayName = picked.name || null;
-      return writeTo(picked.path, null);
+      const ok = await writeTo(picked.path, null);
+      if (ok) displayName = picked.name || null; // only sync the title once the write lands
+      return ok;
     }
     const path = await saveDialog({
       filters: MD_FILTERS,
@@ -329,7 +330,13 @@
     const choice = await askConflict();
     if (choice === "cancel") return false;
     if (choice === "overwrite") return writeTo(path, null); // force over their change
-    if (choice === "save-copy") return writeTo(await freeCopyPath(path), null); // keep both
+    if (choice === "save-copy") {
+      // On Android `path` is an opaque content:// URI (a JSON handle) that can't be
+      // string-derived into a sibling, and SAF needs its create-document picker to mint
+      // a new writable URI — so "save a copy" is just a Save As there. On desktop, derive
+      // a free sibling path so we never clobber a previously-kept copy.
+      return isAndroid() ? doSaveAs() : writeTo(await freeCopyPath(path), null);
+    }
     // reload: discard our edits, take the on-disk version.
     try {
       const { content, rev } = await storage.read(path);
