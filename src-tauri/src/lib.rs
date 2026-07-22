@@ -712,6 +712,164 @@ fn attach_parent_console() {
     }
 }
 
+// --- Android SAF backend (REQ-MOBILE-3, M6 S4) --------------------------------
+// Native commands behind the `SafProvider` seam (src/lib/storage/saf.ts). They call
+// tauri-plugin-android-fs's **Rust** API (never its JS commands — its broad JS
+// surface and capability stay off the WebView), so the frontend only ever invokes
+// our narrow `saf_*`. Each runs in `spawn_blocking`: Tauri executes sync commands on
+// the main thread, and the SAF picker must not block it (its result is delivered on
+// the main thread via onActivityResult — blocking there would deadlock). The seam's
+// opaque `uri` string is the `FsUri` as JSON (`to_json_string`), so a picked+persisted
+// URI round-trips across app restarts (verified, Phase A). The revision reuses
+// `compose_rev` (mtime nanos + len) exactly like the local backend — both components
+// change on a SAF write (verified on-device, Phase A), so REQ-SAVE-1 works verbatim.
+#[cfg(mobile)]
+#[derive(serde::Serialize)]
+struct SafMeta {
+    content: String,
+    rev: String,
+    name: String,
+}
+
+/// A picked (and permission-persisted) file returned to the shell.
+#[cfg(mobile)]
+#[derive(serde::Serialize)]
+struct SafPicked {
+    /// The `FsUri` as a JSON string — the SafProvider seam's opaque `path`.
+    path: String,
+    /// The DocumentFile display name, for the title bar.
+    name: String,
+}
+
+#[cfg(mobile)]
+fn saf_uri(uri: &str) -> Result<tauri_plugin_android_fs::FsUri, String> {
+    tauri_plugin_android_fs::FsUri::from_json_str(uri).map_err(|e| e.to_string())
+}
+
+#[cfg(mobile)]
+#[tauri::command]
+async fn saf_read(app: tauri::AppHandle, uri: String) -> Result<SafMeta, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri_plugin_android_fs::AndroidFsExt;
+        let u = saf_uri(&uri)?;
+        let afs = app.android_fs();
+        let content = afs.read_to_string(&u).map_err(|e| e.to_string())?;
+        let meta = afs.get_metadata(&u).map_err(|e| e.to_string())?;
+        let rev = compose_rev(meta.modified().ok(), meta.len());
+        let name = afs.get_name(&u).unwrap_or_default();
+        Ok(SafMeta { content, rev, name })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[cfg(mobile)]
+#[tauri::command]
+async fn saf_stat(app: tauri::AppHandle, uri: String) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri_plugin_android_fs::AndroidFsExt;
+        let u = saf_uri(&uri)?;
+        // android-fs's error type has NO structured "not found", so we cannot safely
+        // tell a genuinely-deleted document from a transient/permission/provider error
+        // (both matter most on cloud/removable DocumentsProviders). A picked SAF URI
+        // always points at a real document, and a write to an inaccessible one cannot
+        // succeed anyway, so PROPAGATE the error (→ the shell's "Save failed" dialog)
+        // rather than collapse it to Ok(None). Collapsing would let SafProvider.write
+        // skip its pre-write conflict check and silently overwrite an external edit
+        // (and null the post-write baseline, disabling conflict detection thereafter).
+        // This mirrors the local `file_rev` returning Err on any non-NotFound error.
+        let meta = app
+            .android_fs()
+            .get_metadata(&u)
+            .map_err(|e| e.to_string())?;
+        Ok(Some(compose_rev(meta.modified().ok(), meta.len())))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[cfg(mobile)]
+#[tauri::command]
+async fn saf_write(app: tauri::AppHandle, uri: String, content: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri_plugin_android_fs::AndroidFsExt;
+        let u = saf_uri(&uri)?;
+        // NOTE: unlike the local `write_atomic` (sibling temp file + rename), this is a
+        // truncate-and-replace against the content:// document — SAF/scoped storage has
+        // no portable atomic-rename across document providers, so an interrupted write
+        // (process kill / provider error / storage detached mid-write) can leave the file
+        // truncated. Tracked as a known limitation (docs/bugs.md, BUG-SAF-WRITE-ATOMIC).
+        app.android_fs()
+            .write(&u, content.as_bytes())
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[cfg(mobile)]
+#[tauri::command]
+async fn saf_pick(app: tauri::AppHandle) -> Result<Option<SafPicked>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri_plugin_android_fs::AndroidFsExt;
+        let afs = app.android_fs();
+        let picker = afs.picker();
+        // Empty mime_types = any file, so a `.md` whose provider reports an odd MIME
+        // still appears. Local-only false → cloud document providers are pickable too.
+        let picked = picker
+            .pick_file(None, &[], false)
+            .map_err(|e| e.to_string())?;
+        match picked {
+            None => Ok(None),
+            Some(u) => {
+                // The reopen-last-file feature only needs the ONE most-recent URI
+                // persisted, so drop prior grants first (best-effort) to bound the
+                // accumulation — Android caps persisted URI permissions (~512) and we
+                // must not leak one per distinct file ever opened. Then persist so this
+                // URI reopens after an app restart (Phase A: verified).
+                let _ = picker.release_all_persisted_uri_permissions();
+                picker
+                    .persist_uri_permission(&u)
+                    .map_err(|e| e.to_string())?;
+                let name = afs.get_name(&u).unwrap_or_default();
+                let path = u.to_json_string().map_err(|e| e.to_string())?;
+                Ok(Some(SafPicked { path, name }))
+            }
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[cfg(mobile)]
+#[tauri::command]
+async fn saf_pick_save(
+    app: tauri::AppHandle,
+    filename: String,
+) -> Result<Option<SafPicked>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri_plugin_android_fs::AndroidFsExt;
+        let afs = app.android_fs();
+        let picker = afs.picker();
+        let picked = picker
+            .save_file(None, &filename, Some("text/markdown"), false)
+            .map_err(|e| e.to_string())?;
+        match picked {
+            None => Ok(None),
+            Some(u) => {
+                picker
+                    .persist_uri_permission(&u)
+                    .map_err(|e| e.to_string())?;
+                let name = afs.get_name(&u).unwrap_or_default();
+                let path = u.to_json_string().map_err(|e| e.to_string())?;
+                Ok(Some(SafPicked { path, name }))
+            }
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // First-launch CLI (desktop only): this process runs in the invoking shell's
@@ -767,6 +925,14 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(LaunchFile(Mutex::new(launch_file)));
 
+    // Android SAF backend (REQ-MOBILE-3): registers the android-fs plugin so the
+    // `saf_*` commands above can reach its Rust API (picker, read/write by
+    // content:// URI, DocumentFile metadata, persistable URI permissions). The JS
+    // command surface is compiled out (`default-features = false`), so nothing
+    // android-fs is exposed to the WebView.
+    #[cfg(mobile)]
+    let builder = builder.plugin(tauri_plugin_android_fs::init());
+
     // The loopback OAuth capture (reserve/await/pick) + its listener state are
     // desktop-only: Google deprecated the 127.0.0.1 loopback redirect for mobile,
     // so Android sign-in will use a deep-link redirect (a later M6 slice). The
@@ -803,7 +969,12 @@ pub fn run() {
         secure_get,
         secure_set,
         secure_delete,
-        read_gdrive_config
+        read_gdrive_config,
+        saf_read,
+        saf_stat,
+        saf_write,
+        saf_pick,
+        saf_pick_save
     ]);
 
     builder

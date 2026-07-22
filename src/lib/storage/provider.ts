@@ -18,6 +18,15 @@ export type Revision = string | null;
 export interface ReadResult {
   content: string;
   rev: Revision;
+  /**
+   * Optional human-readable display name for the opened file. Backends whose
+   * `path` is not a filesystem path — e.g. the Android SAF backend, whose `path`
+   * is an opaque `content://` URI that does not split into a readable name —
+   * supply it so the shell's title bar has something to show. Path-based
+   * backends (Local) and id-based ones (Drive) omit it and the shell falls back
+   * to deriving a name from the path.
+   */
+  name?: string;
 }
 
 export interface WriteResult {

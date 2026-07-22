@@ -544,6 +544,30 @@ and drag-select — the adversarial review caught it, and these steps are the li
   readable, clear of both the keyboard and the chips, with as much written context above it as fits —
   the acceptance WF-30 could not meet on its own.
 
+### WF-32 · Android SAF open/save round-trip · `REQ-MOBILE-3` _(M6 S4 — physical phone only)_
+**Why:** the SAF backend is `content://` URIs + a system picker + persisted permissions + DocumentFile
+metadata — none of which happy-dom or a Rust unit test can exercise (the `saf_*` commands are thin
+wrappers over `tauri-plugin-android-fs`). The seam arithmetic is unit-tested (`storage/saf.test.ts`,
+`platform.test.ts`); this WF is the only thing that proves the native tail actually opens and saves a real
+device file. **Verified 2026-07-22 on a Pixel 9 Pro / Android 16.**
+**Setup:** a USB-debugging phone; `adb install` the debug APK; a real `.md` on the device (e.g. Downloads).
+Drive the shell via the WebView devtools socket (WF-30 setup) and the SAF picker via `adb shell input` /
+on-screen taps.
+**Steps:**
+- Hamburger → **Open…** → the **system SAF picker** appears (not a path dialog). Pick a `.md` → the editor
+  loads its content and the title shows the DocumentFile **display name** (a `content://` URI has no
+  readable name to split — this proves `saf_read` returns the name).
+- Edit and **Save** with no external change → it writes with **no conflict prompt** and the on-disk file
+  updates (the rev is stable read-to-read → no false conflict).
+- Modify the same file **from outside** the app (`adb shell echo … >> file`), then **Save** → the
+  **"File changed on disk"** modal appears (REQ-SAVE-1 conflict detection via `saf_stat`, rev
+  `{lastModified}-{byteLength}`). **Overwrite** → the buffer replaces the external change on disk.
+- **Save As…** → the SAF **create-document** picker; the new file is written and its permission persisted.
+- **Reopen after restart:** `adb shell am force-stop` then relaunch → the app **auto-reopens the last
+  file** via its persisted URI, **no picker** (the purpose of `persist_uri_permission`). A deleted/revoked
+  last file is forgotten silently, never popping an error on startup.
+- **Check the console** for errors; a silent console with the file loaded is part of the pass criteria.
+
 ---
 
 ## Requirement coverage
@@ -586,6 +610,7 @@ and drag-select — the adversarial review caught it, and these steps are the li
 | REQ-RENDER-11 | structure (`editor/markers.dom.test.ts`) | WF-25 (reveal = syntax style) |
 | REQ-RENDER-7 | unit (`render-mode.test.ts`, `render-mode-cycle.test.ts`) | WF-26 (toggle survives focus drift) |
 | REQ-SCROLL-1 | arithmetic + facet wiring ( `editor/typewriter.test.ts`, `typewriter.dom.test.ts`, `settings/schema.test.ts`) | WF-31 (centring feel; asymmetry; settings off) |
+| REQ-MOBILE-3 | seam + platform (`storage/saf.test.ts`, `platform.test.ts`) | WF-32 (SAF open/save/conflict/restore round-trip, real device) |
 
 The former [requirements.md](requirements.md) gaps with no automated test
 (REQ-UI-2, REQ-LOOK-1, REQ-PERF-1) now have a linked **LLM** test here. The rest

@@ -34,7 +34,7 @@ next:
 | **Least-privilege Google Drive picker** — built (scope → `drive.file`, system-browser Picker, hardened loopback); remaining: the live pick→open→save round-trip in the dev app (**WF-28**, user-run) | REQ-CLOUD-3 | ✅ code + tests (catalogued in [requirements.md](requirements.md)); 🔜 live verify |
 | OneDrive live wiring (connect orchestration + UI, mirroring `gdrive-connect.ts`) | REQ-CLOUD-2 | ⬜ **deferred** (deprioritized 2026-07-11) — backend + unit tests done, not live-wired |
 | **Typewriter scrolling** — the active line rests on a **two-thirds anchor** while typing (`editor.typewriterAnchor`; unblocked REQ-MOBILE-2's keyboard UX) | REQ-SCROLL-1 | ✅ shipped 2026-07-21 (PR #19), catalogued in [requirements.md](requirements.md); WF-31 run on desktop + Pixel 9 Pro |
-| **M6 — Android** (current milestone) | REQ-MOBILE-* | 🚧 in progress — **S1** (cross-compile, all 4 ABIs + `gen/android` committed), **S2** (responsive shell) and **S3** (soft-keyboard/IME inset bridge) merged; **S4 (SAF storage) is next** — until it lands the Android app can only edit an unsaved buffer. [m6-plan.md](m6-plan.md) |
+| **M6 — Android** (current milestone) | REQ-MOBILE-* | 🚧 in progress — **S1** (cross-compile, all 4 ABIs + `gen/android` committed), **S2** (responsive shell), **S3** (soft-keyboard/IME inset bridge) and **S4** (SAF storage — open/save real device files, verified on a Pixel 9 Pro) merged; **S5 (signed release + Android CI) is next**. [m6-plan.md](m6-plan.md) |
 
 _Parked (specced-lite, unscheduled):_ keyboard entry into the inline table-cell editor; Google Docs →
 markdown export (native Google Docs return `403` on `alt=media`, so only true `.md` / binary Drive

@@ -17,6 +17,8 @@
   import HamburgerMenu from "$lib/HamburgerMenu.svelte";
   import { settings, initSettings, setSetting, updateSettings } from "$lib/settings/store.svelte";
   import { LocalProvider } from "$lib/storage/local";
+  import { SafProvider } from "$lib/storage/saf";
+  import { isAndroid } from "$lib/platform";
   import { StorageError, type Revision, type StorageProvider } from "$lib/storage/provider";
   import { copyPathFor, type ConflictChoice } from "$lib/storage/conflict";
   import { AutosaveScheduler } from "$lib/storage/autosave";
@@ -30,8 +32,10 @@
   import { stepFontSize, stepLineWidth } from "$lib/editor/zoom";
 
   // File I/O goes through the StorageProvider seam (SPEC §6). The active provider
-  // is the open document's: local, or Google Drive once connected (M3 L2).
-  const local = new LocalProvider();
+  // is the open document's: local, or Google Drive once connected (M3 L2). On
+  // Android the "local" slot is the SAF backend (REQ-MOBILE-3) — same id, so
+  // providerFor()/open/save below are untouched.
+  const local: StorageProvider = isAndroid() ? new SafProvider() : new LocalProvider();
   let driveProvider = $state<StorageProvider | null>(null);
   let driveConnected = $state(false);
   let providerId = $state("local");
@@ -121,8 +125,11 @@
     { name: "Markdown", extensions: ["md", "markdown", "mdown", "mkd", "txt"] },
   ];
 
+  // A backend-supplied display name (SAF `content://` URIs don't split into a
+  // readable name); null for path/id backends, which fall back to the path split.
+  let displayName = $state<string | null>(null);
   const fileName = $derived(
-    filePath ? (filePath.split(/[\\/]/).pop() ?? filePath) : "Untitled",
+    displayName ?? (filePath ? (filePath.split(/[\\/]/).pop() ?? filePath) : "Untitled"),
   );
 
   // --- Unsaved-changes confirmation modal (promise-based) ---------------------
@@ -188,10 +195,23 @@
     return true; // discard
   }
 
+  // Android reopens the last SAF document on the next launch via its persisted
+  // content:// URI permission (REQ-MOBILE-3) — desktop has no such session restore
+  // (it opens files by CLI arg / file manager), so this is Android-only.
+  const LAST_FILE_KEY = "szmde:android:lastFile";
+  function rememberAndroidFile(path: string) {
+    if (isAndroid()) localStorage.setItem(LAST_FILE_KEY, path);
+  }
+  function forgetAndroidFile() {
+    if (isAndroid()) localStorage.removeItem(LAST_FILE_KEY);
+  }
+
   // --- File operations --------------------------------------------------------
-  async function openPath(path: string, pid = "local") {
+  // `silent` is the launch-time Android restore: a stale/revoked URI must not pop
+  // an error dialog on startup — it just forgets the remembered file.
+  async function openPath(path: string, pid = "local", silent = false) {
     try {
-      const { content: raw, rev } = await providerFor(pid).read(path);
+      const { content: raw, rev, name } = await providerFor(pid).read(path);
       const detected = detectEol(raw);
       eol = detected === "mixed" ? "lf" : detected; // mixed normalizes to LF on save
       editor?.setContent(toLf(raw)); // the editor buffer is always LF
@@ -199,10 +219,16 @@
       // (auth/offline/bad id) leaves the currently-open document untouched.
       providerId = pid;
       filePath = path;
+      displayName = name || null; // SAF supplies it; path/id backends don't
       baseRev = rev; // conflict baseline (REQ-SAVE-1)
       dirty = false;
+      if (pid === "local") rememberAndroidFile(path); // SAF URI → reopen next launch
       editor?.focus();
     } catch (e) {
+      if (silent) {
+        forgetAndroidFile(); // the restore target is gone — drop it quietly
+        return;
+      }
       await message(`Couldn't open the file:\n${path}\n\n${e}`, {
         title: "Open failed",
         kind: "error",
@@ -214,6 +240,8 @@
     if (!(await guardUnsaved())) return;
     editor?.setContent("");
     filePath = null;
+    displayName = null;
+    forgetAndroidFile(); // a fresh unsaved buffer has no file to restore
     baseRev = null;
     providerId = "local"; // new docs are local until saved elsewhere
     dirty = false;
@@ -223,6 +251,13 @@
 
   async function doOpen() {
     if (!(await guardUnsaved())) return;
+    if (isAndroid()) {
+      // Android has no filesystem path dialog: the SAF picker returns a persisted
+      // content:// URI (as an opaque JSON handle) that reopens across app restarts.
+      const picked = await invoke<{ path: string; name: string } | null>("saf_pick");
+      if (picked) await openPath(picked.path);
+      return;
+    }
     const selected = await openDialog({ multiple: false, filters: MD_FILTERS });
     if (typeof selected === "string") await openPath(selected);
   }
@@ -235,6 +270,17 @@
   }
 
   async function doSaveAs(): Promise<boolean> {
+    if (isAndroid()) {
+      // SAF "create document" picker; the returned URI is persisted for reopen.
+      const picked = await invoke<{ path: string; name: string } | null>("saf_pick_save", {
+        filename: displayName ?? "Untitled.md",
+      });
+      if (!picked) return false;
+      providerId = "local";
+      const ok = await writeTo(picked.path, null);
+      if (ok) displayName = picked.name || null; // only sync the title once the write lands
+      return ok;
+    }
     const path = await saveDialog({
       filters: MD_FILTERS,
       defaultPath: filePath ?? "Untitled.md",
@@ -259,6 +305,7 @@
     try {
       const { rev } = await storage.write(path, fromLf(snapshot, eol), expectedRev);
       filePath = path;
+      if (providerId === "local") rememberAndroidFile(path); // covers Save As → new SAF URI
       baseRev = rev; // on disk now == snapshot
       if ((editor?.getContent() ?? "") === snapshot) {
         dirty = false; // buffer unchanged since the snapshot → truly clean
@@ -283,7 +330,13 @@
     const choice = await askConflict();
     if (choice === "cancel") return false;
     if (choice === "overwrite") return writeTo(path, null); // force over their change
-    if (choice === "save-copy") return writeTo(await freeCopyPath(path), null); // keep both
+    if (choice === "save-copy") {
+      // On Android `path` is an opaque content:// URI (a JSON handle) that can't be
+      // string-derived into a sibling, and SAF needs its create-document picker to mint
+      // a new writable URI — so "save a copy" is just a Save As there. On desktop, derive
+      // a free sibling path so we never clobber a previously-kept copy.
+      return isAndroid() ? doSaveAs() : writeTo(await freeCopyPath(path), null);
+    }
     // reload: discard our edits, take the on-disk version.
     try {
       const { content, rev } = await storage.read(path);
@@ -444,9 +497,19 @@
       await getCurrentWindow().destroy();
     });
 
-    // File passed on the command line: `szmde notes.md` (SPEC §2.1).
+    // File passed on the command line: `szmde notes.md` (SPEC §2.1). On Android
+    // there is no launch arg, so fall back to reopening the last SAF document via
+    // its persisted URI (REQ-MOBILE-3) — silent, so a since-deleted file is just
+    // forgotten rather than popping an error on startup.
     invoke<string | null>("get_launch_file").then((launch) => {
-      if (launch) openPath(launch);
+      if (launch) {
+        openPath(launch);
+        return;
+      }
+      if (isAndroid()) {
+        const last = localStorage.getItem(LAST_FILE_KEY);
+        if (last) openPath(last, "local", true);
+      }
     });
 
     // Re-establish a previously connected Google Drive account (M3 L2).
