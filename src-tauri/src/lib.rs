@@ -778,7 +778,10 @@ async fn saf_stat(app: tauri::AppHandle, uri: String) -> Result<Option<String>, 
         // skip its pre-write conflict check and silently overwrite an external edit
         // (and null the post-write baseline, disabling conflict detection thereafter).
         // This mirrors the local `file_rev` returning Err on any non-NotFound error.
-        let meta = app.android_fs().get_metadata(&u).map_err(|e| e.to_string())?;
+        let meta = app
+            .android_fs()
+            .get_metadata(&u)
+            .map_err(|e| e.to_string())?;
         Ok(Some(compose_rev(meta.modified().ok(), meta.len())))
     })
     .await
@@ -796,7 +799,9 @@ async fn saf_write(app: tauri::AppHandle, uri: String, content: String) -> Resul
         // no portable atomic-rename across document providers, so an interrupted write
         // (process kill / provider error / storage detached mid-write) can leave the file
         // truncated. Tracked as a known limitation (docs/bugs.md, BUG-SAF-WRITE-ATOMIC).
-        app.android_fs().write(&u, content.as_bytes()).map_err(|e| e.to_string())
+        app.android_fs()
+            .write(&u, content.as_bytes())
+            .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| e.to_string())?
@@ -811,7 +816,9 @@ async fn saf_pick(app: tauri::AppHandle) -> Result<Option<SafPicked>, String> {
         let picker = afs.picker();
         // Empty mime_types = any file, so a `.md` whose provider reports an odd MIME
         // still appears. Local-only false → cloud document providers are pickable too.
-        let picked = picker.pick_file(None, &[], false).map_err(|e| e.to_string())?;
+        let picked = picker
+            .pick_file(None, &[], false)
+            .map_err(|e| e.to_string())?;
         match picked {
             None => Ok(None),
             Some(u) => {
@@ -821,7 +828,9 @@ async fn saf_pick(app: tauri::AppHandle) -> Result<Option<SafPicked>, String> {
                 // must not leak one per distinct file ever opened. Then persist so this
                 // URI reopens after an app restart (Phase A: verified).
                 let _ = picker.release_all_persisted_uri_permissions();
-                picker.persist_uri_permission(&u).map_err(|e| e.to_string())?;
+                picker
+                    .persist_uri_permission(&u)
+                    .map_err(|e| e.to_string())?;
                 let name = afs.get_name(&u).unwrap_or_default();
                 let path = u.to_json_string().map_err(|e| e.to_string())?;
                 Ok(Some(SafPicked { path, name }))
@@ -848,7 +857,9 @@ async fn saf_pick_save(
         match picked {
             None => Ok(None),
             Some(u) => {
-                picker.persist_uri_permission(&u).map_err(|e| e.to_string())?;
+                picker
+                    .persist_uri_permission(&u)
+                    .map_err(|e| e.to_string())?;
                 let name = afs.get_name(&u).unwrap_or_default();
                 let path = u.to_json_string().map_err(|e| e.to_string())?;
                 Ok(Some(SafPicked { path, name }))
