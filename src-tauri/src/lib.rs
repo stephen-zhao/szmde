@@ -767,6 +767,13 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(LaunchFile(Mutex::new(launch_file)));
 
+    // SPIKE (M6 S4 Phase A, throwaway): the Android SAF plugin exposes a file
+    // picker, read/write by content:// URI, DocumentFile metadata, and
+    // *persistable* URI permissions — everything the S4 SafProvider needs. Its
+    // JS API (`plugin:android-fs|*`) is driven from a dev-only window.__safSpike.
+    #[cfg(mobile)]
+    let builder = builder.plugin(tauri_plugin_android_fs::init());
+
     // The loopback OAuth capture (reserve/await/pick) + its listener state are
     // desktop-only: Google deprecated the 127.0.0.1 loopback redirect for mobile,
     // so Android sign-in will use a deep-link redirect (a later M6 slice). The

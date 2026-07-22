@@ -17,6 +17,8 @@
   import HamburgerMenu from "$lib/HamburgerMenu.svelte";
   import { settings, initSettings, setSetting, updateSettings } from "$lib/settings/store.svelte";
   import { LocalProvider } from "$lib/storage/local";
+  import { SafProvider } from "$lib/storage/saf";
+  import { isAndroid } from "$lib/platform";
   import { StorageError, type Revision, type StorageProvider } from "$lib/storage/provider";
   import { copyPathFor, type ConflictChoice } from "$lib/storage/conflict";
   import { AutosaveScheduler } from "$lib/storage/autosave";
@@ -30,8 +32,10 @@
   import { stepFontSize, stepLineWidth } from "$lib/editor/zoom";
 
   // File I/O goes through the StorageProvider seam (SPEC §6). The active provider
-  // is the open document's: local, or Google Drive once connected (M3 L2).
-  const local = new LocalProvider();
+  // is the open document's: local, or Google Drive once connected (M3 L2). On
+  // Android the "local" slot is the SAF backend (REQ-MOBILE-3) — same id, so
+  // providerFor()/open/save below are untouched.
+  const local: StorageProvider = isAndroid() ? new SafProvider() : new LocalProvider();
   let driveProvider = $state<StorageProvider | null>(null);
   let driveConnected = $state(false);
   let providerId = $state("local");
@@ -121,8 +125,11 @@
     { name: "Markdown", extensions: ["md", "markdown", "mdown", "mkd", "txt"] },
   ];
 
+  // A backend-supplied display name (SAF `content://` URIs don't split into a
+  // readable name); null for path/id backends, which fall back to the path split.
+  let displayName = $state<string | null>(null);
   const fileName = $derived(
-    filePath ? (filePath.split(/[\\/]/).pop() ?? filePath) : "Untitled",
+    displayName ?? (filePath ? (filePath.split(/[\\/]/).pop() ?? filePath) : "Untitled"),
   );
 
   // --- Unsaved-changes confirmation modal (promise-based) ---------------------
@@ -191,7 +198,7 @@
   // --- File operations --------------------------------------------------------
   async function openPath(path: string, pid = "local") {
     try {
-      const { content: raw, rev } = await providerFor(pid).read(path);
+      const { content: raw, rev, name } = await providerFor(pid).read(path);
       const detected = detectEol(raw);
       eol = detected === "mixed" ? "lf" : detected; // mixed normalizes to LF on save
       editor?.setContent(toLf(raw)); // the editor buffer is always LF
@@ -199,6 +206,7 @@
       // (auth/offline/bad id) leaves the currently-open document untouched.
       providerId = pid;
       filePath = path;
+      displayName = name || null; // SAF supplies it; path/id backends don't
       baseRev = rev; // conflict baseline (REQ-SAVE-1)
       dirty = false;
       editor?.focus();
@@ -214,6 +222,7 @@
     if (!(await guardUnsaved())) return;
     editor?.setContent("");
     filePath = null;
+    displayName = null;
     baseRev = null;
     providerId = "local"; // new docs are local until saved elsewhere
     dirty = false;
