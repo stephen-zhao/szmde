@@ -1,0 +1,26 @@
+name: Android
+
+# Debug-builds the Android app (aarch64 only) when Rust/Gradle/native sources change,
+# so cross-compile breakage is caught on the PR instead of at release time — this is
+# the CI enforcement of REQ-MOBILE-1's build gate. Path-filtered so doc/frontend-only
+# PRs stay fast. ADVISORY, deliberately not in the required-checks list: GitHub waits
+# forever on a required check whose path filter never fired, which would hang every
+# PR that doesn't touch src-tauri (see docs/ci-cd.md).
+on:
+  pull_request:
+    paths:
+      - 'src-tauri/**'
+      - '.github/workflows/android.yml'
+      - '.github/actions/setup-android-build/**'
+
+jobs:
+  build:
+    name: Android debug build (aarch64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-android-build
+        with:
+          targets: aarch64-linux-android
+      - name: Build debug APK (aarch64)
+        run: npx tauri android build --debug --apk --target aarch64

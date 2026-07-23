@@ -1,7 +1,8 @@
 # CI/CD & branch workflow
 
-GitHub Actions: a **CI** gate on every change and a **Release** build on version tags.
-Both live in [`.github/workflows/`](../.github/workflows/). See [INDEX.md](INDEX.md) for the
+GitHub Actions: a **CI** gate on every change, a path-filtered **Android** build check,
+and a **Release** build on version tags.
+All live in [`.github/workflows/`](../.github/workflows/). See [INDEX.md](INDEX.md) for the
 doc map.
 
 ## CI — `.github/workflows/ci.yml`
@@ -18,10 +19,26 @@ plus the Rust checks. Two jobs:
 The rust job runs on Windows because that's the release target (WebView2 preinstalled); the
 frontend gate runs on Linux because the tests are platform-agnostic and it's faster.
 
+## Android build check — `.github/workflows/android.yml`
+
+Runs on **pull requests that touch `src-tauri/**`** (path-filtered — doc/frontend-only PRs
+skip it): a **debug build for aarch64 only** on ubuntu-latest, so Android cross-compile
+breakage is caught on the PR instead of at release time. This is the CI enforcement of
+`REQ-MOBILE-1`'s build gate. Toolchain setup (Node 22, Rust Android targets, JDK 17, a
+**pinned NDK**) is shared with the release job via the composite action
+[`.github/actions/setup-android-build`](../.github/actions/setup-android-build/action.yml) —
+bump the NDK there, in one place.
+
+**Advisory, deliberately NOT a required check:** GitHub waits forever on a required check
+whose path filter never fired, which would hang every PR that doesn't touch `src-tauri`. A
+red ✗ still shows on the PR; treat it as merge-blocking by convention.
+
 ## Release — `.github/workflows/release.yml`
 
-Triggered by pushing a **version tag** `v*`. Builds the **Windows** installer (unsigned) and
-publishes it as a GitHub Release. To cut a release:
+Triggered by pushing a **version tag** `v*`. Two jobs on the same tag: the **Windows**
+installer (unsigned, via `tauri-apps/tauri-action`, which also creates the GitHub Release)
+and — once it exists — the **Android** job attaches a **signed universal APK + AAB**
+(`szmde-vX.Y.Z-android.apk/.aab`, all four ABIs) to that Release. To cut a release:
 
 ```sh
 # bump the version everywhere it matters first (or just tag — the workflow syncs the
@@ -30,17 +47,54 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The workflow rewrites `src-tauri/tauri.conf.json`'s `version` to the tag (minus the `v`) so the
-installer version matches the release, then runs `tauri-apps/tauri-action`, which builds and
-creates the Release with the `.msi` + `.exe` assets attached.
+Both jobs rewrite `src-tauri/tauri.conf.json`'s `version` from the tag (minus the `v`), which
+also drives the Android `versionName`/`versionCode` (Tauri regenerates
+`gen/android/app/tauri.properties` from it at build time). The Android job is hand-rolled
+(`npx tauri android build --apk --aab`) rather than `tauri-action`, whose mobile support is
+experimental (m6-plan risk #9).
 
-**Unsigned installers.** No code-signing cert is configured, so Windows SmartScreen shows a
-one-time "unknown publisher" warning on first run (*More info → Run anyway*). Signing can be
-added later by supplying a cert + repo secrets and wiring them into the action.
+**Dry-run without a tag:** `workflow_dispatch` on the Release workflow runs the Android job
+alone and uploads the APK/AAB as workflow artifacts (no Release is created). Use it to
+exercise the Android pipeline safely.
 
-**Not yet built:** macOS / Linux installers, auto-update, signing. The *release* pipeline is
-Windows-only today; **Android is a live target** (M6 — `gen/android` committed, all four ABIs
-cross-compile), but its APK is built locally rather than in CI — that is M6 S5 (`REQ-MOBILE-1`).
+### Android signing — the upload keystore (one-time setup, maintainer-held)
+
+The keystore and its password are **never** in git or handled by tooling — the maintainer
+generates and holds them. The Gradle side
+(`gen/android/app/build.gradle.kts`) loads `gen/android/keystore.properties` (git-ignored)
+**only if it exists**: absent → unsigned build (local debug workflows unaffected), present →
+signed release. In CI the workflow writes that file from three repo secrets. Setup:
+
+```sh
+# 1. Generate the upload keystore ONCE and keep it somewhere safe + backed up.
+#    You will be prompted to choose the store password (also used for the key).
+#    NOTE: this cert's SHA-256 also goes into S6's assetlinks.json (App Links) and the
+#    Android OAuth client — losing it means new-cert churn everywhere, so back it up.
+keytool -genkey -v -keystore "$env:USERPROFILE\upload-keystore.jks" -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+```
+
+```sh
+# 2. Add the three repo secrets (run from the repo; gh prompts nothing — values inline).
+gh secret set ANDROID_KEY_ALIAS --body "upload"
+gh secret set ANDROID_KEY_PASSWORD --body "<the password you chose>"
+# base64 the keystore; PowerShell:
+#   [Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\upload-keystore.jks")) | gh secret set ANDROID_KEY_BASE64
+# or bash:  base64 -w0 ~/upload-keystore.jks | gh secret set ANDROID_KEY_BASE64
+```
+
+If the secrets are absent the release job **warns and builds unsigned** instead of failing,
+so dry-runs work before the keystore exists — but a real release should be signed.
+
+**Local signed builds** (optional): create `src-tauri/gen/android/keystore.properties` with
+`keyAlias=upload`, `password=<pw>`, `storeFile=<absolute path to upload-keystore.jks>` — the
+file is already git-ignored (`gen/android/.gitignore`).
+
+**Unsigned Windows installers.** No Windows code-signing cert is configured, so SmartScreen
+shows a one-time "unknown publisher" warning on first run (*More info → Run anyway*). Windows
+signing can be added later by supplying a cert + repo secrets and wiring them into the action.
+
+**Not yet built:** macOS / Linux installers, auto-update, Windows signing, Play Store
+publishing (**REQ-PLAY-1**, its own milestone — M6 ships the sideload APK, m6-plan decision #4).
 Add a runner to the release matrix when those are wanted.
 
 ## Branch & PR workflow

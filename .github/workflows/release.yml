@@ -1,18 +1,25 @@
 name: Release
 
 # Cut a release by pushing a version tag:  git tag v0.1.0 && git push origin v0.1.0
-# Builds the Windows installer and publishes it as a GitHub Release. Unsigned for
-# now (first-run SmartScreen warning is expected — see docs/ci-cd.md).
+# Builds the Windows installer + the signed Android APK/AAB and publishes them as one
+# GitHub Release. Windows stays unsigned for now (first-run SmartScreen warning is
+# expected); Android is signed with the upload keystore from repo secrets — see
+# docs/ci-cd.md for the keystore/secrets setup. `workflow_dispatch` dry-runs the
+# Android job on its own (uploads workflow artifacts, creates no Release) so the
+# Android pipeline can be exercised without cutting a tag.
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
-  contents: write # create the Release + upload the installer assets
+  contents: write # create the Release + upload the installer/APK/AAB assets
 
 jobs:
   release:
     name: Build & publish (Windows)
+    # Tag pushes only — a workflow_dispatch dry-run must not attempt a Release.
+    if: github.event_name == 'push'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,3 +52,71 @@ jobs:
             Installer is **unsigned** — Windows SmartScreen shows a one-time "unknown publisher" warning on first run (More info → Run anyway).
           releaseDraft: false
           prerelease: false
+
+  android:
+    name: Build & publish (Android)
+    runs-on: ubuntu-latest
+    # On a tag: wait for the Windows job to create the Release, then attach assets to
+    # it. On a workflow_dispatch dry-run the Windows job is skipped and this runs
+    # standalone (workflow artifacts instead of Release assets).
+    needs: release
+    if: ${{ !cancelled() && (needs.release.result == 'success' || github.event_name == 'workflow_dispatch') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-android-build
+      - name: Set bundle version from tag
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          node -e "const v=process.env.TAG.replace(/^v/,'');const f='src-tauri/tauri.conf.json';const j=require('./'+f);j.version=v;require('fs').writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
+      # Signing: write gen/android/keystore.properties (git-ignored; the conditional
+      # signingConfigs in app/build.gradle.kts picks it up) and decode the upload
+      # keystore from the base64 repo secret. If the secrets aren't configured yet the
+      # step degrades to an UNSIGNED build with a loud notice instead of failing —
+      # keeps dry-runs useful before the keystore exists.
+      - name: Android signing setup (keystore from repo secrets)
+        shell: bash
+        env:
+          ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEY_BASE64" ]; then
+            echo "::warning::ANDROID_KEY_* secrets not set — building UNSIGNED (docs/ci-cd.md has the keystore setup)"
+            exit 0
+          fi
+          printf '%s' "$ANDROID_KEY_BASE64" | base64 -d > "$RUNNER_TEMP/upload-keystore.jks"
+          {
+            printf 'keyAlias=%s\n' "$ANDROID_KEY_ALIAS"
+            printf 'password=%s\n' "$ANDROID_KEY_PASSWORD"
+            printf 'storeFile=%s\n' "$RUNNER_TEMP/upload-keystore.jks"
+          } > src-tauri/gen/android/keystore.properties
+      - name: Build APK + AAB (all four ABIs)
+        run: npx tauri android build --apk --aab
+      - name: Collect artifacts
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          NAME="szmde-${TAG}-android"
+          # Globs tolerate the `-unsigned` suffix an unsigned dry-run produces.
+          cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release*.apk "${NAME}.apk"
+          cp src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release*.aab "${NAME}.aab"
+          ls -la "${NAME}".*
+      - name: Attach to the GitHub Release
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: gh release upload "$TAG" "szmde-${TAG}-android.apk" "szmde-${TAG}-android.aab" --clobber
+      - name: Upload workflow artifacts (dry-run)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: szmde-android
+          path: szmde-*-android.*
+          if-no-files-found: error

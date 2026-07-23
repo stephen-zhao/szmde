@@ -13,6 +13,20 @@ val tauriProperties = Properties().apply {
     }
 }
 
+// Release signing (M6 S5, REQ-MOBILE-1): keys come from gen/android/keystore.properties
+// (git-ignored — written by the release workflow from repo secrets, or created locally
+// per docs/ci-cd.md; Tauri's key names: password / keyAlias / storeFile). When the file
+// is ABSENT the release build is simply unsigned and debug builds are untouched — the
+// Tauri doc's verbatim snippet instead crashes Gradle configuration on any machine
+// without a keystore, which would break every local debug build.
+val keystoreProperties = Properties().apply {
+    val propFile = rootProject.file("keystore.properties")
+    if (propFile.exists()) {
+        propFile.inputStream().use { load(it) }
+    }
+}
+val hasKeystore = keystoreProperties.getProperty("storeFile") != null
+
 android {
     compileSdk = 36
     namespace = "com.zhaostephen.szmde"
@@ -23,6 +37,16 @@ android {
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+    }
+    signingConfigs {
+        if (hasKeystore) {
+            create("release") {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("password")
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("password")
+            }
+        }
     }
     buildTypes {
         getByName("debug") {
@@ -37,6 +61,9 @@ android {
             }
         }
         getByName("release") {
+            if (hasKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }

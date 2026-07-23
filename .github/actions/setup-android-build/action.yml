@@ -1,0 +1,40 @@
+name: Setup Android build
+description: >
+  Toolchain for building the Tauri Android app on an ubuntu runner: Node 22, Rust with
+  the Android targets, JDK 17, a PINNED NDK (r28+ required — the 16 KB memory-page rule,
+  docs/m6-plan.md), and npm ci. Shared by the release job and the PR build check so the
+  two can never drift (e.g. an NDK bump landing in only one of them).
+inputs:
+  targets:
+    description: Comma-separated Rust Android targets to install
+    required: false
+    default: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+  ndk:
+    description: Android NDK version to install (pinned; r28+ required)
+    required: false
+    default: '28.2.13676358'
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ inputs.targets }}
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: src-tauri
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - name: Install pinned NDK
+      shell: bash
+      run: |
+        echo y | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;${{ inputs.ndk }}" >/dev/null
+        echo "NDK_HOME=$ANDROID_HOME/ndk/${{ inputs.ndk }}" >> "$GITHUB_ENV"
+    - name: npm ci
+      shell: bash
+      run: npm ci
