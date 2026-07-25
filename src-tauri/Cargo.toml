@@ -33,22 +33,35 @@ tauri-plugin-android-fs = { version = "28", default-features = false }
 # OAuth consent page. Scoped by capabilities to only the googleapis hosts.
 tauri-plugin-http = "2"
 tauri-plugin-opener = "2"
+# Android OAuth redirect capture (REQ-CLOUD-1 parity, M6 S6b): the 127.0.0.1 loopback
+# is invalid on mobile, so Drive sign-in returns via an https App Link that this plugin
+# delivers to the frontend (onOpenUrl / getCurrent). Registered mobile-only; desktop
+# keeps the loopback. Config lives in tauri.conf.json > plugins.deep-link.
+tauri-plugin-deep-link = "2"
 # spawn_blocking for the loopback accept (runs inside Tauri's tokio runtime).
 tokio = { version = "1", features = ["rt"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-# OS secure store for OAuth tokens (REQ-SEC-1): Windows Credential Manager +
-# macOS Keychain (the two current desktop targets). Linux secret-service /
-# Android keystore are added with those targets (M6+). Backends are target-gated
-# inside the crate, so enabling both native features is safe per platform.
-# v4 for the Android Keystore backend (android-native-keyring-store, target-gated,
-# auto-registered on Android) — required to cross-compile for Android (M6, REQ-SEC-1
-# parity); v3 has no Android backend. v4's default `v1` feature bundles the desktop
-# stores (Windows Credential Manager / Apple Keychain / Linux Secret Service), so the
-# old apple-native/windows-native feature flags are dropped. The secure_* command
-# surface + the Entry::new/get/set/delete API are unchanged.
+# OS secure store for OAuth tokens (REQ-SEC-1). v4's default `v1` feature bundles the
+# desktop stores (Windows Credential Manager / Apple Keychain / Linux Secret Service);
+# the v4 bump was also required to cross-compile for Android (v3 has no Android backend).
+# ⚠️ v4 does NOT ship or auto-register an Android store — the companion
+# `android-native-keyring-store` must be added as a cfg(android) dep AND registered as
+# keyring-core's default store at startup (see run()'s Android setup hook, M6 S6a);
+# without that, secure_* fails on Android with "No default store has been set". The
+# secure_* command surface + the Entry::new/get/set/delete API are unchanged.
 keyring = "4"
 
 # single-instance is desktop-only; on mobile there is no second process to forward.
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "2"
+
+# Android Keystore backend for `keyring` (REQ-SEC-1 parity, M6 S6a). keyring v4 ships
+# no Android store; this crate (Android-Keystore-encrypted SharedPreferences over JNI,
+# minSdk 24) provides one, registered as keyring-core's default store in run()'s Android
+# setup hook. `keyring-core` is pulled in directly for `set_default_store` (keyring v4
+# already depends on it transitively). ndk-context is initialized by Tauri's Android
+# runtime, so no Kotlin init is needed.
+[target.'cfg(target_os = "android")'.dependencies]
+android-native-keyring-store = "1"
+keyring-core = "1"

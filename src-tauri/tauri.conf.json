@@ -26,6 +26,18 @@
       "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: asset: http://asset.localhost; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost ws://localhost:1420 http://localhost:1420"
     }
   },
+  "plugins": {
+    "deep-link": {
+      "mobile": [
+        {
+          "scheme": ["https"],
+          "host": "zhaostephen.com",
+          "pathPrefix": ["/szmde"],
+          "appLink": true
+        }
+      ]
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
