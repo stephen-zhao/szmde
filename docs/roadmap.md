@@ -150,6 +150,15 @@ before a single character is drawn.
 | REQ-LANE-2 | **Compact marker lane on narrow viewports** — `####` renders as `#4`, capping the lane at two characters | §7.6 |
 | REQ-LANE-3 | **On-demand fold-chevron lane** — chevrons fly in from the left when relevant instead of holding a permanent column | §7.6 |
 
+### Table rendering modes 🅑  (SPEC §7.4)
+_Captured 2026-07-22 (Stephen). Two per-table display toggles beyond the M5 editing set — general
+features, not touch-specific, though REQ-TBLED-10's overflow mode also relieves the narrow-width case
+(a table wider than a phone gets its own horizontal scroll). Specced, unscheduled — design later._
+| REQ | Requirement | SPEC |
+|-----|-------------|------|
+| REQ-TBLED-10 | **Width mode: fit-to-width vs. overflow** — per-table toggle. Fit-to-width sizes the table to the page width (today's behavior); overflow sizes each column to its **header cell's** width (header-padding spaces widen the column, ignoring body-cell content width) and gives the table its **own horizontal scrollbar** when it exceeds the page width, like a no-wrap code block | §7.4 |
+| REQ-TBLED-11 | **Pin header row while scrolling** — per-table toggle; a long table's header row stays sticky at the top of the visible content area once the table top scrolls out of view | §7.4 |
+
 ### M7 — Network storage + polish ⬜  (SPEC §6, §7)
 | REQ | Requirement | SPEC |
 |-----|-------------|------|
