@@ -70,24 +70,25 @@ signed release. In CI the workflow writes that file from three repo secrets. Set
 #    You will be prompted to choose the store password (also used for the key).
 #    NOTE: this cert's SHA-256 also goes into S6's assetlinks.json (App Links) and the
 #    Android OAuth client — losing it means new-cert churn everywhere, so back it up.
-keytool -genkey -v -keystore "$env:USERPROFILE\upload-keystore.jks" -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+keytool -genkey -v -keystore "$env:USERPROFILE\szmde-upload.jks" -keyalg RSA -keysize 2048 -validity 10000 -alias szmde-upload
 ```
 
 ```sh
 # 2. Add the three repo secrets (run from the repo; gh prompts nothing — values inline).
-gh secret set ANDROID_KEY_ALIAS --body "upload"
+gh secret set ANDROID_KEY_ALIAS --body "szmde-upload"
 gh secret set ANDROID_KEY_PASSWORD --body "<the password you chose>"
 # base64 the keystore; PowerShell:
-#   [Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\upload-keystore.jks")) | gh secret set ANDROID_KEY_BASE64
-# or bash:  base64 -w0 ~/upload-keystore.jks | gh secret set ANDROID_KEY_BASE64
+#   [Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\szmde-upload.jks")) | gh secret set ANDROID_KEY_BASE64
+# or bash:  base64 -w0 ~/szmde-upload.jks | gh secret set ANDROID_KEY_BASE64
 ```
 
 If the secrets are absent the release job **warns and builds unsigned** instead of failing,
 so dry-runs work before the keystore exists — but a real release should be signed.
 
 **Local signed builds** (optional): create `src-tauri/gen/android/keystore.properties` with
-`keyAlias=upload`, `password=<pw>`, `storeFile=<absolute path to upload-keystore.jks>` — the
-file is already git-ignored (`gen/android/.gitignore`).
+`keyAlias=szmde-upload`, `password=<pw>`, `storeFile=<absolute path to szmde-upload.jks>` — the
+file is already git-ignored (`gen/android/.gitignore`). (`keystore.properties` itself keeps that
+exact name — `build.gradle.kts` reads it by convention — as do the `ANDROID_KEY_*` secret names.)
 
 **Unsigned Windows installers.** No Windows code-signing cert is configured, so SmartScreen
 shows a one-time "unknown publisher" warning on first run (*More info → Run anyway*). Windows
