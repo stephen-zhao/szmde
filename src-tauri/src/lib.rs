@@ -947,21 +947,28 @@ pub fn run() {
     // default before any secure_* call. ndk_context is already initialized by Tauri's
     // Android runtime (the saf_* commands rely on it), so Store::new() has its context.
     //
-    // Degrade, don't abort: a keystore init failure must NOT brick app launch — local
-    // buffer + SAF editing need no keystore. `Store::new()` does real fallible JNI /
-    // AndroidKeyStore / SharedPreferences work, and propagating that error out of the
-    // setup closure would make `builder.run().expect(...)` panic (whole app fails to
-    // start). Instead log to logcat and continue: with no store registered, `secure_*`
-    // fail per-op exactly as they did pre-S6 (the startup Drive-connection check already
-    // treats a rejected secure_get as "not connected"), matching desktop, where a keyring
-    // failure only ever surfaces per-call — never at startup. (S6 adversarial review.)
+    // ndk-context is initialized in MainActivity.onCreate (io/crates/keyring/Keyring.kt)
+    // before this runs, so Store::new() has its app context. Degrade, never abort: a
+    // keystore init failure must NOT brick app launch — local buffer + SAF editing need no
+    // keystore. Store::new() does real fallible JNI/AndroidKeyStore/SharedPreferences work
+    // AND, if ndk-context were somehow unset, `ndk_context::android_context()` *panics*
+    // (not Err) — which on device aborted launch outright (WF-33 Part A, 2026-07-25). So
+    // catch BOTH: catch_unwind guards the panic path, and the Err arm the fallible path.
+    // Either way log to logcat and continue; with no store registered `secure_*` fail
+    // per-op exactly as pre-S6 (the startup Drive check already treats a rejected
+    // secure_get as "not connected"), matching desktop where a keyring failure only ever
+    // surfaces per-call, never at startup. (S6 adversarial + device review.)
     #[cfg(target_os = "android")]
     let builder = builder.setup(|_app| {
-        match android_native_keyring_store::Store::new() {
-            Ok(store) => keyring_core::set_default_store(store),
-            Err(e) => eprintln!(
+        match std::panic::catch_unwind(android_native_keyring_store::Store::new) {
+            Ok(Ok(store)) => keyring_core::set_default_store(store),
+            Ok(Err(e)) => eprintln!(
                 "szmde: android keyring store init failed \
                  (Drive sign-in disabled this launch): {e}"
+            ),
+            Err(_) => eprintln!(
+                "szmde: android keyring store init panicked — ndk-context not ready? \
+                 (Drive sign-in disabled this launch)"
             ),
         }
         Ok(())

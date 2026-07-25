@@ -9,6 +9,11 @@ import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
+    // Initialize ndk-context for android-native-keyring-store (M6 S6a, REQ-SEC-1) BEFORE the
+    // Rust runtime starts. Nothing in a Tauri app populates ndk-context's global, so the
+    // keystore's `ndk_context::android_context()` would otherwise panic and abort launch
+    // (WF-33 Part A device finding, 2026-07-25). See io/crates/keyring/Keyring.kt.
+    io.crates.keyring.Keyring.initializeNdkContext(applicationContext)
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
   }
