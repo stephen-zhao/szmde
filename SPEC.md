@@ -509,6 +509,19 @@ pipe tables**. Requirements:
 - **Reachable with a coarse pointer.** Every structural action must be available **without hover or
   right-click** — neither exists on touch. Hover-revealed gizmos and a `contextmenu` menu are a
   fine-pointer *enhancement*, not the only path (`REQ-TBLED-9`).
+- **Width mode — fit-to-width vs. overflow** (`REQ-TBLED-10`), a per-table toggle (like the header
+  toggle). _Fit-to-width_ (today's behavior) sizes the whole table to the page/reading width, wrapping
+  long cell content. _Overflow_ sizes each column to its **header cell's** rendered width — the header
+  drives the column, so a column is exactly as wide as its header **regardless of how wide the body
+  cells' content is**, and **trailing/padding spaces inside a header cell widen that column** as an
+  explicit author control (`| Name           |` → a wide "Name" column). When the table's total width
+  exceeds the page width it gets its **own horizontal scrollbar** and scrolls **independently** — only
+  the table's contents move sideways, not the surrounding document — mirroring a no-wrap code block. On
+  disk it stays plain GFM: the padding spaces are ordinary header-cell text.
+- **Pin the header row while scrolling** (`REQ-TBLED-11`), a per-table toggle. When on, a table whose
+  top has scrolled above the viewport keeps its **header row pinned** to the top of the visible content
+  area (sticky), so the column headings stay readable through a long table; off (the default) the
+  header scrolls away with the table. Purely a rendering affordance — the on-disk GFM is unchanged.
 
 Scope note: GFM table _rendering_ is M2 (§5.1). This rich _editing_ experience was a larger,
 later effort — block-widget interaction work in the §9 decoration/widget layer — **not required for
