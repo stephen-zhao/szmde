@@ -933,6 +933,47 @@ pub fn run() {
     #[cfg(mobile)]
     let builder = builder.plugin(tauri_plugin_android_fs::init());
 
+    // Android OAuth redirect capture (REQ-CLOUD-1 parity, M6 S6b): the deep-link plugin
+    // routes the https App Link redirect back into the app (onOpenUrl / getCurrent), the
+    // mobile replacement for the desktop 127.0.0.1 loopback. Config: tauri.conf.json >
+    // plugins.deep-link; the auth URL is launched in a system-browser Custom Tab.
+    #[cfg(mobile)]
+    let builder = builder.plugin(tauri_plugin_deep_link::init());
+
+    // Android Keystore for `keyring` (REQ-SEC-1 parity, M6 S6a). keyring v4 ships no
+    // Android store and does not auto-register one, so `secure_*` (unconditional,
+    // compiled on mobile) rejects at runtime with "No default store has been set"
+    // (BUG-ANDROID-KEYSTORE). Register the Keystore-encrypted store as keyring-core's
+    // default before any secure_* call. ndk_context is already initialized by Tauri's
+    // Android runtime (the saf_* commands rely on it), so Store::new() has its context.
+    //
+    // ndk-context is initialized in MainActivity.onCreate (io/crates/keyring/Keyring.kt)
+    // before this runs, so Store::new() has its app context. Degrade, never abort: a
+    // keystore init failure must NOT brick app launch — local buffer + SAF editing need no
+    // keystore. Store::new() does real fallible JNI/AndroidKeyStore/SharedPreferences work
+    // AND, if ndk-context were somehow unset, `ndk_context::android_context()` *panics*
+    // (not Err) — which on device aborted launch outright (WF-33 Part A, 2026-07-25). So
+    // catch BOTH: catch_unwind guards the panic path, and the Err arm the fallible path.
+    // Either way log to logcat and continue; with no store registered `secure_*` fail
+    // per-op exactly as pre-S6 (the startup Drive check already treats a rejected
+    // secure_get as "not connected"), matching desktop where a keyring failure only ever
+    // surfaces per-call, never at startup. (S6 adversarial + device review.)
+    #[cfg(target_os = "android")]
+    let builder = builder.setup(|_app| {
+        match std::panic::catch_unwind(android_native_keyring_store::Store::new) {
+            Ok(Ok(store)) => keyring_core::set_default_store(store),
+            Ok(Err(e)) => eprintln!(
+                "szmde: android keyring store init failed \
+                 (Drive sign-in disabled this launch): {e}"
+            ),
+            Err(_) => eprintln!(
+                "szmde: android keyring store init panicked — ndk-context not ready? \
+                 (Drive sign-in disabled this launch)"
+            ),
+        }
+        Ok(())
+    });
+
     // The loopback OAuth capture (reserve/await/pick) + its listener state are
     // desktop-only: Google deprecated the 127.0.0.1 loopback redirect for mobile,
     // so Android sign-in will use a deep-link redirect (a later M6 slice). The
