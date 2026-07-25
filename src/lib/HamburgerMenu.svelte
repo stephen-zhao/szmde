@@ -14,6 +14,7 @@
     onconnectdrive,
     ondisconnectdrive,
     driveConnected,
+    showOpenFromDrive = true,
     wrapState,
     ontogglewrap,
     renderMode,
@@ -29,6 +30,9 @@
     onconnectdrive: () => void;
     ondisconnectdrive: () => void;
     driveConnected: boolean;
+    // Opening a pre-existing Drive file needs the Picker, which is desktop-only until
+    // M6.1 (the native Android Picker). Hidden on Android; Connect/Disconnect stay.
+    showOpenFromDrive?: boolean;
     wrapState: WrapState;
     ontogglewrap: () => void;
     renderMode: RenderMode;
@@ -90,7 +94,9 @@
       </button>
       <hr />
       <div class="section-label">Storage</div>
-      <button role="menuitem" onclick={() => run(onopendrive)}>Open from Google Drive…</button>
+      {#if showOpenFromDrive}
+        <button role="menuitem" onclick={() => run(onopendrive)}>Open from Google Drive…</button>
+      {/if}
       {#if driveConnected}
         <button role="menuitem" onclick={() => run(ondisconnectdrive)}>Disconnect Google Drive</button>
       {:else}

@@ -1,5 +1,8 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { getCurrent as getCurrentDeepLink, onOpenUrl } from "@tauri-apps/plugin-deep-link";
+import { isAndroid } from "../platform";
 import { GoogleDriveProvider } from "./gdrive";
 import { OAuthClient, type OAuthConfig, type TokenPoster } from "./oauth";
 import { clearTokens, loadTokens, type SecureStore } from "./secure-store";
@@ -39,6 +42,15 @@ const DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.file"];
 // the very files the user wants).
 const PICKER_PARAMS = { trigger_onepick: "true" };
 
+// Android's OAuth redirect (M6 S6b): an https App Link that Android verifies (via a
+// hosted assetlinks.json) and routes back into the app, replacing the desktop
+// 127.0.0.1 loopback (invalid on mobile). It MUST equal the Android OAuth client's
+// registered redirect, and the same value is echoed in the token exchange.
+const ANDROID_REDIRECT_URI = "https://zhaostephen.com/szmde/oauth2redirect";
+// Deadline for the user to complete sign-in in the Custom Tab; matches the desktop
+// oauth_loopback_await deadline. A closed tab / abandoned sign-in resolves as a timeout.
+const AUTH_DEADLINE_MS = 180_000;
+
 interface GdriveClientConfig {
   client_id: string;
   client_secret: string;
@@ -52,6 +64,14 @@ export interface GdriveDeps {
   authedFetchFactory?: (getToken: () => Promise<string>) => AuthedFetch;
   now?: () => number;
   random?: (n: number) => Uint8Array;
+  // Android sign-in (S6b): the deep-link redirect capture + Custom Tab launch, all
+  // injectable so the mobile flow is unit-testable with no device.
+  isAndroid?: () => boolean;
+  openUrl?: (url: string) => Promise<void>;
+  onOpenUrl?: (handler: (urls: string[]) => void) => Promise<() => void>;
+  getCurrentDeepLink?: () => Promise<string[] | null>;
+  setTimer?: (fn: () => void, ms: number) => unknown;
+  clearTimer?: (handle: unknown) => void;
 }
 
 function resolved(deps: GdriveDeps) {
@@ -62,6 +82,12 @@ function resolved(deps: GdriveDeps) {
     authedFetchFactory: deps.authedFetchFactory ?? ((g: () => Promise<string>) => bearerFetch(g, tauriFetch)),
     now: deps.now,
     random: deps.random,
+    isAndroid: deps.isAndroid ?? isAndroid,
+    openUrl: deps.openUrl ?? ((url: string) => openUrl(url)),
+    onOpenUrl: deps.onOpenUrl ?? onOpenUrl,
+    getCurrentDeepLink: deps.getCurrentDeepLink ?? getCurrentDeepLink,
+    setTimer: deps.setTimer ?? ((fn: () => void, ms: number) => setTimeout(fn, ms)),
+    clearTimer: deps.clearTimer ?? ((h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>)),
   };
 }
 
@@ -88,8 +114,93 @@ async function readConfig(invoke: InvokeFn): Promise<GdriveClientConfig | null> 
   return invoke<GdriveClientConfig | null>("read_gdrive_config");
 }
 
-/** Run the OAuth handshake (system-browser sign-in via the Rust loopback) and
- *  persist the tokens in the OS keyring. Throws auth if Drive isn't configured. */
+type ResolvedDeps = ReturnType<typeof resolved>;
+
+/** Extract the OAuth params from a deep-link redirect URL (the App Link Google sends
+ *  back). Exported + pure so it is fully unit-testable. */
+export function parseDeepLinkRedirect(url: string): { code?: string; state?: string; error?: string } {
+  const q = new URL(url).searchParams;
+  return {
+    code: q.get("code") ?? undefined,
+    state: q.get("state") ?? undefined,
+    error: q.get("error") ?? undefined,
+  };
+}
+
+/** The first deep-link URL whose `state` matches ours. The App Link intent-filter is
+ *  public — any app can fire the redirect URL at us — so a foreign/forged `state` (or an
+ *  unparseable URL) is ignored, never aborting a real in-flight sign-in. */
+function pickForState(urls: string[] | null, expected: string): string | null {
+  for (const u of urls ?? []) {
+    try {
+      if (parseDeepLinkRedirect(u).state === expected) return u;
+    } catch {
+      /* not a parseable URL — ignore */
+    }
+  }
+  return null;
+}
+
+/** Launch the auth URL in a Custom Tab and resolve with the state-matched redirect URL
+ *  Android routes back via the deep-link plugin. Drains `getCurrent()` first (cold start
+ *  / already-delivered), else listens; a closed tab resolves as a deadline timeout. */
+async function awaitRedirect(
+  d: ResolvedDeps,
+  expectedState: string,
+  launch: () => Promise<void>,
+): Promise<string> {
+  const early = pickForState(await d.getCurrentDeepLink(), expectedState);
+  if (early) return early;
+  return new Promise<string>((resolve, reject) => {
+    let done = false;
+    let timer: unknown;
+    let unlisten: (() => void) | null = null;
+    const finish = (act: () => void) => {
+      if (done) return;
+      done = true;
+      if (timer !== undefined) d.clearTimer(timer);
+      unlisten?.();
+      act();
+    };
+    d.onOpenUrl((urls) => {
+      const hit = pickForState(urls, expectedState);
+      if (hit) finish(() => resolve(hit));
+    })
+      .then((un) => {
+        unlisten = un;
+        // Arm the deadline only AFTER the listener is attached, so there is no window in
+        // which the timeout could fire before a redirect could be captured, and launch
+        // the Custom Tab.
+        timer = d.setTimer(() => finish(() => reject(new StorageError("auth", "sign-in timed out"))), AUTH_DEADLINE_MS);
+        return launch();
+      })
+      .catch((e) => finish(() => reject(e)));
+  });
+}
+
+/** Android sign-in: an https App Link redirect captured by the deep-link plugin,
+ *  replacing the desktop 127.0.0.1 loopback. One client with the App Link redirectUri so
+ *  the authorize URL AND the token exchange echo the identical URI (Google requires the
+ *  match). `state` (128-bit) is validated in `awaitRedirect` (CSRF gate). */
+async function connectAndroid(cfg: GdriveClientConfig, d: ResolvedDeps): Promise<void> {
+  const client = new OAuthClient(
+    oauthConfig(cfg, ANDROID_REDIRECT_URI),
+    d.store,
+    GDRIVE_ACCOUNT,
+    d.poster,
+    { now: d.now, random: d.random },
+  );
+  const { url, verifier, state } = await client.beginAuth();
+  const redirectUrl = await awaitRedirect(d, state, () => d.openUrl(url));
+  const { code, error } = parseDeepLinkRedirect(redirectUrl);
+  if (error) throw new StorageError("auth", `sign-in was declined: ${error}`);
+  if (!code) throw new StorageError("auth", "no authorization code in the sign-in redirect");
+  await client.completeAuth(code, verifier);
+}
+
+/** Run the OAuth handshake and persist the tokens in the OS keyring. Desktop uses the
+ *  Rust 127.0.0.1 loopback; Android uses the deep-link App Link redirect (S6b). Throws
+ *  auth if Drive isn't configured. */
 export async function connectGoogleDrive(deps: GdriveDeps = {}): Promise<void> {
   const d = resolved(deps);
   const cfg = await readConfig(d.invoke);
@@ -99,6 +210,7 @@ export async function connectGoogleDrive(deps: GdriveDeps = {}): Promise<void> {
       "Google Drive isn't configured — add gdrive_client.json (see docs/m3-cloud-setup.md).",
     );
   }
+  if (d.isAndroid()) return connectAndroid(cfg, d);
   const port = await d.invoke<number>("oauth_loopback_reserve");
   const client = new OAuthClient(
     oauthConfig(cfg, `http://127.0.0.1:${port}`),

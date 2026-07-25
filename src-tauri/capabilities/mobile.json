@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "mobile",
+  "description": "Android-only grants. The deep-link plugin (M6 S6b) captures the https App Link OAuth redirect and delivers it to the main webview (onOpenUrl / getCurrent) — the mobile replacement for the desktop 127.0.0.1 loopback. Kept out of default.json because the plugin is registered mobile-only, so its permission would break the desktop schema.",
+  "platforms": ["android"],
+  "windows": ["main"],
+  "permissions": ["deep-link:default"]
+}

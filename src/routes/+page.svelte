@@ -405,6 +405,7 @@
   }
 
   async function doOpenDrive() {
+    if (isAndroid()) return; // the Picker is desktop-only until M6.1 (the menu item is hidden too)
     if (!(await guardUnsaved())) return;
     if (driveConnecting) return; // one browser handshake at a time (shared with connect)
     driveConnecting = true;
@@ -552,6 +553,7 @@
     onconnectdrive={doConnectDrive}
     ondisconnectdrive={doDisconnectDrive}
     {driveConnected}
+    showOpenFromDrive={!isAndroid()}
     {wrapState}
     ontogglewrap={toggleCodeWrap}
     {renderMode}
