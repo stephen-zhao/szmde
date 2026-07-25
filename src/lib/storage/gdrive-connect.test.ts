@@ -275,13 +275,19 @@ describe("[REQ-CLOUD-1] connectGoogleDrive on Android (deep-link redirect)", () 
   });
 
   it("ignores foreign-state and unparseable redirects, waiting for the state match", async () => {
-    const { deps, s } = androidDeps();
+    const { deps, s, forms } = androidDeps();
     deps.openUrl = async (url) => {
       s.launched = url;
       s.handler!(["not-a-url", `${APP_LINK}?code=X&state=forged`]); // both ignored — keep waiting
       s.handler!([`${APP_LINK}?code=AC&state=${stateOf(url)}`]); // ours → resolves
     };
     await connectGoogleDrive(deps);
+    // The state gate is the ONLY defence for a public App Link intent-filter (any app can
+    // fire the redirect URL). Assert it directly on the token endpoint: the forged code `X`
+    // must never be exchanged and the real `AC` must be. A stored-token check is NOT enough —
+    // recordingPoster returns "AT" for any code, so it would pass even if `X` were exchanged;
+    // the exchanged `code` is the observable that actually proves the forgery was rejected.
+    expect(forms.map((f) => f.code)).toEqual(["AC"]); // exactly one exchange, and it was ours
     expect((await loadTokens(deps.store!, GDRIVE_ACCOUNT))?.accessToken).toBe("AT");
   });
 
