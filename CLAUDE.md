@@ -12,15 +12,20 @@ CodeMirror 6 · Svelte 5 / SvelteKit (`adapter-static`) · Tauri 2 · TypeScript
 **Windows-native first** (WebView2); macOS/web share the frontend, **Android is in progress (M6)** —
 `src-tauri/gen/android` is committed and all four ABIs cross-compile.
 
-## Current state (2026-07-21)
+## Current state (2026-07-26)
 
 - **Shipped & merged: M0–M5**, plus `REQ-CLOUD-3` (least-privilege Drive picker) and `REQ-SCROLL-1`
   (typewriter scrolling). Full live-preview engine (render modes, hidden markers, block widgets),
   the v1 GFM feature set, two-tier settings, CI/CD, cloud storage, authoring essentials
   (find/replace, emoji, folding, word count, zoom/page-width), and rich inline table editing.
-- **In flight: M6 (Android).** S1 (cross-compile + `gen/android`), S2 (responsive shell) and S3
-  (soft-keyboard/IME via a native inset bridge) are merged. **Next is S4** — the SAF storage backend
-  (`REQ-MOBILE-3`); until it lands the Android app can only edit an unsaved buffer.
+- **M6 (Android): S1–S6 merged, device-verified on a Pixel 9 Pro.** Cross-compile + `gen/android`
+  (S1), responsive shell (S2), soft-keyboard/IME inset bridge (S3), SAF storage (S4, WF-32),
+  signed-release workflows + Android CI (S5), and **Google Drive sign-in** (S6 — Android Keystore +
+  a reverse-client-id **custom-scheme** OAuth redirect; WF-33 Part A+B device-verified). Remaining
+  before a *shipped* build is maintainer-only (the S5 upload keystore + repo secrets + a
+  `workflow_dispatch` dry-run; a release Android OAuth client). Next slices are scheduling calls —
+  **M6.1** (native Drive Picker for pre-existing files) and **M6.2** (touch-UX pass,
+  `REQ-UI-4`/`REQ-TBLED-8/9`).
 - **Deferred, not next:** OneDrive live wiring (`REQ-CLOUD-2`, deprioritized 2026-07-11 — backend +
   unit tests exist, no UI entry). See [docs/roadmap.md#whats-left](docs/roadmap.md) and
   [docs/m6-plan.md](docs/m6-plan.md).
