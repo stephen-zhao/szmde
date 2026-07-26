@@ -42,11 +42,19 @@ const DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.file"];
 // the very files the user wants).
 const PICKER_PARAMS = { trigger_onepick: "true" };
 
-// Android's OAuth redirect (M6 S6b): an https App Link that Android verifies (via a
-// hosted assetlinks.json) and routes back into the app, replacing the desktop
-// 127.0.0.1 loopback (invalid on mobile). It MUST equal the Android OAuth client's
-// registered redirect, and the same value is echoed in the token exchange.
-const ANDROID_REDIRECT_URI = "https://www.zhaostephen.com/szmde/oauth2redirect";
+// Android's OAuth redirect (M6 S6b): Google's reverse-client-id CUSTOM SCHEME, captured by
+// the deep-link plugin, replacing the desktop 127.0.0.1 loopback (invalid on mobile). An
+// Android OAuth client REJECTS an https App Link redirect (Error 400 redirect_uri_mismatch,
+// verified on device 2026-07-26) — it only accepts `com.googleusercontent.apps.<id>:/…`,
+// where <id> is the client id minus `.apps.googleusercontent.com`. Google validates the
+// scheme (not the path) and the identical value is echoed in the token exchange; deriving it
+// from the client id means debug and release builds each use their own client's scheme. The
+// scheme must also be declared in the deep-link config / AndroidManifest intent-filter.
+function androidRedirectUri(clientId: string): string {
+  const suffix = ".apps.googleusercontent.com";
+  const id = clientId.endsWith(suffix) ? clientId.slice(0, -suffix.length) : clientId;
+  return `com.googleusercontent.apps.${id}:/oauth2redirect`;
+}
 // Deadline for the user to complete sign-in in the Custom Tab; matches the desktop
 // oauth_loopback_await deadline. A closed tab / abandoned sign-in resolves as a timeout.
 const AUTH_DEADLINE_MS = 180_000;
@@ -127,9 +135,9 @@ export function parseDeepLinkRedirect(url: string): { code?: string; state?: str
   };
 }
 
-/** The first deep-link URL whose `state` matches ours. The App Link intent-filter is
- *  public — any app can fire the redirect URL at us — so a foreign/forged `state` (or an
- *  unparseable URL) is ignored, never aborting a real in-flight sign-in. */
+/** The first deep-link URL whose `state` matches ours. The custom-scheme intent-filter is
+ *  public — any app can claim the scheme and fire the redirect at us — so a foreign/forged
+ *  `state` (or an unparseable URL) is ignored, never aborting a real in-flight sign-in. */
 function pickForState(urls: string[] | null, expected: string): string | null {
   for (const u of urls ?? []) {
     try {
@@ -178,13 +186,13 @@ async function awaitRedirect(
   });
 }
 
-/** Android sign-in: an https App Link redirect captured by the deep-link plugin,
- *  replacing the desktop 127.0.0.1 loopback. One client with the App Link redirectUri so
- *  the authorize URL AND the token exchange echo the identical URI (Google requires the
- *  match). `state` (128-bit) is validated in `awaitRedirect` (CSRF gate). */
+/** Android sign-in: a reverse-client-id custom-scheme redirect captured by the deep-link
+ *  plugin, replacing the desktop 127.0.0.1 loopback. One client with that redirectUri so the
+ *  authorize URL AND the token exchange echo the identical URI (Google requires the match).
+ *  `state` (128-bit) is validated in `awaitRedirect` (CSRF gate). */
 async function connectAndroid(cfg: GdriveClientConfig, d: ResolvedDeps): Promise<void> {
   const client = new OAuthClient(
-    oauthConfig(cfg, ANDROID_REDIRECT_URI),
+    oauthConfig(cfg, androidRedirectUri(cfg.client_id)),
     d.store,
     GDRIVE_ACCOUNT,
     d.poster,

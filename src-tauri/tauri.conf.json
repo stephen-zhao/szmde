@@ -30,10 +30,7 @@
     "deep-link": {
       "mobile": [
         {
-          "scheme": ["https"],
-          "host": "www.zhaostephen.com",
-          "pathPrefix": ["/szmde"],
-          "appLink": true
+          "scheme": ["com.googleusercontent.apps.568283036369-coam7se82shjqgfhh4suio7f68dvhgv8"]
         }
       ]
     }

@@ -182,7 +182,9 @@ describe("[REQ-CLOUD-1] connection state + provider", () => {
   });
 });
 
-const APP_LINK = "https://www.zhaostephen.com/szmde/oauth2redirect";
+// The reverse-client-id custom scheme derived from the test CONFIG's client_id
+// ("cid.apps.googleusercontent.com" → strip the suffix → "cid").
+const ANDROID_REDIRECT = "com.googleusercontent.apps.cid:/oauth2redirect";
 
 /** A TokenPoster that records each exchange form (to assert the redirect_uri echo). */
 function recordingPoster() {
@@ -237,40 +239,41 @@ const stateOf = (url: string) => new URL(url).searchParams.get("state") ?? "";
 
 describe("parseDeepLinkRedirect", () => {
   it("pulls code + state from the redirect query", () =>
-    expect(parseDeepLinkRedirect(`${APP_LINK}?code=AC&state=ST`)).toEqual({
+    expect(parseDeepLinkRedirect(`${ANDROID_REDIRECT}?code=AC&state=ST`)).toEqual({
       code: "AC",
       state: "ST",
       error: undefined,
     }));
   it("pulls the error param when consent is declined", () =>
-    expect(parseDeepLinkRedirect(`${APP_LINK}?error=access_denied&state=ST`)).toEqual({
+    expect(parseDeepLinkRedirect(`${ANDROID_REDIRECT}?error=access_denied&state=ST`)).toEqual({
       code: undefined,
       state: "ST",
       error: "access_denied",
     }));
   it("is all-undefined when the query carries none of them", () =>
-    expect(parseDeepLinkRedirect(APP_LINK)).toEqual({ code: undefined, state: undefined, error: undefined }));
+    expect(parseDeepLinkRedirect(ANDROID_REDIRECT)).toEqual({ code: undefined, state: undefined, error: undefined }));
 });
 
 describe("[REQ-CLOUD-1] connectGoogleDrive on Android (deep-link redirect)", () => {
-  it("launches the Custom Tab, captures the App Link redirect, persists tokens (no loopback)", async () => {
+  it("launches the Custom Tab, captures the custom-scheme redirect, persists tokens (no loopback)", async () => {
     const { deps, s, forms, calls } = androidDeps();
     deps.openUrl = async (url) => {
       s.launched = url;
-      s.handler!([`${APP_LINK}?code=AC&state=${stateOf(url)}`]); // Google redirects back
+      s.handler!([`${ANDROID_REDIRECT}?code=AC&state=${stateOf(url)}`]); // Google redirects back
     };
     await connectGoogleDrive(deps);
 
     expect(calls.map((c) => c.cmd)).toEqual(["read_gdrive_config"]); // NO oauth_loopback_* on mobile
-    expect(s.launched).toContain("redirect_uri=https%3A%2F%2Fwww.zhaostephen.com%2Fszmde%2Foauth2redirect");
+    // the reverse-client-id custom scheme (derived from the client_id), url-encoded
+    expect(s.launched).toContain("redirect_uri=com.googleusercontent.apps.cid%3A%2Foauth2redirect");
     expect(s.launched).toContain("code_challenge_method=S256");
     expect(s.launched).toContain("drive.file");
-    expect(forms[0].redirect_uri).toBe(APP_LINK); // the token exchange echoes the identical App Link
+    expect(forms[0].redirect_uri).toBe(ANDROID_REDIRECT); // the token exchange echoes the identical redirect
     expect((await loadTokens(deps.store!, GDRIVE_ACCOUNT))?.accessToken).toBe("AT");
     expect(s.unlisten).toHaveBeenCalledTimes(1);
     expect(s.cleared).toEqual(["TIMER"]);
     // a late duplicate redirect is ignored (finish's done-guard)
-    s.handler!([`${APP_LINK}?code=AC2&state=${stateOf(s.launched!)}`]);
+    s.handler!([`${ANDROID_REDIRECT}?code=AC2&state=${stateOf(s.launched!)}`]);
     expect(s.unlisten).toHaveBeenCalledTimes(1);
   });
 
@@ -278,12 +281,12 @@ describe("[REQ-CLOUD-1] connectGoogleDrive on Android (deep-link redirect)", () 
     const { deps, s, forms } = androidDeps();
     deps.openUrl = async (url) => {
       s.launched = url;
-      s.handler!(["not-a-url", `${APP_LINK}?code=X&state=forged`]); // both ignored — keep waiting
-      s.handler!([`${APP_LINK}?code=AC&state=${stateOf(url)}`]); // ours → resolves
+      s.handler!(["not-a-url", `${ANDROID_REDIRECT}?code=X&state=forged`]); // both ignored — keep waiting
+      s.handler!([`${ANDROID_REDIRECT}?code=AC&state=${stateOf(url)}`]); // ours → resolves
     };
     await connectGoogleDrive(deps);
-    // The state gate is the ONLY defence for a public App Link intent-filter (any app can
-    // fire the redirect URL). Assert it directly on the token endpoint: the forged code `X`
+    // The state gate is the ONLY defence for a public custom-scheme intent-filter (any app can
+    // claim the scheme and fire the redirect). Assert it directly on the token endpoint: the forged code `X`
     // must never be exchanged and the real `AC` must be. A stored-token check is NOT enough —
     // recordingPoster returns "AT" for any code, so it would pass even if `X` were exchanged;
     // the exchanged `code` is the observable that actually proves the forgery was rejected.
@@ -296,12 +299,12 @@ describe("[REQ-CLOUD-1] connectGoogleDrive on Android (deep-link redirect)", () 
     const first = androidDeps();
     first.deps.openUrl = async (url) => {
       first.s.launched = url;
-      first.s.handler!([`${APP_LINK}?code=AC&state=${stateOf(url)}`]);
+      first.s.handler!([`${ANDROID_REDIRECT}?code=AC&state=${stateOf(url)}`]);
     };
     await connectGoogleDrive(first.deps);
     const st = stateOf(first.s.launched!);
     // ...then a cold start where getCurrent already holds the (same) redirect.
-    const { deps, s } = androidDeps({ getCurrentDeepLink: async () => [`${APP_LINK}?code=CS&state=${st}`] });
+    const { deps, s } = androidDeps({ getCurrentDeepLink: async () => [`${ANDROID_REDIRECT}?code=CS&state=${st}`] });
     await connectGoogleDrive(deps);
     expect((await loadTokens(deps.store!, GDRIVE_ACCOUNT))?.accessToken).toBe("AT");
     expect(s.launched).toBeNull(); // early return → no tab, no listener
@@ -311,7 +314,7 @@ describe("[REQ-CLOUD-1] connectGoogleDrive on Android (deep-link redirect)", () 
     const { deps, s } = androidDeps();
     deps.openUrl = async (url) => {
       s.launched = url;
-      s.handler!([`${APP_LINK}?error=access_denied&state=${stateOf(url)}`]);
+      s.handler!([`${ANDROID_REDIRECT}?error=access_denied&state=${stateOf(url)}`]);
     };
     await expect(connectGoogleDrive(deps)).rejects.toMatchObject({
       kind: "auth",
@@ -323,7 +326,7 @@ describe("[REQ-CLOUD-1] connectGoogleDrive on Android (deep-link redirect)", () 
     const { deps, s } = androidDeps();
     deps.openUrl = async (url) => {
       s.launched = url;
-      s.handler!([`${APP_LINK}?state=${stateOf(url)}`]);
+      s.handler!([`${ANDROID_REDIRECT}?state=${stateOf(url)}`]);
     };
     await expect(connectGoogleDrive(deps)).rejects.toMatchObject({ kind: "auth" });
   });
@@ -367,7 +370,7 @@ describe("[REQ-CLOUD-1] connectGoogleDrive on Android (deep-link redirect)", () 
       return () => {};
     }) as never);
     openUrlMock.mockImplementation((async (url: string) => {
-      handler!([`${APP_LINK}?code=AC&state=${stateOf(url)}`]);
+      handler!([`${ANDROID_REDIRECT}?code=AC&state=${stateOf(url)}`]);
     }) as never);
 
     const store = new InMemorySecureStore();
