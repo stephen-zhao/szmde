@@ -32,6 +32,7 @@ was under-specified. Each round's classification is recorded in a triage doc.
 | [m3-cloud-setup.md](m3-cloud-setup.md) | Human steps to register the Google/Azure OAuth apps (Google Drive is live; OneDrive pending) |
 | [gdrive-picker-plan.md](gdrive-picker-plan.md) | Design + staged plan for the least-privilege Google Drive picker (REQ-CLOUD-3, shipped) |
 | [m6-plan.md](m6-plan.md) | M6 (Android) architecture + staged slices + toolchain setup (current milestone) |
+| [android-signin-setup.md](android-signin-setup.md) | One-page maintainer runbook for Android Google Drive sign-in — signing-cert SHAs, `assetlinks.json`, the Android OAuth client, `gdrive_client.json`, the upload keystore (M6 S6 Part B) |
 | [gdrive-picker-s1-runbook.md](gdrive-picker-s1-runbook.md) | S1 spike runbook — resolve the picker `redirect_uri` crux (Cloud Console + a Node spike script) |
 
 ## Archive (historical — completed-milestone plans)
