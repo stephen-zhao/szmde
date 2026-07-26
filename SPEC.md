@@ -69,6 +69,39 @@ szmde [options] [file ...]
 - Non-goal for v1: a full headless/scripting CLI (convert, lint, export). This launcher
   only *opens* files in the GUI.
 
+### 2.2 "Open in szmde" entry points (`REQ-INTEG-*`, post-v1)
+
+The CLI (§2.1) opens a file from a shell; these are the same idea for where a user actually
+*finds* their markdown — the OS file manager and Google Drive. Each is a thin launch hand-off:
+resolve the target to something the existing `StorageProvider` seam already opens (a local path or
+a Drive file id), then open it in a running szmde (single-instance) or a new one. **Three separate,
+independently-shippable requirements** — different platforms, mechanisms, and external dependencies,
+so each ships on its own:
+
+- **`REQ-INTEG-1` — Windows Explorer context menu.** Right-clicking a markdown file (`.md`,
+  `.markdown`, …) in Explorer offers **"Open in szmde"**, launching szmde on that file (reusing the
+  §2.1 launcher path). Registered by the Windows installer as a shell verb / context-menu handler
+  for the markdown file types. Note: on Windows 11 the modern top-level menu needs an
+  `IExplorerCommand` (a classic registry verb lands under "Show more options"). Desktop-Windows-only;
+  the macOS equivalent (Finder **Open With** / `CFBundleDocumentTypes`) is a natural sibling.
+
+- **`REQ-INTEG-2` — Google Drive *web* UI "Open with szmde".** From drive.google.com, a markdown
+  file's **Open with** menu lists szmde and opens it directly. Requires a published **Google Workspace
+  Marketplace** app declaring a *Drive UI integration* (supported MIME types / extensions + an `open`
+  URL); Drive invokes that URL with the file id + a state token, which must hand off to szmde (a
+  protocol / deep-link launch into the desktop or Android app, or a web build). Reuses the
+  least-privilege `drive.file` grant the "Open with" action itself confers (§6). **Highest
+  uncertainty / largest** of the three — depends on a Marketplace listing + Google review.
+
+- **`REQ-INTEG-3` — Google Drive *app* (mobile) "Open in szmde".** From the Google Drive Android app,
+  a markdown file's **Open with / Open in** hands the file off to szmde on the same device. szmde
+  registers an Android intent-filter for the markdown MIME type (`text/markdown` + the extension) and
+  receives the `content://` URI — which the M6 `SafProvider` already reads (§6). Android-only, gated
+  on the M6 Android app; the iOS/Files equivalent is a later sibling.
+
+These are tracked in [docs/roadmap.md](docs/roadmap.md); each graduates into requirements.md when
+built + tested.
+
 ---
 
 ## 3. Technology stack

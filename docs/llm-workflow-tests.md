@@ -570,41 +570,40 @@ on-screen taps.
 
 ---
 
-### WF-33 · Android Keystore + Google Drive sign-in (deep-link OAuth) · `REQ-SEC-1` / `REQ-CLOUD-1` _(M6 S6 — physical phone only)_ — Part A ✅ verified 2026-07-25 · Part B ⏳ pending maintainer prereqs
-**Why:** S6's two native tails can't be exercised by any host test. **Part A ✅** — the Android Keystore
+### WF-33 · Android Keystore + Google Drive sign-in (deep-link OAuth) · `REQ-SEC-1` / `REQ-CLOUD-1` _(M6 S6 — physical phone only)_ — ✅ both parts verified (Pixel 9 Pro / Android 16, 2026-07-25/26)
+**Why:** S6's two native tails can't be exercised by any host test. **Part A** — the Android Keystore
 backend (`android-native-keyring-store` registered as keyring-core's default in a `cfg(android)` setup
 hook + the `ndk-context` init in `MainActivity.onCreate`) is pure JNI/AndroidKeyStore/SharedPreferences
 work; the seam above it (`secure-store.ts`, the Rust `secure_*` commands) is unit-tested, but only a device
-proves the store actually initializes and round-trips. **Verified 2026-07-25 on a Pixel 9 Pro / Android 16.**
-**Part B ⏳** — the deep-link OAuth capture replaces the desktop `127.0.0.1` loopback with an https **App
-Link**; the `gdrive-connect.ts` Android branch (launch Custom Tab → `onOpenUrl`/`getCurrent` → state-filter
-→ token exchange) is fully unit-covered against faked deep-link seams (`gdrive-connect.test.ts`), but the
-App-Link routing, the system-browser Custom Tab, and token-at-rest in the Keystore are device-only.
-**Part B not yet run** — blocked on the maintainer prereqs below.
-**Maintainer prereqs (not code; must be live before Part B):**
-- Host `https://zhaostephen.com/.well-known/assetlinks.json` with the app's **debug** SHA-256 now (release
-  SHA-256 before shipping) — without it Android won't verify the App Link and the redirect never routes to
-  the app (Part B would just time out).
-- Create a **separate Android OAuth client** (Google Cloud Console) keyed by the debug+release SHA-1,
-  redirect `https://zhaostephen.com/szmde/oauth2redirect`; push its `gdrive_client.json` (Android client_id,
-  `client_secret:""` — pure PKCE) into the app-private config dir (`read_gdrive_config`).
+proves the store actually initializes and round-trips. **Part B** — the deep-link OAuth capture replaces the
+desktop `127.0.0.1` loopback; the `gdrive-connect.ts` Android branch (launch Custom Tab → `onOpenUrl`/
+`getCurrent` → state-filter → token exchange) is fully unit-covered against faked deep-link seams
+(`gdrive-connect.test.ts`), but the reverse-client-id custom-scheme redirect routing, the system-browser
+Custom Tab, token-at-rest in the Keystore, and a real Drive round-trip are device-only.
+**Maintainer prereqs (not code; per Android OAuth client):**
+- Create an **Android** OAuth client (package `com.zhaostephen.szmde` + the signing SHA-1; **one per cert** —
+  debug now, release at shipping) and **enable "Custom URI scheme"** in its Advanced Settings (OFF by
+  default → Error 400 `invalid_request`). No `assetlinks.json` is needed for sign-in (a custom scheme isn't
+  domain-verified); the redirect is `com.googleusercontent.apps.<id>:/oauth2redirect`, derived from the id.
+- Push a `gdrive_client.json` (`{client_id, "client_secret":""}` — pure PKCE) into the app-private config
+  dir (`<app_config_dir>/gdrive_client.json`, via `adb push` → `run-as … cp`). See [android-signin-setup.md](android-signin-setup.md).
 **Setup:** a USB-debugging Pixel; `adb install` the debug APK; drive the shell via the WebView devtools
 socket (WF-30 setup).
 **Steps:**
-- **Part A (keystore) ✅ verified 2026-07-25:** the app boots (no startup crash — the `ndk-context`
-  panic that aborted launch is gone) and the startup `secure_get` no longer logs the `E Tauri/Console`
-  _"No default store has been set"_ rejection. A full `secure_set → secure_get → secure_delete` round-trip
-  driven over the WebView devtools socket returned `before=null → "roundtrip-OK" → after-delete=null`,
-  proving the AndroidKeyStore-encrypted store persists, retrieves, and deletes.
-- **Part B (sign-in):** Hamburger → Storage → **Connect Google Drive…** → the auth page opens in the
-  **system browser Custom Tab, NOT the app WebView** (Google rejects embedded-webview OAuth). Sign in →
-  the App Link returns to the app → the token lands in the Keystore. **Kill + relaunch → reconnects
-  silently** (refresh-token path). Read + write a **known** test Drive file ID succeeds.
-- **Disconnect Google Drive** clears the token (a subsequent `secure_get` is empty).
+- **Part A (keystore) ✅ verified 2026-07-25:** the app boots (no startup crash — the `ndk-context` panic
+  that aborted launch is gone) and the startup `secure_get` no longer logs the `E Tauri/Console` _"No default
+  store has been set"_ rejection. A full `secure_set → secure_get → secure_delete` round-trip driven over the
+  WebView devtools socket returned `before=null → "roundtrip-OK" → after-delete=null`.
+- **Part B (sign-in) ✅ verified 2026-07-26:** Hamburger → Storage → **Connect Google Drive…** → the auth
+  page opens in the **system-browser Custom Tab, NOT the app WebView** → sign in + grant `drive.file` → the
+  **custom-scheme redirect** (`com.googleusercontent.apps.<id>:/oauth2redirect`) routes back into szmde →
+  token exchange → **access + refresh tokens persist in the Keystore**. A `drive.file`
+  **create→write→read→delete** round-trip succeeds (content read back byte-for-byte, probe files cleaned up).
+  **Force-stop + relaunch** reads the token back from the Keystore (silent reconnect).
 - **"Open from Google Drive…" is absent** in the hamburger on Android (the Picker is deferred to M6.1);
   Connect/Disconnect are present.
-- A foreign/forged deep link (fire the App Link from `adb shell am start` with a wrong `state`) while a
-  sign-in is in flight is **ignored** — it neither completes nor aborts the real sign-in.
+- A foreign/forged deep link (wrong `state`) while a sign-in is in flight is **ignored** — it neither
+  completes nor aborts the real sign-in (unit-covered; the custom-scheme intent-filter is public).
 - **Check the console/logcat** for errors; silent is part of the pass criteria.
 
 ---
@@ -630,7 +629,7 @@ socket (WF-30 setup).
 | REQ-PERF-1 | — (gap) | WF-14 (lag) |
 | REQ-SAVE-1 | logic (`storage/local.test.ts`, `storage/conflict.test.ts`, cargo) | WF-15 (conflict modal) |
 | REQ-SAVE-2 | logic (`storage/autosave.test.ts`) | WF-16 (autosave fires) |
-| REQ-CLOUD-1 | logic (`storage/gdrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`, `gdrive-connect.test.ts` Android branch) | WF-17 (desktop Drive round-trip — ✅ live, verified); WF-33 Part B (Android deep-link sign-in — ⏳ device-pending) |
+| REQ-CLOUD-1 | logic (`storage/gdrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`, `gdrive-connect.test.ts` Android branch) | WF-17 (desktop Drive round-trip — ✅ live, verified); WF-33 Part B (Android custom-scheme sign-in + Drive round-trip — ✅ verified 2026-07-26, Pixel 9 Pro) |
 | REQ-CLOUD-2 | logic (`storage/onedrive.test.ts`, `cloud-http.test.ts`, `oauth.test.ts`) | WF-18 (OneDrive round-trip — ⛔ blocked, backend-only) |
 | REQ-CLOUD-3 | logic (`storage/gdrive-connect.test.ts`, Rust `parse_redirect`/`parse_error`/`host_allowed`) | WF-28 (Picker open, no-warning consent, grant persistence) |
 | REQ-COUNT-1 | logic (`editor/count.test.ts`) | WF-19 (chip live/off-by-default) |
