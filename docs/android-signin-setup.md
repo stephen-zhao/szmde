@@ -11,7 +11,7 @@ for the on-device acceptance test.
 - ✅ **S6a — Android Keystore: done, device-verified** (WF-33 Part A). Token storage works on device.
 - ⏳ **S6b — deep-link OAuth: code-complete**, but the *live sign-in flow* (WF-33 Part B) needs the
   steps below before it can run end-to-end. On Android the redirect is an **https App Link**
-  (`https://zhaostephen.com/szmde/oauth2redirect`) that Android only routes back into the app once the
+  (`https://www.zhaostephen.com/szmde/oauth2redirect`) that Android only routes back into the app once the
   domain is verified against the app's **signing certificate**.
 
 ## First: you do NOT need the upload keystore to test on a device
@@ -47,8 +47,11 @@ keytool -list -v -keystore <path>/szmde-upload.jks -alias szmde-upload
 
 ## Step 1 — Host `assetlinks.json`
 
-Serve this at **`https://zhaostephen.com/.well-known/assetlinks.json`** — real HTTPS,
-`Content-Type: application/json`, no redirect. Filled in with the debug SHA-256 above:
+Serve this at **`https://www.zhaostephen.com/.well-known/assetlinks.json`** — real HTTPS,
+`Content-Type: application/json`, **returning `200` with no redirect**. It must sit at the **App Link
+host**, which is **`www.zhaostephen.com`**: the site (Cloudflare → GitHub Pages) is canonical at `www`,
+so the app targets `www`. Do **not** rely on the apex `zhaostephen.com` — it 301-redirects to `www`, and
+Android's App Link verifier does **not** follow redirects. Filled in with the debug SHA-256 above:
 
 ```json
 [{
@@ -72,13 +75,19 @@ In the **same** Google Cloud project as the existing desktop client, create a **
 type **Android** (the desktop client cannot be reused — Google requires one client per platform):
 
 - **Package name:** `com.zhaostephen.szmde`
-- **SHA-1 certificate fingerprint:** the debug SHA-1 above (add the release SHA-1 before shipping)
-- **Authorized redirect:** `https://zhaostephen.com/szmde/oauth2redirect` (a path under the
-  App-Link-verified domain from Step 1)
+- **SHA-1 certificate fingerprint:** the **debug** SHA-1 above. An Android OAuth client is keyed to a
+  single (package, SHA-1) pair, so **create one client per certificate** — the debug client now, and a
+  **second** Android client with the **release** SHA-1 when you ship.
+- **Authorized redirect:** `https://www.zhaostephen.com/szmde/oauth2redirect` (the `www` App-Link host
+  from Step 1)
 
-Copy the resulting **client ID** (`…apps.googleusercontent.com`). Cloud Console navigation is the same
-as the desktop walkthrough in [m3-cloud-setup.md § 1](m3-cloud-setup.md) — only the client *type*
-(Android, with package + SHA-1) differs.
+Copy the resulting **client ID** (`…apps.googleusercontent.com`) for Step 3. Two clients ⇒ two client
+IDs, so `gdrive_client.json` differs per build (debug vs release) — push the matching one; for device
+testing use the **debug** client's ID. Cloud Console navigation is the same as the desktop walkthrough
+in [m3-cloud-setup.md § 1](m3-cloud-setup.md) — only the client *type* (Android, package + SHA-1) differs.
+_(If Google rejects the https App-Link redirect on an Android client, the fallback is a single **Web
+application** client keyed by the redirect URI, with the SHA-1s living only in `assetlinks.json` — we'll
+confirm which at the Part B test.)_
 
 ## Step 3 — Provide `gdrive_client.json`
 
@@ -114,7 +123,7 @@ in the Keystore → kill+relaunch reconnects (refresh) → read/write a known Dr
 
 ## Checklist
 
-- [ ] `assetlinks.json` live at `https://zhaostephen.com/.well-known/assetlinks.json` with the debug SHA-256
+- [ ] `assetlinks.json` live at `https://www.zhaostephen.com/.well-known/assetlinks.json` with the debug SHA-256
 - [ ] Android OAuth client created (package `com.zhaostephen.szmde` + debug SHA-1 + the redirect)
 - [ ] Android client ID ready for `gdrive_client.json` (pushed during the Part B run)
 - [ ] _(shipping)_ upload keystore generated, secrets set, release SHAs appended to the two above
