@@ -146,9 +146,8 @@ before a single character is drawn.
 | REQ-UI-5 | **A Tab affordance for touch** — soft keyboards have no Tab key, so indent / list-nesting / next-table-cell are unreachable on a phone | §7.7 |
 | REQ-TBLED-8 | Empty tables and cells stay targetable (minimum rendered cell size + placeholders) | §7.4 |
 | REQ-TBLED-9 | Coarse-pointer table structural editing (insert/delete/move rows+columns without hover or right-click) | §7.4 |
-| REQ-LANE-1 | **Lane display strategies** — the left-edge columns become named lanes, each with a declared strategy (reserved / compact / on-demand / off) and per-lane config | §7.6 |
-| REQ-LANE-2 | **Compact marker lane on narrow viewports** — `####` renders as `#4`, capping the lane at two characters | §7.6 |
-| REQ-LANE-3 | **On-demand fold-chevron lane** — chevrons fly in from the left when relevant instead of holding a permanent column | §7.6 |
+| REQ-LANE-1 | **Lane model + settings** — the left-edge columns become named lanes with a declared strategy (reserved / drawer / off); configured via an **ordered list of lane-id references** (spatial order) + a **per-lane settings object** (strategy, `drawerHeight` z-order) | §7.6 |
+| REQ-LANE-4 | **Collapsible lane drawers** — `drawer`-strategy lanes collapse off the left and reveal on a left-edge swipe as **cascading, overlapping, finger-following** panels (leftmost slowest, rightmost fastest; content shifts right; `drawerHeight` = z-order; shadow/border delineation). Narrow auto-collapses; wide defaults open + toggle. **Partial-open peek persists** (type while half-out); interacting with a drawer affordance snaps it fully open. `reserved` lanes (e.g. line numbers) stay up. _(supersedes the removed REQ-LANE-2/3; interactive demonstrator built 2026-07-26)_ | §7.6 |
 
 ### Table rendering modes 🅑  (SPEC §7.4)
 _Captured 2026-07-22 (Stephen). Two per-table display toggles beyond the M5 editing set — general
