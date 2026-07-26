@@ -46,7 +46,7 @@ const PICKER_PARAMS = { trigger_onepick: "true" };
 // hosted assetlinks.json) and routes back into the app, replacing the desktop
 // 127.0.0.1 loopback (invalid on mobile). It MUST equal the Android OAuth client's
 // registered redirect, and the same value is echoed in the token exchange.
-const ANDROID_REDIRECT_URI = "https://zhaostephen.com/szmde/oauth2redirect";
+const ANDROID_REDIRECT_URI = "https://www.zhaostephen.com/szmde/oauth2redirect";
 // Deadline for the user to complete sign-in in the Custom Tab; matches the desktop
 // oauth_loopback_await deadline. A closed tab / abandoned sign-in resolves as a timeout.
 const AUTH_DEADLINE_MS = 180_000;

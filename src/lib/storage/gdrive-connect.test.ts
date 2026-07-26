@@ -182,7 +182,7 @@ describe("[REQ-CLOUD-1] connection state + provider", () => {
   });
 });
 
-const APP_LINK = "https://zhaostephen.com/szmde/oauth2redirect";
+const APP_LINK = "https://www.zhaostephen.com/szmde/oauth2redirect";
 
 /** A TokenPoster that records each exchange form (to assert the redirect_uri echo). */
 function recordingPoster() {
@@ -262,7 +262,7 @@ describe("[REQ-CLOUD-1] connectGoogleDrive on Android (deep-link redirect)", () 
     await connectGoogleDrive(deps);
 
     expect(calls.map((c) => c.cmd)).toEqual(["read_gdrive_config"]); // NO oauth_loopback_* on mobile
-    expect(s.launched).toContain("redirect_uri=https%3A%2F%2Fzhaostephen.com%2Fszmde%2Foauth2redirect");
+    expect(s.launched).toContain("redirect_uri=https%3A%2F%2Fwww.zhaostephen.com%2Fszmde%2Foauth2redirect");
     expect(s.launched).toContain("code_challenge_method=S256");
     expect(s.launched).toContain("drive.file");
     expect(forms[0].redirect_uri).toBe(APP_LINK); // the token exchange echoes the identical App Link

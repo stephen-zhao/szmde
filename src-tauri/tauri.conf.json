@@ -31,7 +31,7 @@
       "mobile": [
         {
           "scheme": ["https"],
-          "host": "zhaostephen.com",
+          "host": "www.zhaostephen.com",
           "pathPrefix": ["/szmde"],
           "appLink": true
         }

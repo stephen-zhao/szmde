@@ -582,11 +582,11 @@ Link**; the `gdrive-connect.ts` Android branch (launch Custom Tab → `onOpenUrl
 App-Link routing, the system-browser Custom Tab, and token-at-rest in the Keystore are device-only.
 **Part B not yet run** — blocked on the maintainer prereqs below.
 **Maintainer prereqs (not code; must be live before Part B):**
-- Host `https://zhaostephen.com/.well-known/assetlinks.json` with the app's **debug** SHA-256 now (release
+- Host `https://www.zhaostephen.com/.well-known/assetlinks.json` with the app's **debug** SHA-256 now (release
   SHA-256 before shipping) — without it Android won't verify the App Link and the redirect never routes to
   the app (Part B would just time out).
 - Create a **separate Android OAuth client** (Google Cloud Console) keyed by the debug+release SHA-1,
-  redirect `https://zhaostephen.com/szmde/oauth2redirect`; push its `gdrive_client.json` (Android client_id,
+  redirect `https://www.zhaostephen.com/szmde/oauth2redirect`; push its `gdrive_client.json` (Android client_id,
   `client_secret:""` — pure PKCE) into the app-private config dir (`read_gdrive_config`).
 **Setup:** a USB-debugging Pixel; `adb install` the debug APK; drive the shell via the WebView devtools
 socket (WF-30 setup).
