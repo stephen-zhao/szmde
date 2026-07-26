@@ -584,39 +584,48 @@ a large share of the line before a single character is drawn, and in Formatted m
 usually *empty* — it is reserved for markers that are not being shown. **The requirement is that a lane
 earns its width.**
 
-**The generalisable part first.** A lane is a named region with a declared **display strategy**, and the
+**The generalisable part first.** A lane is a named region with a declared **display strategy**; the
 strategy — not the lane — is what varies by viewport and by taste:
 
 | Strategy | Meaning |
 |----------|---------|
-| `reserved` | Permanent column, always holds its width (today's behaviour for both lanes) |
-| `compact` | Permanent column, but rendered in an abbreviated form that fits a much narrower width |
-| `on-demand` | Reserves **no** width; content appears over/beside the text when relevant, then leaves |
+| `reserved` | Permanent column, always holds its width (today's behaviour) — stays up even when the drawers are closed |
+| `drawer` | Collapsible: the lane lives in the cascading left drawer (`REQ-LANE-4`), out of the way until swiped in |
 | `off` | Hidden entirely |
 
-Each lane declares which strategies it supports and its default per breakpoint; the choice is
-**per-lane configurable** in settings, so a user who wants line numbers `reserved` and chevrons `off`
-gets exactly that. Lanes are individually toggleable, with one carve-out: the **syntax marker lane is
-mandatory for now** — markers are real text (§1 principle 5) and modes 2/3 are unusable without room
-to show them. Whatever the strategy, the invariants of `REQ-RENDER-12` hold: lanes never overlap the
-content column, and the reading column stays symmetric.
+Lane configuration is a **settings model** (`REQ-LANE-1`): an **ordered list of lane-id references** (the
+list order is the left-to-right order of the lanes) plus a **per-lane settings object** for each id. A
+lane's object carries its `strategy` (above), a `drawerHeight` (an integer **z-order** used when drawers
+overlap mid-swipe — lower renders *under* higher), and its per-breakpoint default. So a user who wants
+line numbers `reserved` (always up), the marker gutter and fold chevron in the `drawer`, and a chosen
+stacking order gets exactly that. One carve-out: the **syntax marker lane is mandatory for now** —
+markers are real text (§1 principle 5) and modes 2/3 are unusable without room to show them, so it may be
+`reserved` or `drawer` but not `off`. Whatever the strategy, `REQ-RENDER-12`'s invariants hold: lanes
+never overlap the content column, and the reading column stays symmetric.
 
-**Per-lane intent:**
+**Collapsible lane drawers (`REQ-LANE-4`) — the narrow-width and by-taste answer.** All `drawer`-strategy
+lanes collapse off the left edge and the content takes the full width; they are revealed by **swiping in
+from near the left edge**, and — the defining behaviour — **they follow the finger exactly**: each lane's
+position is a *linear interpolation of the swipe position*, never a canned animation. The lanes **cascade**:
+all start stacked off-screen and slide to their final slots, so the **leftmost travels least (slowest) and
+the rightmost `drawer` lane travels most (fastest)**, overtaking mid-swipe so the drawers fan out as
+overlapping panels; `drawerHeight` decides which sits on top, and a **drop-shadow and/or border** delineates
+them while in motion. As the drawers claim their strip the **content shifts right** into today's reserved
+layout (it is not overlaid). On **narrow viewports the drawers auto-collapse**; on **wide viewports the
+default is today's open layout**, with a toggle to collapse. `reserved` lanes (e.g. line numbers, if the
+user keeps them out of the drawer) stay up regardless — visible even when the drawers are closed.
 
-- **Syntax marker lane → `compact` on narrow viewports (`REQ-LANE-2`).** Collapse the repeated marker
-  to a level indicator: `#` → `#1`, `##` → `#2`, `###` → `#3`, `####` → `#4`. The lane then never needs
-  more than **two characters**, and is sized to exactly that rather than to the widest possible marker
-  run. Applies at narrow *widths*, not to "mobile" — a narrowed desktop window gets it too. The full
-  marker text remains the truth in the document; only its rendering in the lane is abbreviated, and
-  only in the modes where the lane is showing markers at all.
-- **Fold chevron lane → `on-demand` (`REQ-LANE-3`).** Rather than holding a permanent column, chevrons
-  fly in from the left edge with a smooth animation when they are relevant — the affordance Google Docs
-  uses for its outline headings on scroll. Exactly *when* they appear (cursor in a foldable section,
-  pointer near the left edge, recent scroll, always-on for already-folded sections) is deliberately left
-  open here; that is a UX design pass, not a spec decision.
+**Partial-open is a feature, not a transient (`REQ-LANE-4`).** A swipe may rest at **any** fraction and
+stay there — a *peek*: you can read, and **keep typing in the content, with the drawers half-out**. It does
+not auto-snap to fully-open or fully-closed on release. The one snap: **interacting with a drawer's own
+affordance** (tapping a fold chevron, a marker) snaps that drawer fully open.
 
-_Not yet decided:_ the trigger set for `on-demand`, whether `compact` also applies to blockquote `>`
-runs and list markers, and the settings shape (per-lane object vs. a named preset per breakpoint).
+_Interaction reference:_ an interactive demonstrator of the cascade, finger-follow, z-stacking, and
+partial-peek is the design source of truth for this behaviour (built 2026-07-26).
+
+_Not yet decided:_ the desktop gesture (pointer drag near the edge vs. a handle), the snap-on-interact
+detail, whether `drawerHeight` also drives keyboard/tab order, and the concrete settings serialization
+(the ordered-id list + per-lane objects, versioned into the settings schema).
 
 ### 7.7 Editing actions a soft keyboard cannot reach (`REQ-UI-5`; M6.2)
 
@@ -635,7 +644,7 @@ Candidate directions, none chosen yet (this needs a design pass, and probably a 
 a small editing accessory bar above the keyboard; a swipe gesture on the active line; a long-press
 affordance in the marker lane; or context-specific inline controls (a "next cell" chip while the cell
 editor is open). Whatever wins must not steal vertical space from an already-short phone viewport
-permanently — see §7.6's `on-demand` strategy for the same tension solved horizontally.
+permanently — see §7.6's collapsible lane drawers for the same tension solved horizontally.
 
 ## 8. Settings & preferences (requirement 10)
 
