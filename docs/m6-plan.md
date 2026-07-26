@@ -25,7 +25,7 @@ port **Drive sign-in**. M6 is shippable as a local-only Android editor; cloud is
 **Scope (decided 2026-07-18):** M6 = **S1–S6** (local-first + Drive sign-in). The native Drive
 **Picker** (opening *pre-existing* Drive files, was S7) is **deferred to M6.1** — the highest-uncertainty
 item. **Distribution** for M6 is a **sideload signed APK**; the **Play Store** release is its own later
-milestone (**REQ-PLAY-1**). The Android OAuth redirect is an **https App Link**. See
+milestone (**REQ-PLAY-1**). The Android OAuth redirect is a **reverse-client-id custom scheme** (revised on device — an https App Link is rejected by Android OAuth clients). See
 [Decisions](#decisions-resolved-2026-07-18--stephen).
 
 **Follow-ons (parked out of the M6 line):** **M6.1** = the native Drive Picker. **M6.2** =
@@ -177,7 +177,7 @@ an **AVD/physical device**._
 | **S3** ✅ | Soft-keyboard + IME correctness (on-device) | REQ-MOBILE-2 | **Done 2026-07-20.** The planned CSS-only route (`interactive-widget=resizes-content` + `visualViewport`) could not work as specced — see risk #4 — so it shipped as a **native IME-inset bridge** in `MainActivity.kt` publishing `--kb-inset`, with CSS shrinking `.app` and lifting `.statusbar`. **Verified on a physical Pixel 9 Pro:** `--kb-inset` 373px, `.app` 952→579, statusbar 32→381px. ⚠️ **The acceptance is only PARTLY met, and the original claim here was wrong** (caught by the S3 adversarial review): after typing 18 lines the active line rests at y=555–578, while the fixed status chips occupy y=509–571 — so the caret clears the *keyboard* but the line being typed is **overpainted by the chips**. That is exactly the complaint that prompted `REQ-SCROLL-1`, and the measurement I originally quoted as a pass is precisely the failing case. **S3 delivered the mechanism; the UX needed `REQ-SCROLL-1` on top of it** — which **landed 2026-07-21** (e18a7a8, PR #19) and structurally removes the overlap: the active line now rests on a **two-thirds anchor** (`editor.typewriterAnchor`), measured on the same Pixel 9 Pro at 67% of the 579px visible strip with 114px of clearance above the chips. ⚠️ Note the shipped behaviour is **not** centring — centring was the first implementation and was rejected in phone user-testing for leaving too little written context above the caret. _Still outstanding before REQ-MOBILE-2 can be called done: (a) risk #3 — IME **composition** (CJK/predictive) next to inline widgets, and table-cell editing with the keyboard up (WF-30); (b) REQ-MOBILE-1/2 are now catalogued in requirements.md, but their acceptance is the on-device WF suite, not the unit gate._ |
 | **S4** ✅ | SAF local storage backend (offline open/save) | REQ-MOBILE-3 | **Done 2026-07-22.** Mechanism `tauri-plugin-android-fs` (decision #3, spike-proven). `SafProvider` seam (offline TDD, id `"local"`, `storage/saf.test.ts` + `platform.test.ts`) + `saf_read`/`saf_stat`/`saf_write`/`saf_pick`/`saf_pick_save` Rust commands over android-fs's **Rust** API (its JS surface compiled out, `default-features=false` — off the WebView) + Android-only restore-last-file (reopen via the persisted URI on launch). Settings already app-private `std::fs`. **Verified on a Pixel 9 Pro (WF-32):** pick a real `.md` → edit → save (no false conflict) → external change → conflict modal → Overwrite → **force-stop + relaunch auto-reopens the file, no picker** — fully offline. The milestone's core shippable. |
 | **S5** 🔜 | Signed release AAB/APK + Android CI | REQ-MOBILE-1 | **Workflows + signing landed 2026-07-22:** conditional `signingConfigs` in `app/build.gradle.kts` (absent `keystore.properties` → unsigned, never breaks local builds); a hand-rolled `android` release job (ubuntu, JDK 17 + pinned NDK via the shared composite action, keystore from `ANDROID_KEY_*` base64 secrets, `--apk --aab`, assets attached to the same tag Release; `workflow_dispatch` dry-run) — NOT `tauri-action` (risk #9); plus the path-filtered PR **Android build check** (`android.yml`, aarch64 debug) enforcing the REQ-MOBILE-1 build gate on `src-tauri/**` PRs. Runbook: [ci-cd.md](ci-cd.md). **Remaining for ✅: maintainer generates the upload keystore + sets the three repo secrets (keeps both — the cert SHA-256 feeds S6's `assetlinks.json`), a `workflow_dispatch` dry-run goes green, and the signed APK installs on a device.** |
-| **S6** 🔧 | Cloud **sign-in** on Android (deep-link OAuth + keystore) — **scoped to sign-in** (decision 1; the Picker is M6.1) | REQ-CLOUD-1, REQ-SEC-1 | **Code-complete offline (2026-07-25); on-device verification pending.** **S6a (keystore) ✅ device-verified 2026-07-25 (WF-33 Part A):** `android-native-keyring-store` + `keyring-core` as `cfg(android)` deps, registered as keyring-core's default in a `cfg(android)` `.setup()` hook. That crate gets its context from `ndk-context`, which **nothing in a Tauri app initializes** (tao/ndk-glue doesn't; android-fs reaches its context another way) — so on device `ndk_context::android_context()` **panicked and aborted launch** until a Kotlin `initializeNdkContext(applicationContext)` (`io.crates.keyring.Keyring`) was called from `MainActivity.onCreate`; the `.setup()` hook also `catch_unwind`s `Store::new()` so a panic can never brick launch (init failure logs + degrades). Fixes BUG-ANDROID-KEYSTORE; the `secure_set→get→delete` round-trip is proven on a Pixel 9 Pro. **S6b (deep-link OAuth):** `tauri-plugin-deep-link` + `plugins.deep-link` config (https App Link `www.zhaostephen.com/szmde/oauth2redirect`) + mobile-only capability `deep-link:default`; the redirect capture is **pure JS** — `gdrive-connect.ts` gains an Android branch (launch a system-browser Custom Tab via `opener` → `onOpenUrl`/`getCurrent` → **state-filtered** → token exchange echoing the App Link), fully unit-covered (`gdrive-connect.test.ts`, 100% lines). On Android "Open from Drive" is hidden (Picker = M6.1); Connect/Disconnect work. **Adversarial review (2026-07-25):** 5 raised, 2 confirmed & fixed — a vacuous CSRF-state test (now asserts **only** the real code reaches the token endpoint) and a keystore setup `?` that would panic app launch (now logs + degrades). Offline gate green (svelte-check, 100% lines, trace, Rust fmt/clippy/test) + the Android APK builds. **Acceptance:** Part A (keystore round-trip) ✅ **device-verified 2026-07-25**; Part B (⏳ WF-33 Part B — needs the maintainer prereqs below): `connectGoogleDrive` completes in a Custom Tab, tokens persist in the Keystore, refresh works, read/write of a known Drive file ID succeeds. |
+| **S6** ✅ | Cloud **sign-in** on Android (deep-link OAuth + keystore) — **scoped to sign-in** (decision 1; the Picker is M6.1) | REQ-CLOUD-1, REQ-SEC-1 | **Device-verified end-to-end on a Pixel 9 Pro (WF-33, 2026-07-25/26).** **S6a (keystore) ✅ device-verified 2026-07-25 (WF-33 Part A):** `android-native-keyring-store` + `keyring-core` as `cfg(android)` deps, registered as keyring-core's default in a `cfg(android)` `.setup()` hook. That crate gets its context from `ndk-context`, which **nothing in a Tauri app initializes** (tao/ndk-glue doesn't; android-fs reaches its context another way) — so on device `ndk_context::android_context()` **panicked and aborted launch** until a Kotlin `initializeNdkContext(applicationContext)` (`io.crates.keyring.Keyring`) was called from `MainActivity.onCreate`; the `.setup()` hook also `catch_unwind`s `Store::new()` so a panic can never brick launch (init failure logs + degrades). Fixes BUG-ANDROID-KEYSTORE; the `secure_set→get→delete` round-trip is proven on a Pixel 9 Pro. **S6b (deep-link OAuth) ✅ device-verified 2026-07-26 (WF-33 Part B):** `tauri-plugin-deep-link` + `plugins.deep-link` config + mobile-only capability `deep-link:default`; the redirect capture is **pure JS** — `gdrive-connect.ts` gains an Android branch (launch a system-browser Custom Tab via `opener` → `onOpenUrl`/`getCurrent` → **state-filtered** → token exchange), fully unit-covered (`gdrive-connect.test.ts`, 100% lines). **The redirect is Google's reverse-client-id CUSTOM SCHEME** (`com.googleusercontent.apps.<id>:/oauth2redirect`, derived from the client_id so debug/release each use their own client's scheme) — NOT an https App Link: on device an Android OAuth client rejects an https redirect (Error 400 `redirect_uri_mismatch`), accepting only the custom scheme, and the maintainer must **enable "Custom URI scheme"** on the client (off by default → Error 400 `invalid_request`). Two further device-only bugs were fixed here: the `opener` capability had no scope (it denied opening the auth URL → scoped to `https://accounts.google.com/*`), and the S6a keystore ndk-context panic. The https App Link + `assetlinks.json` are **unused for sign-in** (kept hosted, reserved for REQ-INTEG-3). On Android "Open from Drive" is hidden (Picker = M6.1); Connect/Disconnect work. **Adversarial review (2026-07-25):** 5 raised, 2 confirmed & fixed — a vacuous CSRF-state test (now asserts **only** the real code reaches the token endpoint) and a keystore setup `?` that would panic app launch (now logs + degrades). Offline gate green (svelte-check, 100% lines, trace, Rust fmt/clippy/test) + the Android APK builds. **Acceptance ✅ device-verified (Pixel 9 Pro):** Part A (keystore round-trip, 2026-07-25); Part B (2026-07-26) — Connect → system-browser Custom Tab → consent → the custom-scheme redirect routes back → **access + refresh tokens persist in the Keystore**; a `drive.file` **create→write→read→delete** round-trip succeeds (content read back byte-for-byte); force-stop + relaunch reads the token back (silent reconnect). |
 | **S7 → M6.1** ⬜ | Android Drive Picker (open pre-existing files) — **deferred out of M6** (decision 1) | REQ-CLOUD-3 | Native GIS `AuthorizationRequest` Kotlin plugin (`PICKER_OAUTH_TRIGGER`, `drive.file`) → `picked_file_ids` via deep link; mobile-gate `pickGoogleDriveFiles`. **On-device: pick a pre-existing Drive file via the native Picker and open it read/write.** Highest uncertainty — lands in **M6.1**, after the M6 local + Drive-sign-in line ships. |
 
 ## M6.2 — Touch UX pass
@@ -309,8 +309,8 @@ the current control sizes, i.e. status chips at 34px and dropdown / chip-menu ro
    local-first Android editor + Google Drive sign-in and read/write of already-known file IDs). Opening
    *pre-existing* Drive files via the native GIS Picker (was S7) becomes **M6.1** — the
    highest-uncertainty item, cut from the M6 line.
-2. **Android redirect → https App Link** (not a custom URI scheme). Stephen hosts the verification file;
-   setup below (§ [App Link setup](#app-link-setup-decision-2)).
+2. **Android redirect → reverse-client-id custom scheme** _(revised on device 2026-07-26 — originally
+   an https App Link, which Google rejects for Android OAuth clients; see the setup section below)._
 3. **SAF → spike the official `tauri-plugin-dialog` + `tauri-plugin-fs` path first** (content:// via
    `FilePath::Url`), before reaching for `tauri-plugin-android-fs` or a custom Kotlin plugin — add those
    only for what the official path can't do (persistable permissions / `DocumentFile` metadata).
@@ -335,39 +335,31 @@ the current control sizes, i.e. status chips at 34px and dropdown / chip-menu ro
    work; (b) NDK r28+ already covers the 16 KB page rule Android 16 wants; (c) it matches the installed
    platform (android-36). Re-confirm the template default holds after `init`.
 
-### App Link setup (decision 2)
+### Android OAuth redirect setup (decision 2 — revised on device 2026-07-26)
 
-The OAuth/Picker redirect on Android is an **https App Link** that Android verifies (via a hosted
-`assetlinks.json`) and routes into szmde, so the Custom Tab returns to the app. One-time setup, split
-between you and the code:
+> ⚠️ **Decision 2 originally chose an https App Link redirect; on-device testing forced a change to
+> Google's reverse-client-id CUSTOM SCHEME.** An Android OAuth client **rejects an https redirect**
+> (Error 400 `redirect_uri_mismatch`) — it only accepts `com.googleusercontent.apps.<id>:/…`. The App
+> Link machinery (`assetlinks.json`, the `www` host) is **no longer used for sign-in**; it stays hosted,
+> reserved for **REQ-INTEG-3** ("Open in szmde from Drive"). Full runbook:
+> [android-signin-setup.md](android-signin-setup.md).
 
-**You — hosting + Cloud Console:**
-1. Host a static file at **`https://www.zhaostephen.com/.well-known/assetlinks.json`** (real HTTPS,
-   `Content-Type: application/json`, no redirect) authorizing the app to handle the domain's links:
-   ```json
-   [{
-     "relation": ["delegate_permission/common.handle_all_urls"],
-     "target": {
-       "namespace": "android_app",
-       "package_name": "com.zhaostephen.szmde",
-       "sha256_cert_fingerprints": ["<DEBUG SHA-256>", "<RELEASE SHA-256>"]
-     }
-   }]
-   ```
-   Get the SHA-256s from `keytool -list -v -keystore <keystore>` — for **both** the debug keystore
-   (usually `~/.android/debug.keystore`, password `android`) and your release upload keystore.
-2. In the **Android OAuth client** (Cloud Console), set the redirect to a path under that verified
-   domain, e.g. `https://www.zhaostephen.com/szmde/oauth2redirect`. (No "Advanced Settings" toggle — that's
-   only for the custom-URI-scheme option we're not using.)
+The Android sign-in redirect is `com.googleusercontent.apps.<CLIENT_ID>:/oauth2redirect` — the client id
+minus `.apps.googleusercontent.com`, prefixed with `com.googleusercontent.apps.`. The deep-link plugin
+registers that scheme; Google routes the redirect into szmde after consent.
 
-**The code (S6):** `tauri-plugin-deep-link` in `tauri.conf.json > plugins > deep-link`:
-`{"mobile":[{"scheme":["https"],"host":"www.zhaostephen.com","pathPrefix":["/szmde"],"appLink":true}]}` —
-the plugin emits the intent filter with `android:autoVerify="true"`, and `onOpenUrl` captures the
-redirect (`code`/`picked_file_ids`). `gdrive-connect.ts`'s `redirectUri` is mobile-gated to the App
-Link URL.
+**You — Cloud Console (per Android OAuth client):**
+1. Create an **Android** OAuth client (package `com.zhaostephen.szmde` + the signing SHA-1) — **one per
+   cert** (debug now, release at shipping); Google keys Android clients to a single (package, SHA-1) pair.
+2. In that client → **Advanced Settings → enable "Custom URI scheme"** (OFF by default — without it,
+   sign-in fails with Error 400 `invalid_request`).
 
-_Gotcha: verification only succeeds once `assetlinks.json` is live AND the installed app's signing-cert
-SHA-256 is listed — validate with the debug cert first, add the release cert before shipping._
+**The code (S6b):** `gdrive-connect.ts` derives the redirect from the client_id; `tauri.conf.json >
+plugins > deep-link` registers the scheme (`{"mobile":[{"scheme":["com.googleusercontent.apps.<id>"]}]}`),
+emitting a VIEW/DEFAULT/BROWSABLE intent-filter (no `autoVerify`); `onOpenUrl` captures the `code`.
+Because debug/release clients have different ids → different schemes, the AndroidManifest registers each
+(debug now; add the release scheme at shipping). The `opener` capability is scoped to
+`https://accounts.google.com/*` so the auth URL can launch.
 
 ## Process
 
