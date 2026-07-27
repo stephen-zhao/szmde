@@ -608,6 +608,48 @@ socket (WF-30 setup).
 
 ---
 
+### WF-34 · Table width mode — overflow (header-driven columns + independent scroll) · `REQ-TBLED-10` _(M6.2)_ — ✅ verified in the browser preview (2026-07-26)
+**Why:** overflow mode's column sizing is a layout-measure pass (`overflowColumnSizer` ViewPlugin →
+`requestMeasure`): with the body hidden each header sizes to its own content, and those widths are pinned
+onto the `<col>`s with the table switched to `table-layout:fixed`. happy-dom has no layout, so the DOM
+structure (scroll box, `colgroup`, header padding spans, class) is unit-tested (`table-display.dom.test.ts`)
+but the actual widths + independent scroll are live-only.
+**Setup:** `npm run dev` (localhost:1420); drive CodeMirror via `window.__cmview`; load a doc with a table
+whose header is padded wide (`| Name<many spaces> | Notes | Tag |`) and a body cell far longer than its
+header. Toggle via right-click → **Overflow (scroll)**.
+**Steps / expected:**
+- The table wraps in a `.cm-md-table-scroll` box; each column's width equals its **header** cell's width —
+  header padding widens its column; a body cell **wider** than its header **wraps within** the column
+  (row grows taller) rather than stretching it. _(Measured live: cols `[437px, 76px, 59px]`; the long-word
+  body cell clamped to the 76px "Notes" header and wrapped to 193px tall.)_
+- When the header widths sum to more than the reading width, the box gets its **own** horizontal scrollbar:
+  scrolling it moves **only the table** — `scrollDOM.scrollLeft` stays 0. _(Measured: box 879 > 606; table
+  scrolled, document did not.)_
+- **Fit** restores the plain table (no scroll box, no `colgroup` widths).
+- _Note: CM flushes the measure on `requestAnimationFrame`; a hidden/non-compositing tab suspends rAF, so
+  under headless verification force it with `window.__cmview.measure()`. A visible WebView flushes normally._
+
+### WF-35 · Table pin header — fit mode (CSS sticky) · `REQ-TBLED-11` _(M6.2)_ — ✅ verified in the browser preview (2026-07-26)
+**Why:** the sticky header is pure CSS (`position:sticky; top:0` on `.cm-md-table-pin thead th`, plus an
+inset box-shadow to redraw the grid edge that `border-collapse` drops while stuck). Verified by class +
+computed style; sticky behaviour itself is the browser's.
+**Steps / expected:** right-click a long table → **Pin header row**. The table gets `.cm-md-table-pin`
+(not `-pin-js`); its `thead th` computes `position: sticky`, `top: 0px`, with a border box-shadow. Scrolling
+the document past the table top keeps the header row visible at the top of the content area.
+
+### WF-36 · Table pin header — overflow mode (JS thead-follow) · `REQ-TBLED-11` _(M6.2, riskiest)_ — ✅ verified in the browser preview (2026-07-26)
+**Why:** in overflow mode the scroll box's `overflow-x:auto` coerces `overflow-y` to non-visible, which
+breaks `position:sticky`; so a `pinnedTableHeaders` ViewPlugin translates the `<thead>` on scroll instead,
+clamped to the table's own vertical band. Fully layout-driven → v8-ignored, live-only.
+**Steps / expected:** enable **Overflow (scroll)** + **Pin header row** on a tall table. The table gets
+`.cm-md-table-pin-js` (not the sticky `-pin`). Scrolling the editor so the table top passes above the
+viewport translates the `<thead>` down to track it, clamped to `[0, tableHeight − theadHeight]`.
+_(Measured: after scrolling ~120px past the table top, `thead` transform was `translateY(119.7px)`, within
+the band.)_ Best-effort combined case; if it proves janky on a device it degrades to an unpinned overflow
+table (both modes still work independently).
+
+---
+
 ## Requirement coverage
 
 | REQ | Unit/integration (Vitest/cargo) | LLM workflow (this doc) |
@@ -617,6 +659,8 @@ socket (WF-30 setup).
 | REQ-TABLE-2 | structure (`table.dom.test.ts`) | — (render + Source-mode literal pipes; structural only) |
 | REQ-TBLED-7 | structure (`table-cell-editor.dom.test.ts`, `table.dom.test.ts`) | WF-3 (inline cell editor; table stays rendered, atomic-skip) |
 | REQ-TBLED-2 | model + structure (`table-model.test.ts`, `table.dom.test.ts`) | WF-27 (header toggle on/off) |
+| REQ-TBLED-10 | state + structure (`table-display.test.ts`, `table-display.dom.test.ts`) | WF-34 (overflow: header-driven widths, body wraps, independent scroll) |
+| REQ-TBLED-11 | state + structure (`table-display.test.ts`, `table-display.dom.test.ts`) | WF-35 (fit-mode sticky), WF-36 (overflow-mode JS thead-follow) |
 | REQ-NEST-1 | structure (`nested.dom.test.ts`) | WF-4 (Tab nest + styling) |
 | REQ-LIST-3 | doc model (`editing.test.ts`) | WF-5 (task Enter) |
 | REQ-TASK-2 | doc model (`tasklist.dom.test.ts`) | WF-6 (toggle) |
