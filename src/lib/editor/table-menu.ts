@@ -12,6 +12,7 @@ import {
   type TableModel,
 } from "./table-model";
 import { replaceTable } from "./table-ops";
+import { setTablePinHeader, setTableWidthMode, tableDisplayAt } from "./table-display";
 
 // The right-click context menu for a rendered table cell (Formatted mode, M5 S3b —
 // REQ-TBLED-3/-5/-6). Every structural op for the clicked cell's row + column,
@@ -73,6 +74,22 @@ export function showTableMenu(
     s.className = "cm-md-table-menu-sep";
     menu.appendChild(s);
   };
+  // A checkable display-mode item (REQ-TBLED-10/11). Unlike `item`, it dispatches a
+  // display-state effect (NO doc edit — the GFM is untouched) and shows a ✓ when active.
+  const displayItem = (label: string, checked: boolean, act: () => void) => {
+    const b = document.createElement("button");
+    b.className = "cm-md-table-menu-item cm-md-table-menu-item-check";
+    if (checked) b.classList.add("cm-md-table-menu-item-checked");
+    b.textContent = label;
+    b.addEventListener("mousedown", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      act();
+      closeTableMenu();
+      view.focus();
+    });
+    menu.appendChild(b);
+  };
   const setA = (a: Align) => (md: TableModel) => setColAlign(md, col, a);
 
   // On a header cell (row = -1) there is no row "above" it (the header must stay
@@ -99,6 +116,15 @@ export function showTableMenu(
   // Toggle the header row on/off (REQ-TBLED-2): a populated header demotes into the
   // first body row (blanked); a blank header promotes the first body row up.
   item("Toggle header row", (md) => toggleHeader(md));
+  sep();
+  // Per-table DISPLAY modes (REQ-TBLED-10 width, REQ-TBLED-11 pin) — display-only, so
+  // these dispatch display-state effects rather than rewriting the table source.
+  const disp = tableDisplayAt(view.state, m.from, m.to);
+  displayItem("Fit to width", disp.width === "fit", () => setTableWidthMode(view, m.from, "fit"));
+  displayItem("Overflow (scroll)", disp.width === "overflow", () =>
+    setTableWidthMode(view, m.from, "overflow"),
+  );
+  displayItem("Pin header row", disp.pin, () => setTablePinHeader(view, m.from, !disp.pin));
 
   menu.style.left = `${x}px`;
   menu.style.top = `${y}px`;

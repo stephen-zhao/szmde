@@ -1,5 +1,5 @@
-import { Decoration, EditorView, WidgetType } from "@codemirror/view";
-import type { DecorationSet } from "@codemirror/view";
+import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
+import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import {
   RangeSet,
   StateField,
@@ -21,6 +21,12 @@ import {
   type TableModel,
 } from "./table-model";
 import { showTableMenu, closeTableMenu } from "./table-menu";
+import {
+  setTableDisplay,
+  tableDisplayAt,
+  tableDisplays,
+  type TableDisplay,
+} from "./table-display";
 import { indexAt, type DragKind } from "./table-drag";
 import { editCellAt, cancelCellEditor } from "./table-cell-editor";
 import { replaceTable } from "./table-ops";
@@ -77,7 +83,8 @@ export function renderInlineMarkdown(parent: HTMLElement, text: string, baseOffs
 class TableWidget extends WidgetType {
   constructor(
     readonly m: TableModel, // full cell map + alignments; table start is m.from
-    readonly key: string,
+    readonly key: string, // encodes the cell map AND the display modes → eq/rebuild
+    readonly display: TableDisplay, // width mode + pin (REQ-TBLED-10/11)
   ) {
     super();
   }
@@ -241,7 +248,49 @@ class TableWidget extends WidgetType {
       e.stopPropagation();
       showTableMenu(view, m, Number(cell.dataset.row), Number(cell.dataset.col), e.clientX, e.clientY);
     });
-    return table;
+
+    // Per-table display modes (REQ-TBLED-10 width, REQ-TBLED-11 pin) — display-only;
+    // the on-disk GFM is untouched. Pin adds a sticky-header class (or the JS-follow
+    // variant when combined with overflow, where the CSS sticky container breaks).
+    if (this.display.pin) {
+      table.classList.add(
+        this.display.width === "overflow" ? "cm-md-table-pin-js" : "cm-md-table-pin",
+      );
+    }
+    if (this.display.width !== "overflow") return table;
+    return this.overflowWrap(table);
+  }
+
+  /**
+   * Overflow width mode (REQ-TBLED-10): wrap the table in an independently-scrolling
+   * box and size each column to its HEADER cell — header padding widens the column,
+   * body content never does. Column widths need real layout, so the sizing is a
+   * flicker-free pre-paint measure pass (v8-ignored — happy-dom has no layout; the DOM
+   * STRUCTURE is unit-tested and the sizing is verified live in WF-34).
+   */
+  private overflowWrap(table: HTMLTableElement): HTMLElement {
+    table.classList.add("cm-md-table-overflow");
+    // Stable <col> handles for the sizer plugin to pin each column's width onto.
+    const colgroup = document.createElement("colgroup");
+    for (let i = 0; i < this.m.header.length; i++) colgroup.appendChild(document.createElement("col"));
+    table.insertBefore(colgroup, table.firstChild);
+    // Preserve each header cell's padding (the raw leading/trailing spaces) as
+    // preformatted spans so it occupies real width — the SPEC's explicit author control.
+    const ths = [...table.querySelectorAll<HTMLTableCellElement>("thead th")];
+    ths.forEach((th, i) => {
+      const raw = this.m.header[i]?.raw ?? "";
+      const lead = raw.length - raw.trimStart().length;
+      const trail = raw.length - raw.trimEnd().length;
+      if (lead) th.insertBefore(padSpan(lead), th.firstChild);
+      if (trail) th.appendChild(padSpan(trail));
+    });
+    const scroll = document.createElement("div");
+    scroll.className = "cm-md-table-scroll";
+    scroll.appendChild(table);
+    // The column sizing itself is a post-layout measure driven by overflowColumnSizer
+    // (a ViewPlugin) — a requestMeasure scheduled from a block widget's toDOM doesn't
+    // reliably apply, whereas one scheduled from a plugin update does.
+    return scroll;
   }
   destroy() {
     closeTableMenu(); // table removed (re-render / scroll-away) → drop a stray menu
@@ -261,6 +310,144 @@ class TableWidget extends WidgetType {
   }
   /* v8 ignore stop */
 }
+
+/** A run of `n` spaces rendered preformatted (theme: white-space:pre), used to keep a
+ *  header cell's padding width in overflow mode. aria-hidden: it's a display artifact. */
+function padSpan(n: number): HTMLElement {
+  const s = document.createElement("span");
+  s.className = "cm-tbl-pad";
+  s.textContent = " ".repeat(n);
+  s.setAttribute("aria-hidden", "true");
+  return s;
+}
+
+/* v8 ignore start -- column sizing + header-follow need real layout (getBoundingClientRect,
+   forced reflow), which happy-dom lacks. The DOM structure these drive is unit-tested;
+   the visual result is verified live (WF-34 overflow widths, WF-36 overflow+pin). */
+
+/** Size every rendered overflow table so each column is exactly as wide as its HEADER
+ *  cell (body content never widens it). One measure pass: with the body hidden + auto
+ *  layout each header sizes to its own content; those widths are pinned onto the <col>s
+ *  and the table switched to fixed layout. Pre-paint via requestMeasure → no flicker.
+ *  Re-runs on geometry changes (zoom / page width) so the widths track the font. */
+function sizeAllOverflowTables(view: EditorView): void {
+  view.requestMeasure({
+    key: "cm-md-table-overflow-size",
+    read() {
+      const jobs: { colgroup: HTMLElement; table: HTMLTableElement; widths: number[] }[] = [];
+      view.contentDOM.querySelectorAll(".cm-md-table-overflow").forEach((el) => {
+        const table = el as HTMLTableElement;
+        const colgroup = table.querySelector("colgroup") as HTMLElement | null;
+        if (!colgroup) return;
+        // Size each table's DOM instance ONCE: a rebuilt widget (doc / mode / display
+        // change) gets a fresh colgroup with empty widths, so it re-measures; a table
+        // merely scrolling through the viewport keeps its widths → skip (no reflow).
+        const firstCol = colgroup.children[0] as HTMLElement | undefined;
+        if (firstCol?.style.width) return;
+        const tbody = table.tBodies[0] as HTMLElement | undefined;
+        const prevDisplay = tbody?.style.display ?? "";
+        const prevLayout = table.style.tableLayout;
+        const prevWidth = table.style.width;
+        if (tbody) tbody.style.display = "none"; // isolate the header row
+        table.style.tableLayout = "auto";
+        table.style.width = "max-content";
+        const widths = [...table.querySelectorAll<HTMLTableCellElement>("thead th")].map((th) =>
+          Math.ceil(th.getBoundingClientRect().width),
+        );
+        if (tbody) tbody.style.display = prevDisplay;
+        table.style.tableLayout = prevLayout;
+        table.style.width = prevWidth;
+        jobs.push({ colgroup, table, widths });
+      });
+      return jobs;
+    },
+    write(jobs) {
+      jobs.forEach(({ colgroup, table, widths }) => {
+        const cols = [...colgroup.children] as HTMLElement[];
+        widths.forEach((w, i) => {
+          if (cols[i]) cols[i].style.width = `${w}px`;
+        });
+        table.style.tableLayout = "fixed";
+        table.style.width = "max-content";
+      });
+    },
+  });
+}
+
+/** Keep an overflow+pin table's header visible as the table scrolls vertically. In
+ *  overflow mode the scroll wrapper's `overflow-x:auto` also clips `overflow-y`, which
+ *  breaks a plain `position:sticky` header — so we translate the <thead> down manually
+ *  to track the scroller top, clamped to the table's own vertical band. */
+function syncPinnedHeaders(view: EditorView): void {
+  view.requestMeasure({
+    read() {
+      const scrollTop = view.scrollDOM.getBoundingClientRect().top;
+      const jobs: { thead: HTMLElement; shift: number }[] = [];
+      view.contentDOM.querySelectorAll(".cm-md-table-pin-js").forEach((el) => {
+        const table = el as HTMLTableElement;
+        const thead = table.tHead as HTMLElement | null;
+        if (!thead) return;
+        const tRect = table.getBoundingClientRect();
+        const maxShift = tRect.height - thead.getBoundingClientRect().height;
+        const shift = Math.max(0, Math.min(scrollTop - tRect.top, maxShift));
+        jobs.push({ thead, shift });
+      });
+      return jobs;
+    },
+    write(jobs) {
+      jobs.forEach(({ thead, shift }) => {
+        thead.style.position = "relative";
+        thead.style.zIndex = "2";
+        thead.style.transform = shift ? `translateY(${shift}px)` : "";
+      });
+    },
+  });
+}
+/* v8 ignore stop */
+
+/** Drives the overflow column-sizing measure whenever an overflow table could need it:
+ *  a doc/parse change, a display toggle, or a geometry change (zoom / page width). */
+const overflowColumnSizer = ViewPlugin.fromClass(
+  class {
+    constructor(view: EditorView) {
+      sizeAllOverflowTables(view);
+    }
+    update(u: ViewUpdate) {
+      if (
+        u.docChanged ||
+        u.viewportChanged ||
+        u.geometryChanged ||
+        u.transactions.some((t) => t.effects.some((e) => e.is(setTableDisplay)))
+      ) {
+        sizeAllOverflowTables(u.view);
+      }
+    }
+  },
+);
+
+const pinnedTableHeaders = ViewPlugin.fromClass(
+  class {
+    private readonly onScroll: () => void;
+    constructor(readonly view: EditorView) {
+      this.onScroll = () => syncPinnedHeaders(view);
+      view.scrollDOM.addEventListener("scroll", this.onScroll, { passive: true });
+      syncPinnedHeaders(view);
+    }
+    update(u: ViewUpdate) {
+      if (
+        u.docChanged ||
+        u.geometryChanged ||
+        u.viewportChanged ||
+        u.transactions.some((t) => t.effects.some((e) => e.is(setTableDisplay)))
+      ) {
+        syncPinnedHeaders(u.view);
+      }
+    }
+    destroy() {
+      this.view.scrollDOM.removeEventListener("scroll", this.onScroll);
+    }
+  },
+);
 
 interface TableDecos {
   deco: DecorationSet;
@@ -289,10 +476,13 @@ function computeTableDecos(state: EditorState): TableDecos {
       // lezer is used only to locate the Table block [from, to].
       const m = parseTable(state.doc.sliceString(from, to), from);
 
-      const key = JSON.stringify([m.header, m.rows, m.aligns]);
+      // Fold the per-table display (width/pin) into the widget key, so toggling a mode
+      // changes the key → eq() returns false → CM rebuilds the widget with the new DOM.
+      const d = tableDisplayAt(state, from, to);
+      const key = JSON.stringify([m.header, m.rows, m.aligns, d]);
       decos.push(
         Decoration.replace({
-          widget: new TableWidget(m, key),
+          widget: new TableWidget(m, key, d),
           block: true,
         }).range(from, to),
       );
@@ -312,6 +502,9 @@ const tableField = StateField.define<TableDecos>({
     if (
       tr.docChanged ||
       tr.startState.facet(renderMode) !== tr.state.facet(renderMode) ||
+      // A display toggle (setTableDisplay) changes no text — WITHOUT this the widget
+      // never rebuilds, so the mode flip wouldn't render (mirrors setup.ts fieldChanged).
+      tr.startState.field(tableDisplays, false) !== tr.state.field(tableDisplays, false) ||
       syntaxTree(tr.startState) !== syntaxTree(tr.state)
     ) {
       return computeTableDecos(tr.state);
@@ -324,4 +517,4 @@ const tableField = StateField.define<TableDecos>({
   ],
 });
 
-export const tableExtension: Extension = tableField;
+export const tableExtension: Extension = [tableField, overflowColumnSizer, pinnedTableHeaders];

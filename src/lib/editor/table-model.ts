@@ -23,6 +23,11 @@ export interface Cell {
   text: string;
   from: number;
   to: number;
+  /** The untrimmed inter-pipe segment, INCLUDING leading/trailing padding spaces
+   *  (`| Name      |` → `" Name      "`). Only the overflow width mode (REQ-TBLED-10)
+   *  reads this — header padding widens a column as an explicit author control; every
+   *  other consumer uses the trimmed `text`. Synthesized cells carry `raw === text`. */
+  raw: string;
 }
 
 export interface TableModel {
@@ -36,7 +41,7 @@ export interface TableModel {
   colCount: number;
 }
 
-const mkCell = (text: string): Cell => ({ text, from: 0, to: 0 });
+const mkCell = (text: string): Cell => ({ text, from: 0, to: 0, raw: text });
 
 /**
  * Split one table row into cells by UNESCAPED pipes, emitting one slot per column
@@ -72,7 +77,7 @@ export function splitRow(line: string, lineStart: number): Cell[] {
     const lead2 = seg.length - seg.trimStart().length;
     const text = seg.trim();
     const from = lineStart + segStart + lead2;
-    cells.push({ text, from, to: from + text.length });
+    cells.push({ text, from, to: from + text.length, raw: seg });
     segStart = sep + 1;
   }
   return cells;

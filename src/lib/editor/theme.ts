@@ -277,6 +277,42 @@ export const baseTheme = EditorView.theme(
       backgroundColor: "var(--code-header-bg)",
       fontWeight: "700",
     },
+    // --- Per-table display modes (REQ-TBLED-10 width, REQ-TBLED-11 pin) ----------
+    // Overflow: the table sizes to its columns (a measure pass pins the <col> widths
+    // from the header) and scrolls INSIDE this box — only the table moves sideways,
+    // like a no-wrap code block — while the surrounding document stays put.
+    ".cm-md-table-scroll": {
+      overflowX: "auto",
+      overflowY: "hidden",
+      maxWidth: "100%",
+    },
+    // Pre-measure fallback (the measure pass sets tableLayout:fixed + width:max-content).
+    ".cm-md-table-overflow": { width: "max-content", maxWidth: "none" },
+    // Header cells drive column width and must not wrap; their padding spaces count.
+    ".cm-md-table-overflow th": { whiteSpace: "pre" },
+    // Body cells are clamped to the header-driven column and wrap within it.
+    ".cm-md-table-overflow td": { whiteSpace: "normal", overflowWrap: "anywhere" },
+    // Preformatted padding runs carrying a header cell's whitespace width.
+    ".cm-tbl-pad": { whiteSpace: "pre" },
+    // Pin (fit mode): a sticky header. border-collapse drops the cell border while
+    // stuck, so redraw the grid edges with an inset box-shadow.
+    ".cm-md-table-pin thead th": {
+      position: "sticky",
+      top: "0",
+      zIndex: "2",
+      boxShadow: "inset 0 1px 0 var(--border), inset 0 -1px 0 var(--border)",
+    },
+    // Pin (overflow mode): the scroll box breaks position:sticky, so a ViewPlugin
+    // translates <thead> instead; keep it layered above the body.
+    ".cm-md-table-pin-js thead th": { zIndex: "2" },
+    // ✓ column for the checkable display-mode menu items (structural items stay flush).
+    ".cm-md-table-menu-item-check": { paddingLeft: "24px", position: "relative" },
+    ".cm-md-table-menu-item-check::before": {
+      content: '""',
+      position: "absolute",
+      left: "9px",
+    },
+    ".cm-md-table-menu-item-check.cm-md-table-menu-item-checked::before": { content: '"✓"' },
     // Right-click structural-edit menu (M5 S3b). Floats over the table (position:
     // fixed = viewport coords from the click), appended into the editor wrapper so
     // these rules reach it. A flat button list with separators.
