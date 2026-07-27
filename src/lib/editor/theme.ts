@@ -281,6 +281,10 @@ export const baseTheme = EditorView.theme(
     // Overflow: the table sizes to its columns (a measure pass pins the <col> widths
     // from the header) and scrolls INSIDE this box — only the table moves sideways,
     // like a no-wrap code block — while the surrounding document stays put.
+    // Known v1 limitation: this box clips the edge-protruding hover "+" gizmos (the
+    // first column's left-insert and the last row's below-insert) that overhang by ~9px;
+    // they stay partly clickable and the right-click menu offers the same inserts, so it's
+    // a minor overflow-mode-only cosmetic trade-off, not a lost capability.
     ".cm-md-table-scroll": {
       overflowX: "auto",
       overflowY: "hidden",
@@ -306,7 +310,9 @@ export const baseTheme = EditorView.theme(
     // translates <thead> instead; keep it layered above the body.
     ".cm-md-table-pin-js thead th": { zIndex: "2" },
     // ✓ column for the checkable display-mode menu items (structural items stay flush).
-    ".cm-md-table-menu-item-check": { paddingLeft: "24px", position: "relative" },
+    // Compound selector: outweigh the base `.cm-md-table-menu-item` padding shorthand
+    // (equal specificity + emitted later would otherwise reset padding-left to 11px).
+    ".cm-md-table-menu-item.cm-md-table-menu-item-check": { paddingLeft: "24px", position: "relative" },
     ".cm-md-table-menu-item-check::before": {
       content: '""',
       position: "absolute",

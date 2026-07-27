@@ -60,4 +60,14 @@ describe("[REQ-TBLED-10][REQ-TBLED-11] tableDisplays — per-table ephemeral dis
     s = s.update({ effects: clearTableDisplays.of(null) }).state;
     expect(tableDisplayAt(s, 2, 6)).toEqual(DEFAULT_TABLE_DISPLAY);
   });
+
+  it("prunes an override that collapses to zero-length when its table is deleted", () => {
+    let s = st();
+    s = s.update({ effects: setTableDisplay.of({ from: 2, to: 6, display: OVERFLOW }) }).state;
+    expect(tableDisplayAt(s, 2, 6).width).toBe("overflow");
+    // Delete exactly the styled span → the override collapses to [2,2); the prune drops it,
+    // so a new table later created at that offset can't inherit the stale display (ghost).
+    s = s.update({ changes: { from: 2, to: 6, insert: "" } }).state;
+    expect(tableDisplayAt(s, 2, 2)).toEqual(DEFAULT_TABLE_DISPLAY);
+  });
 });

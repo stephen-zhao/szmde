@@ -280,7 +280,9 @@ class TableWidget extends WidgetType {
     ths.forEach((th, i) => {
       const raw = this.m.header[i]?.raw ?? "";
       const lead = raw.length - raw.trimStart().length;
-      const trail = raw.length - raw.trimEnd().length;
+      // For an all-whitespace cell trimStart already counts every space, so trimEnd would
+      // double it — the whole segment is one leading pad run, no trailing run.
+      const trail = raw.trim() === "" ? 0 : raw.length - raw.trimEnd().length;
       if (lead) th.insertBefore(padSpan(lead), th.firstChild);
       if (trail) th.appendChild(padSpan(trail));
     });
@@ -334,16 +336,20 @@ function sizeAllOverflowTables(view: EditorView): void {
   view.requestMeasure({
     key: "cm-md-table-overflow-size",
     read() {
+      // Widths are pixels measured at the current font; if the editor font changes (zoom /
+      // REQ-ZOOM) the widget isn't rebuilt, so we re-measure when the font differs. Merely
+      // scrolling keeps the same font → the guard below skips (no per-scroll reflow).
+      const fontKey = getComputedStyle(view.contentDOM).fontSize;
       const jobs: { colgroup: HTMLElement; table: HTMLTableElement; widths: number[] }[] = [];
       view.contentDOM.querySelectorAll(".cm-md-table-overflow").forEach((el) => {
         const table = el as HTMLTableElement;
         const colgroup = table.querySelector("colgroup") as HTMLElement | null;
         if (!colgroup) return;
-        // Size each table's DOM instance ONCE: a rebuilt widget (doc / mode / display
-        // change) gets a fresh colgroup with empty widths, so it re-measures; a table
-        // merely scrolling through the viewport keeps its widths → skip (no reflow).
+        // Size each table's DOM instance once PER FONT: a rebuilt widget (doc / mode /
+        // display change) gets a fresh colgroup with empty widths → re-measures; a font
+        // change invalidates the stored key → re-measures; a plain scroll → skip (no reflow).
         const firstCol = colgroup.children[0] as HTMLElement | undefined;
-        if (firstCol?.style.width) return;
+        if (firstCol?.style.width && table.dataset.tblSizedFont === fontKey) return;
         const tbody = table.tBodies[0] as HTMLElement | undefined;
         const prevDisplay = tbody?.style.display ?? "";
         const prevLayout = table.style.tableLayout;
@@ -359,9 +365,9 @@ function sizeAllOverflowTables(view: EditorView): void {
         table.style.width = prevWidth;
         jobs.push({ colgroup, table, widths });
       });
-      return jobs;
+      return { fontKey, jobs };
     },
-    write(jobs) {
+    write({ fontKey, jobs }) {
       jobs.forEach(({ colgroup, table, widths }) => {
         const cols = [...colgroup.children] as HTMLElement[];
         widths.forEach((w, i) => {
@@ -369,6 +375,7 @@ function sizeAllOverflowTables(view: EditorView): void {
         });
         table.style.tableLayout = "fixed";
         table.style.width = "max-content";
+        table.dataset.tblSizedFont = fontKey; // stamp the font these widths were measured at
       });
     },
   });

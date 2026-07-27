@@ -59,6 +59,10 @@ export const tableDisplays = StateField.define<RangeSet<TableDisplayOverride>>({
   create: () => RangeSet.empty,
   update(set, tr) {
     set = set.map(tr.changes);
+    // Deleting a whole table collapses its override to a zero-length range that map()
+    // keeps; drop those so a NEW table later created at the same offset can't inherit a
+    // stale display (a table block is always ≥2 lines, so a live override is never empty).
+    if (tr.docChanged) set = set.update({ filter: (from, to) => from < to });
     for (const e of tr.effects) {
       if (e.is(clearTableDisplays)) {
         set = RangeSet.empty;

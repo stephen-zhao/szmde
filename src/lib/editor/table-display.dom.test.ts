@@ -75,6 +75,21 @@ describe("[REQ-TBLED-10] width mode — overflow", () => {
     expect(firstTh!.textContent).toContain("Name");
   });
 
+  it("does not double-count padding for an all-whitespace header cell", () => {
+    // A blank header cell serializes to `|  |` → raw "  "; overflow must render those 2
+    // pad spaces ONCE (one lead run), not doubled (lead + trail both = raw.length).
+    const doc = "intro\n\n|  | b |\n| - | - |\n| 1 | 2 |";
+    const v = build(doc);
+    const t = tableBlockAt(v.state, doc.indexOf("|  |"))!;
+    setTableWidthMode(v, t.from, "overflow");
+    const firstTh = v.contentDOM.querySelector(".cm-md-table-overflow th")!;
+    const padChars = [...firstTh.querySelectorAll(".cm-tbl-pad")].reduce(
+      (n, s) => n + (s.textContent?.length ?? 0),
+      0,
+    );
+    expect(padChars).toBe(2); // the raw "  " padding, not 4
+  });
+
   it("switches back to fit — the scroll box and overflow class are gone", () => {
     const v = build(DOC);
     setTableWidthMode(v, tbl(v).from, "overflow");
