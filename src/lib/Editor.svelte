@@ -33,6 +33,10 @@
      *  REQ-UI-4 — inline formatting had no non-keyboard entry point). */
     toggleBold(): void;
     toggleItalic(): void;
+    /** Undo / redo the edit history — a pointer path for Mod-z / Mod-y, which soft
+     *  keyboards don't expose (REQ-UI-4). */
+    undo(): void;
+    redo(): void;
   }
 </script>
 
@@ -49,6 +53,7 @@
   } from "./editor/typewriter";
   import { insertTable as insertTableCmd } from "./editor/table-commands";
   import { openSearchPanel } from "@codemirror/search";
+  import { undo as undoCmd, redo as redoCmd } from "@codemirror/commands";
   import { toggleBold as toggleBoldCmd, toggleItalic as toggleItalicCmd } from "./editor/keymap";
   import { renderModeOf, setRenderMode as applyRenderMode } from "./editor/render-mode";
   import {
@@ -227,6 +232,16 @@
     toggleItalicCmd({ state: view.state, dispatch: (tr) => view!.dispatch(tr) });
     view.focus();
   }
+  function undo() {
+    if (!view) return;
+    undoCmd(view); // history commands take the view directly
+    view.focus();
+  }
+  function redo() {
+    if (!view) return;
+    redoCmd(view);
+    view.focus();
+  }
 
   onMount(() => {
     view = new EditorView({ state: buildState(""), parent: container });
@@ -250,6 +265,8 @@
       openFind,
       toggleBold,
       toggleItalic,
+      undo,
+      redo,
     });
     onwrapstate?.(wrapStateOf(view.state));
     onrendermode?.(renderModeOf(view.state));

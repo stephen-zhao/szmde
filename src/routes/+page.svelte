@@ -562,6 +562,8 @@
     onfind={() => editor?.openFind()}
     onbold={() => editor?.toggleBold()}
     onitalic={() => editor?.toggleItalic()}
+    onundo={() => editor?.undo()}
+    onredo={() => editor?.redo()}
   />
 
   <Editor

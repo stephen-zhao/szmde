@@ -23,6 +23,8 @@
     onfind,
     onbold,
     onitalic,
+    onundo,
+    onredo,
   }: {
     onnew: () => void;
     onopen: () => void;
@@ -45,6 +47,8 @@
     onfind: () => void;
     onbold: () => void;
     onitalic: () => void;
+    onundo: () => void;
+    onredo: () => void;
   } = $props();
 
   let open = $state(false);
@@ -101,6 +105,12 @@
       </button>
       <hr />
       <div class="section-label">Edit</div>
+      <button role="menuitem" onclick={() => run(onundo)}>
+        Undo <span class="kbd">Ctrl+Z</span>
+      </button>
+      <button role="menuitem" onclick={() => run(onredo)}>
+        Redo <span class="kbd">Ctrl+Y</span>
+      </button>
       <button role="menuitem" onclick={() => run(onfind)}>
         Find & Replace… <span class="kbd">Ctrl+F</span>
       </button>

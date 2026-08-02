@@ -608,16 +608,21 @@ socket (WF-30 setup).
 
 ---
 
-### WF-37 · Command reachability — Find / Bold / Italic in the hamburger menu · `REQ-UI-4` _(M6.2)_ — ✅ verified in the browser preview (2026-07-27)
+### WF-37 · Command reachability — Undo / Redo / Find / Bold / Italic in the hamburger menu · `REQ-UI-4` _(M6.2)_ — ✅ verified in the browser preview (2026-07-27)
 **Why:** on touch-only Android these editor commands had **only** a key chord (Find = Mod-f with no menu
-entry → literally unopenable; Bold/Italic = Mod-b/Mod-i). The fix is `.svelte` menu glue (`HamburgerMenu`
-→ `+page` → `EditorApi.openFind`/`toggleBold`/`toggleItalic`), which vitest doesn't cover — this WF is the
-gate. _(Numbered WF-37 to leave WF-34/35/36 for the concurrent table-display PR.)_
-**Setup:** `npm run dev` (localhost:1420); drive via `window.__cmview`. Set a doc, e.g.
-`The quick brown fox.`
+entry → literally unopenable; Undo/Redo = Mod-z/Mod-y, which soft keyboards don't expose; Bold/Italic =
+Mod-b/Mod-i). The fix is `.svelte` menu glue (`HamburgerMenu` → `+page` → `EditorApi.undo`/`redo`/
+`openFind`/`toggleBold`/`toggleItalic`), which vitest doesn't cover — this WF is the gate. _(Numbered
+WF-37 to leave WF-34/35/36 for the concurrent table-display PR.)_
+**Setup:** `npm run dev` (localhost:1420); drive via `window.__cmview`. **Menu note:** the hamburger
+`onclick` toggles, and the Svelte dropdown renders on the next tick — so open the menu in one step and
+click the item in the next; don't query the dropdown in the same synchronous step you open it.
 **Steps / expected:**
-- Open the hamburger → the dropdown shows an **Edit** section with **Find & Replace… (Ctrl+F)**, **Bold
-  (Ctrl+B)**, **Italic (Ctrl+I)**. _(Verified: the three items render under the Edit label.)_
+- Open the hamburger → the dropdown shows an **Edit** section: **Undo (Ctrl+Z)**, **Redo (Ctrl+Y)**,
+  **Find & Replace… (Ctrl+F)**, **Bold (Ctrl+B)**, **Italic (Ctrl+I)**. _(Verified: all five render.)_
+- Make two edits (→ `baseX`), open the menu, click **Undo** → reverts to `base`; open the menu, click
+  **Redo** → back to `baseX`. _(Verified via the menu path; the `@codemirror/commands` `undo`/`redo` also
+  confirmed via the Ctrl+Z/Ctrl+Y chords.)_
 - Click **Find & Replace…** → the menu closes and the `@codemirror/search` panel opens with its search
   input **focused** (so a touch user can type immediately, no keyboard chord). _(Verified: `.cm-search`
   present, input is `document.activeElement`.)_
