@@ -559,6 +559,11 @@
     {renderMode}
     onsetrendermode={setRenderMode}
     oninserttable={(rows, cols) => editor?.insertTable(rows, cols)}
+    onfind={() => editor?.openFind()}
+    onbold={() => editor?.toggleBold()}
+    onitalic={() => editor?.toggleItalic()}
+    onundo={() => editor?.undo()}
+    onredo={() => editor?.redo()}
   />
 
   <Editor

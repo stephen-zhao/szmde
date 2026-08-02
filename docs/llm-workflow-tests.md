@@ -648,6 +648,29 @@ _(Measured: after scrolling ~120px past the table top, `thead` transform was `tr
 the band.)_ Best-effort combined case; if it proves janky on a device it degrades to an unpinned overflow
 table (both modes still work independently).
 
+### WF-37 · Command reachability — Undo / Redo / Find / Bold / Italic in the hamburger menu · `REQ-UI-4` _(M6.2)_ — ✅ verified in the browser preview (2026-07-27)
+**Why:** on touch-only Android these editor commands had **only** a key chord (Find = Mod-f with no menu
+entry → literally unopenable; Undo/Redo = Mod-z/Mod-y, which soft keyboards don't expose; Bold/Italic =
+Mod-b/Mod-i). The fix is `.svelte` menu glue (`HamburgerMenu` → `+page` → `EditorApi.undo`/`redo`/
+`openFind`/`toggleBold`/`toggleItalic`), which vitest doesn't cover — this WF is the gate. _(Numbered
+WF-37 to leave WF-34/35/36 for the concurrent table-display PR.)_
+**Setup:** `npm run dev` (localhost:1420); drive via `window.__cmview`. **Menu note:** the hamburger
+`onclick` toggles, and the Svelte dropdown renders on the next tick — so open the menu in one step and
+click the item in the next; don't query the dropdown in the same synchronous step you open it.
+**Steps / expected:**
+- Open the hamburger → the dropdown shows an **Edit** section: **Undo (Ctrl+Z)**, **Redo (Ctrl+Y)**,
+  **Find & Replace… (Ctrl+F)**, **Bold (Ctrl+B)**, **Italic (Ctrl+I)**. _(Verified: all five render.)_
+- Make two edits (→ `baseX`), open the menu, click **Undo** → reverts to `base`; open the menu, click
+  **Redo** → back to `baseX`. _(Verified via the menu path; the `@codemirror/commands` `undo`/`redo` also
+  confirmed via the Ctrl+Z/Ctrl+Y chords.)_
+- Click **Find & Replace…** → the menu closes and the `@codemirror/search` panel opens with its search
+  input **focused** (so a touch user can type immediately, no keyboard chord). _(Verified: `.cm-search`
+  present, input is `document.activeElement`.)_
+- Select a word, open the menu, click **Bold** → the selection is wrapped in `**…**` (verified:
+  `The **quick** brown fox.`). Repeat with **Italic** → `*…*` (verified: `*brown*`). The command runs on
+  the selection CM preserves across the menu's focus steal.
+- On a real device, confirm each is reachable with touch only (no hardware keyboard).
+
 ---
 
 ## Requirement coverage
@@ -669,6 +692,7 @@ table (both modes still work independently).
 | REQ-IMG-1 | structure (`image.dom.test.ts`) | WF-10 (renders) |
 | REQ-UI-1 | DOM (`theme.dom.test.ts`) | WF-11 (no shift) |
 | REQ-UI-2 | — (gap) | WF-12 (chips) |
+| REQ-UI-4 | — (`.svelte` glue; underlying `toggleBold`/`toggleItalic` via keymap) | WF-37 (Find/Bold/Italic reachable from the menu) |
 | REQ-LOOK-1 | — (gap) | WF-13 (look) |
 | REQ-PERF-1 | — (gap) | WF-14 (lag) |
 | REQ-SAVE-1 | logic (`storage/local.test.ts`, `storage/conflict.test.ts`, cargo) | WF-15 (conflict modal) |
