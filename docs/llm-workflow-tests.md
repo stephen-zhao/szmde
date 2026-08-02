@@ -608,6 +608,26 @@ socket (WF-30 setup).
 
 ---
 
+### WF-37 · Command reachability — Find / Bold / Italic in the hamburger menu · `REQ-UI-4` _(M6.2)_ — ✅ verified in the browser preview (2026-07-27)
+**Why:** on touch-only Android these editor commands had **only** a key chord (Find = Mod-f with no menu
+entry → literally unopenable; Bold/Italic = Mod-b/Mod-i). The fix is `.svelte` menu glue (`HamburgerMenu`
+→ `+page` → `EditorApi.openFind`/`toggleBold`/`toggleItalic`), which vitest doesn't cover — this WF is the
+gate. _(Numbered WF-37 to leave WF-34/35/36 for the concurrent table-display PR.)_
+**Setup:** `npm run dev` (localhost:1420); drive via `window.__cmview`. Set a doc, e.g.
+`The quick brown fox.`
+**Steps / expected:**
+- Open the hamburger → the dropdown shows an **Edit** section with **Find & Replace… (Ctrl+F)**, **Bold
+  (Ctrl+B)**, **Italic (Ctrl+I)**. _(Verified: the three items render under the Edit label.)_
+- Click **Find & Replace…** → the menu closes and the `@codemirror/search` panel opens with its search
+  input **focused** (so a touch user can type immediately, no keyboard chord). _(Verified: `.cm-search`
+  present, input is `document.activeElement`.)_
+- Select a word, open the menu, click **Bold** → the selection is wrapped in `**…**` (verified:
+  `The **quick** brown fox.`). Repeat with **Italic** → `*…*` (verified: `*brown*`). The command runs on
+  the selection CM preserves across the menu's focus steal.
+- On a real device, confirm each is reachable with touch only (no hardware keyboard).
+
+---
+
 ## Requirement coverage
 
 | REQ | Unit/integration (Vitest/cargo) | LLM workflow (this doc) |
@@ -625,6 +645,7 @@ socket (WF-30 setup).
 | REQ-IMG-1 | structure (`image.dom.test.ts`) | WF-10 (renders) |
 | REQ-UI-1 | DOM (`theme.dom.test.ts`) | WF-11 (no shift) |
 | REQ-UI-2 | — (gap) | WF-12 (chips) |
+| REQ-UI-4 | — (`.svelte` glue; underlying `toggleBold`/`toggleItalic` via keymap) | WF-37 (Find/Bold/Italic reachable from the menu) |
 | REQ-LOOK-1 | — (gap) | WF-13 (look) |
 | REQ-PERF-1 | — (gap) | WF-14 (lag) |
 | REQ-SAVE-1 | logic (`storage/local.test.ts`, `storage/conflict.test.ts`, cargo) | WF-15 (conflict modal) |
