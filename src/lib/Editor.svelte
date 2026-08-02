@@ -26,6 +26,17 @@
     convertIndentation(): void;
     /** Insert a fresh `rows`×`cols` GFM table at the caret (REQ-TBLED-1). */
     insertTable(rows: number, cols: number): void;
+    /** Open the Find & Replace panel — a pointer path for the Mod-f-only command
+     *  so it's reachable without a keyboard on touch (REQ-UI-4). */
+    openFind(): void;
+    /** Toggle bold / italic on the current selection (menu path for Mod-b/Mod-i,
+     *  REQ-UI-4 — inline formatting had no non-keyboard entry point). */
+    toggleBold(): void;
+    toggleItalic(): void;
+    /** Undo / redo the edit history — a pointer path for Mod-z / Mod-y, which soft
+     *  keyboards don't expose (REQ-UI-4). */
+    undo(): void;
+    redo(): void;
   }
 </script>
 
@@ -41,6 +52,9 @@
     setTypewriter as applyTypewriter,
   } from "./editor/typewriter";
   import { insertTable as insertTableCmd } from "./editor/table-commands";
+  import { openSearchPanel } from "@codemirror/search";
+  import { undo as undoCmd, redo as redoCmd } from "@codemirror/commands";
+  import { toggleBold as toggleBoldCmd, toggleItalic as toggleItalicCmd } from "./editor/keymap";
   import { renderModeOf, setRenderMode as applyRenderMode } from "./editor/render-mode";
   import {
     convertIndentation as applyConvertIndent,
@@ -201,6 +215,34 @@
     view.focus();
   }
 
+  function openFind() {
+    if (!view) return;
+    openSearchPanel(view); // opens the panel AND focuses its input — don't refocus the editor
+  }
+
+  // The command reads view.state.selection, which CM preserves across the menu's focus
+  // steal, so toggling from the menu formats the last selection (REQ-UI-4).
+  function toggleBold() {
+    if (!view) return;
+    toggleBoldCmd({ state: view.state, dispatch: (tr) => view!.dispatch(tr) });
+    view.focus();
+  }
+  function toggleItalic() {
+    if (!view) return;
+    toggleItalicCmd({ state: view.state, dispatch: (tr) => view!.dispatch(tr) });
+    view.focus();
+  }
+  function undo() {
+    if (!view) return;
+    undoCmd(view); // history commands take the view directly
+    view.focus();
+  }
+  function redo() {
+    if (!view) return;
+    redoCmd(view);
+    view.focus();
+  }
+
   onMount(() => {
     view = new EditorView({ state: buildState(""), parent: container });
     view.focus();
@@ -220,6 +262,11 @@
       setEmoji,
       setTypewriter,
       insertTable,
+      openFind,
+      toggleBold,
+      toggleItalic,
+      undo,
+      redo,
     });
     onwrapstate?.(wrapStateOf(view.state));
     onrendermode?.(renderModeOf(view.state));

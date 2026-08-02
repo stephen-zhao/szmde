@@ -20,6 +20,11 @@
     renderMode,
     onsetrendermode,
     oninserttable,
+    onfind,
+    onbold,
+    onitalic,
+    onundo,
+    onredo,
   }: {
     onnew: () => void;
     onopen: () => void;
@@ -38,6 +43,12 @@
     renderMode: RenderMode;
     onsetrendermode: (mode: RenderMode) => void;
     oninserttable: (rows: number, cols: number) => void;
+    // Pointer paths for the keyboard-only editor commands (REQ-UI-4).
+    onfind: () => void;
+    onbold: () => void;
+    onitalic: () => void;
+    onundo: () => void;
+    onredo: () => void;
   } = $props();
 
   let open = $state(false);
@@ -91,6 +102,23 @@
       </button>
       <button role="menuitem" onclick={() => run(onsaveas)}>
         Save As… <span class="kbd">Ctrl+Shift+S</span>
+      </button>
+      <hr />
+      <div class="section-label">Edit</div>
+      <button role="menuitem" onclick={() => run(onundo)}>
+        Undo <span class="kbd">Ctrl+Z</span>
+      </button>
+      <button role="menuitem" onclick={() => run(onredo)}>
+        Redo <span class="kbd">Ctrl+Y</span>
+      </button>
+      <button role="menuitem" onclick={() => run(onfind)}>
+        Find & Replace… <span class="kbd">Ctrl+F</span>
+      </button>
+      <button role="menuitem" onclick={() => run(onbold)}>
+        Bold <span class="kbd">Ctrl+B</span>
+      </button>
+      <button role="menuitem" onclick={() => run(onitalic)}>
+        Italic <span class="kbd">Ctrl+I</span>
       </button>
       <hr />
       <div class="section-label">Storage</div>
