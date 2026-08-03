@@ -695,6 +695,12 @@ e.g. `| Name    | Val |` ("Name" + 4 trailing spaces); overflow it via right-cli
 - **Live resize:** the column resizes smoothly in BOTH directions during the drag (the rendered padding
   run + the `<col>` width update on each move, not only on release). _(Verified: a leftward move shrank
   the pad 8 → 3 mid-drag.)_
+- **Editable in the cell too:** click a padded header cell → the inline editor seeds with the content
+  **plus the trailing padding** (navigable, deletable spaces). Type more spaces → the column widens
+  (saved); delete them → it bottoms out at the fitted single space; a BODY cell edit still trims. _(Verified:
+  seed `"Name      "`; typing → `| Name             | Val |`; deleting → `| Name | Val |`.)_
+- **Left-alignment parity + no centering** (above) means the padding is visibly on the right — the edge
+  you drag / the spaces you type after the content.
 - Confirm in **Source mode** that the padding is real header-cell text (portable GFM), not view-only state.
 
 ---
