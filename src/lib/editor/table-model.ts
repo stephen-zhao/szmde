@@ -175,6 +175,13 @@ export function headerPadChange(
   cell: { to: number; raw: string },
   target: number,
 ): { from: number; to: number; insert: string } {
+  // An all-whitespace cell has NO content: splitRow puts from===to AT the closing pipe and
+  // the whole inter-pipe run `[to - raw.length, to)` is the padding. Rewriting the trailing
+  // run `[to, to+trail)` there would start ON the separator pipe and eat it + the next
+  // column (silent GFM corruption) — so resize the WHOLE run (min 2 = a fitted-empty cell).
+  if (cell.raw.trim() === "") {
+    return { from: cell.to - cell.raw.length, to: cell.to, insert: " ".repeat(Math.max(2, target)) };
+  }
   const trail = cell.raw.length - cell.raw.trimEnd().length;
   return { from: cell.to, to: cell.to + trail, insert: " ".repeat(Math.max(1, target)) };
 }

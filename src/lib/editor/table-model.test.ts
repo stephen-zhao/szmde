@@ -182,6 +182,14 @@ describe("[REQ-TBLED-12] durable header padding — serialize(keepHeaderPad) + h
     expect(headerPadChange(cell, 1)).toEqual({ from: 5, to: 9, insert: " " });
     expect(headerPadChange(cell, 0)).toEqual({ from: 5, to: 9, insert: " " }); // clamped to 1
   });
+
+  it("headerPadChange resizes an EMPTY cell's whole run — never eats the separator pipe", () => {
+    // `|  |`: splitRow trims all → text="" and to===the closing pipe (offset 3). The run is
+    // [1,3); rewriting [to,to+trail)=[3,5) would delete the pipe + next column (the review bug).
+    const emptyCell = { to: 3, raw: "  " };
+    expect(headerPadChange(emptyCell, 5)).toEqual({ from: 1, to: 3, insert: " ".repeat(5) });
+    expect(headerPadChange(emptyCell, 1)).toEqual({ from: 1, to: 3, insert: "  " }); // min 2 (fitted-empty)
+  });
 });
 
 // Build a model directly for op edge cases (offsets irrelevant to serialize).
