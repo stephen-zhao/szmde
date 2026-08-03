@@ -129,24 +129,54 @@ function effectiveCols(m: TableModel): number {
 
 const cellText = (cells: Cell[], i: number): string => cells[i]?.text ?? "";
 
-/** Serialize a model to GFM, FITTED: each cell is its trimmed text with single
- *  spaces — columns are NOT padded to equal widths across rows (per the user's
- *  preference; cells stay fitted to their content). A ragged short row is padded
- *  with empty cells; a long row widens the table. The delimiter is a minimal 3-char
- *  `---` per column with the alignment colons (`:--`/`--:`/`:-:`). */
-export function serialize(m: TableModel): string {
+/** Serialize a model to GFM. Body cells + the delimiter are FITTED (trimmed text, single
+ *  spaces). A ragged short row is padded with empty cells; a long row widens the table.
+ *  The delimiter is a minimal 3-char `---` per column with the alignment colons.
+ *
+ *  When `keepHeaderPad` is set, the HEADER row instead PRESERVES each cell's leading/
+ *  trailing padding — the overflow-mode column width (REQ-TBLED-12), which is durable
+ *  author content. Structural ops (insert/delete/move rows+cols, toggle header) pass it
+ *  so a re-serialize never discards the author's column widths; Tidy leaves it off (its
+ *  whole job is to collapse back to fitted). For a FITTED header the two are identical. */
+export function serialize(m: TableModel, keepHeaderPad = false): string {
   const cols = effectiveCols(m);
   const rowLine = (cells: Cell[]): string => {
     const out: string[] = [];
     for (let i = 0; i < cols; i++) out.push(cellText(cells, i));
     return "| " + out.join(" | ") + " |";
   };
+  // A header cell keeping its padding: reproduce the raw leading/trailing spaces (min 1
+  // each so it stays readable GFM). An all-whitespace cell is one pad run — keep its
+  // width (min 2, a fitted-empty cell) without double-counting lead + trail.
+  const headerSeg = (cell: Cell | undefined): string => {
+    const raw = cell?.raw ?? "";
+    const text = cell?.text ?? "";
+    if (text === "") return " ".repeat(Math.max(2, raw.length));
+    const lead = raw.length - raw.trimStart().length;
+    const trail = raw.length - raw.trimEnd().length;
+    return " ".repeat(Math.max(1, lead)) + text + " ".repeat(Math.max(1, trail));
+  };
+  const headerLine = keepHeaderPad
+    ? "|" + Array.from({ length: cols }, (_, i) => headerSeg(m.header[i])).join("|") + "|"
+    : rowLine(m.header);
   const delimCell = (i: number): string => {
     const a = m.aligns[i] ?? null;
     return a === "center" ? ":-:" : a === "right" ? "--:" : a === "left" ? ":--" : "---";
   };
   const delimLine = "| " + Array.from({ length: cols }, (_, i) => delimCell(i)).join(" | ") + " |";
-  return [rowLine(m.header), delimLine, ...m.rows.map(rowLine)].join("\n");
+  return [headerLine, delimLine, ...m.rows.map(rowLine)].join("\n");
+}
+
+/** The doc-change that sets a header cell's TRAILING padding to `target` spaces (min 1) —
+ *  the drag-to-resize-column affordance (REQ-TBLED-12) in overflow mode. `cell.to` is the
+ *  content end; the trailing whitespace run `[to, to+trail)` is replaced. Pure: the caller
+ *  dispatches it (a targeted edit, so it persists and is one undo step). */
+export function headerPadChange(
+  cell: { to: number; raw: string },
+  target: number,
+): { from: number; to: number; insert: string } {
+  const trail = cell.raw.length - cell.raw.trimEnd().length;
+  return { from: cell.to, to: cell.to + trail, insert: " ".repeat(Math.max(1, target)) };
 }
 
 /** Re-tidy a table source string (parse → serialize). Idempotent. */

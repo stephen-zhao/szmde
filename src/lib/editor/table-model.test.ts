@@ -15,6 +15,7 @@ import {
   makeTable,
   tokenizeInline,
   renderedOffsetToSource,
+  headerPadChange,
   type TableModel,
 } from "./table-model";
 
@@ -132,6 +133,54 @@ describe("[REQ-TBLED-6] serialize / tidy", () => {
     expect(lines[0]).toBe("| a | b |  |"); // header widened with a 3rd empty col
     expect(lines[1]).toBe("| --- | --- | --- |");
     expect(lines[2]).toBe("| 1 | 2 | 3 |");
+  });
+});
+
+describe("[REQ-TBLED-12] durable header padding — serialize(keepHeaderPad) + headerPadChange", () => {
+  // A table whose header column carries overflow padding (4 trailing spaces in "Name").
+  const PAD = "| Name    | b |\n| --- | --- |\n| 1 | 2 |";
+
+  it("default serialize FITS the header (collapses padding) — Tidy's behavior, unchanged", () => {
+    expect(serialize(parseTable(PAD, 0))).toBe("| Name | b |\n| --- | --- |\n| 1 | 2 |");
+    expect(tidy(PAD)).toBe("| Name | b |\n| --- | --- |\n| 1 | 2 |");
+  });
+
+  it("keepHeaderPad PRESERVES the header's padding, body/delimiter stay fitted", () => {
+    expect(serialize(parseTable(PAD, 0), true)).toBe(PAD);
+  });
+
+  it("a FITTED header serializes identically with or without keepHeaderPad", () => {
+    const m = parseTable(T, 0);
+    expect(serialize(m, true)).toBe(serialize(m, false));
+    expect(serialize(m, true)).toBe(T);
+  });
+
+  it("moveCol carries a column's header padding to its new position", () => {
+    const m = parseTable(PAD, 0);
+    expect(serialize(moveCol(m, 0, 1), true).split("\n")[0]).toBe("| b | Name    |");
+  });
+
+  it("insertCol keeps existing header padding; the new column is fitted-empty", () => {
+    const m = parseTable(PAD, 0);
+    expect(serialize(insertCol(m, 1), true).split("\n")[0]).toBe("| Name    |  | b |");
+  });
+
+  it("deleteCol keeps the surviving columns' header padding", () => {
+    const m = parseTable(PAD, 0);
+    expect(serialize(deleteCol(m, 1), true).split("\n")[0]).toBe("| Name    |");
+  });
+
+  it("preserves the width of an all-whitespace (empty) padded header cell", () => {
+    // `| Name    |     |` — second header cell is 5 spaces (an intentionally-wide empty col).
+    const m = parseTable("| Name    |     |\n| - | - |\n| 1 | 2 |", 0);
+    expect(serialize(m, true).split("\n")[0]).toBe("| Name    |     |");
+  });
+
+  it("headerPadChange rewrites a header cell's trailing padding to N spaces (min 1)", () => {
+    const cell = { to: 5, raw: " Name    " }; // content ends at 5; 4 trailing spaces
+    expect(headerPadChange(cell, 7)).toEqual({ from: 5, to: 9, insert: " ".repeat(7) });
+    expect(headerPadChange(cell, 1)).toEqual({ from: 5, to: 9, insert: " " });
+    expect(headerPadChange(cell, 0)).toEqual({ from: 5, to: 9, insert: " " }); // clamped to 1
   });
 });
 

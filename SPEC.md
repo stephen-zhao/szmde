@@ -533,8 +533,11 @@ pipe tables**. Requirements:
   - insert column before / after the current column; insert row above / below;
   - delete current row / column.
   (Exact keybindings TBD; must not collide with text editing or the §4.2 formatting keys.)
-- **Auto-tidy source.** Cells re-pad/realign as you edit so the saved GFM stays clean; per-column
-  alignment (`:--`, `:-:`, `--:`) is settable from the editing UI.
+- **Auto-tidy source.** Cells stay fitted (trimmed, single-spaced) so the saved GFM stays clean;
+  per-column alignment (`:--`, `:-:`, `--:`) is settable from the editing UI. **Exception:** a header
+  cell's overflow **padding** (`REQ-TBLED-10`/`REQ-TBLED-12`) is durable author content — it is
+  preserved through insert/delete/move ops and is **not** collapsed; only the explicit **Tidy**
+  command re-fits it.
 - **Usable while still EMPTY.** A freshly inserted _N×M_ scaffold is all empty cells, so cell size
   must not be driven by content alone: empty tables/rows/columns/cells keep a **minimum rendered
   size** with visible boundaries, so they can be seen and targeted before anything is typed
@@ -550,7 +553,14 @@ pipe tables**. Requirements:
   explicit author control (`| Name           |` → a wide "Name" column). When the table's total width
   exceeds the page width it gets its **own horizontal scrollbar** and scrolls **independently** — only
   the table's contents move sideways, not the surrounding document — mirroring a no-wrap code block. On
-  disk it stays plain GFM: the padding spaces are ordinary header-cell text.
+  disk it stays plain GFM: the padding spaces are ordinary header-cell text. The padding is **durable**
+  — insert/delete/move row+column ops **preserve** each column's header padding (only the explicit
+  **Tidy** command re-fits it).
+- **Resize a column by dragging its header border** (`REQ-TBLED-12`). In overflow mode, each header
+  cell has a right-border grip; dragging it adds/removes that column's header **padding** in whole-space
+  steps — a direct-manipulation way to set the column width in **Formatted mode** (no Source-mode round
+  trip), committed as one undoable edit and saved to disk (min = fitted). It edits real GFM text, so it
+  is portable and durable per the note above.
 - **Pin the header row while scrolling** (`REQ-TBLED-11`), a per-table toggle. When on, a table whose
   top has scrolled above the viewport keeps its **header row pinned** to the top of the visible content
   area (sticky), so the column headings stay readable through a long table; off (the default) the

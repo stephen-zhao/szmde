@@ -159,6 +159,7 @@ in `table-display.ts` (ephemeral per-table RangeSet, mirroring the code-block wr
 |-----|-------------|------|--------|
 | REQ-TBLED-10 | **Width mode: fit-to-width vs. overflow** — per-table toggle. Fit-to-width sizes the table to the page width (today's behavior); overflow sizes each column to its **header cell's** width (header-padding spaces widen the column, ignoring body-cell content width) and gives the table its **own horizontal scrollbar** when it exceeds the page width, like a no-wrap code block | §7.4 | ✅ built (WF-34) |
 | REQ-TBLED-11 | **Pin header row while scrolling** — per-table toggle; a long table's header row stays sticky at the top of the visible content area once the table top scrolls out of view | §7.4 | ✅ built (WF-35/36) |
+| REQ-TBLED-12 | **Durable header padding + drag-to-resize columns** — the overflow column width (header padding) survives insert/delete/move ops (only explicit Tidy re-fits), and each overflow header cell has a right-border grip to drag the padding directly in Formatted mode (whole-space steps, undoable, saved). _(follow-up to REQ-TBLED-10, per Stephen 2026-07-27)_ | §7.4 | ✅ built (WF-38) |
 
 ### M7 — Network storage + polish ⬜  (SPEC §6, §7)
 | REQ | Requirement | SPEC |

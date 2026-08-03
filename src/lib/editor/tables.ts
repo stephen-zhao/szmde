@@ -16,6 +16,7 @@ import {
   moveRow,
   moveCol,
   tokenizeInline,
+  headerPadChange,
   type Align,
   type Cell,
   type TableModel,
@@ -27,8 +28,9 @@ import {
   tableDisplays,
   type TableDisplay,
 } from "./table-display";
+import { tableBlockAt } from "./table-commands";
 import { indexAt, type DragKind } from "./table-drag";
-import { editCellAt, cancelCellEditor } from "./table-cell-editor";
+import { editCellAt, cancelCellEditor, commitCellEditor } from "./table-cell-editor";
 import { replaceTable } from "./table-ops";
 
 /**
@@ -258,7 +260,7 @@ class TableWidget extends WidgetType {
       );
     }
     if (this.display.width !== "overflow") return table;
-    return this.overflowWrap(table);
+    return this.overflowWrap(view, table);
   }
 
   /**
@@ -268,14 +270,16 @@ class TableWidget extends WidgetType {
    * flicker-free pre-paint measure pass (v8-ignored — happy-dom has no layout; the DOM
    * STRUCTURE is unit-tested and the sizing is verified live in WF-34).
    */
-  private overflowWrap(table: HTMLTableElement): HTMLElement {
+  private overflowWrap(view: EditorView, table: HTMLTableElement): HTMLElement {
     table.classList.add("cm-md-table-overflow");
     // Stable <col> handles for the sizer plugin to pin each column's width onto.
     const colgroup = document.createElement("colgroup");
     for (let i = 0; i < this.m.header.length; i++) colgroup.appendChild(document.createElement("col"));
     table.insertBefore(colgroup, table.firstChild);
     // Preserve each header cell's padding (the raw leading/trailing spaces) as
-    // preformatted spans so it occupies real width — the SPEC's explicit author control.
+    // preformatted spans so it occupies real width — the SPEC's explicit author control —
+    // and give each header cell a right-border resize grip (REQ-TBLED-12) to drag the
+    // padding (i.e. the column width) directly, no Source-mode round-trip.
     const ths = [...table.querySelectorAll<HTMLTableCellElement>("thead th")];
     ths.forEach((th, i) => {
       const raw = this.m.header[i]?.raw ?? "";
@@ -285,6 +289,7 @@ class TableWidget extends WidgetType {
       const trail = raw.trim() === "" ? 0 : raw.length - raw.trimEnd().length;
       if (lead) th.insertBefore(padSpan(lead), th.firstChild);
       if (trail) th.appendChild(padSpan(trail));
+      this.addColResizeGrip(view, th, i);
     });
     const scroll = document.createElement("div");
     scroll.className = "cm-md-table-scroll";
@@ -293,6 +298,74 @@ class TableWidget extends WidgetType {
     // (a ViewPlugin) — a requestMeasure scheduled from a block widget's toDOM doesn't
     // reliably apply, whereas one scheduled from a plugin update does.
     return scroll;
+  }
+
+  /**
+   * A right-border resize grip on an overflow header cell (REQ-TBLED-12): dragging it
+   * adds/removes that column's header **trailing padding** in whole-space steps — the
+   * overflow column width. It rewrites the header cell's source in ONE undoable edit on
+   * release (a targeted change, so it persists and survives structural ops), re-resolving
+   * from the live doc first. Pure-layout gesture → v8-ignored (happy-dom has no layout /
+   * pointer capture); the padding math is `headerPadChange` (unit-tested) and the live feel
+   * is WF-verified. Only the STRUCTURE (the grip element) is exercised in the DOM tests.
+   */
+  private addColResizeGrip(view: EditorView, th: HTMLElement, colIndex: number): void {
+    const grip = document.createElement("span");
+    grip.className = "cm-tbl-colresize";
+    grip.setAttribute("aria-hidden", "true");
+    grip.title = "Drag to resize column (header padding)";
+    // A real pointer drag also fires a compat mousedown; swallow it so it can't reach the
+    // table's reveal/cell-edit handler.
+    grip.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    grip.addEventListener("pointerdown", (e) => {
+      /* v8 ignore start -- pointer resize gesture: needs real layout + pointer capture
+         (happy-dom has neither); the padding edit is unit-tested via headerPadChange. */
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const table = th.closest("table");
+      const col = table?.querySelectorAll<HTMLElement>("colgroup > col")[colIndex];
+      // px-per-space, from a rendered pad span (always ≥1 space in overflow) → the drag
+      // maps 1:1 onto whole spaces. Fallback keeps it finite if no pad span is present.
+      const padEl = th.querySelector<HTMLElement>(".cm-tbl-pad");
+      const spaceW =
+        padEl && padEl.textContent
+          ? padEl.getBoundingClientRect().width / padEl.textContent.length
+          : 8;
+      const raw = this.m.header[colIndex]?.raw ?? "";
+      const startTrail = Math.max(1, raw.length - raw.trimEnd().length);
+      const startX = e.clientX;
+      const baseColW = (col ?? th).getBoundingClientRect().width;
+      let target = startTrail;
+      try {
+        grip.setPointerCapture(e.pointerId);
+      } catch {
+        /* synthetic event — the drag still tracks */
+      }
+      const onMove = (ev: PointerEvent) => {
+        target = Math.max(1, startTrail + Math.round((ev.clientX - startX) / Math.max(1, spaceW)));
+        if (col) col.style.width = `${Math.max(0, baseColW + (target - startTrail) * spaceW)}px`;
+      };
+      const onUp = () => {
+        grip.removeEventListener("pointermove", onMove);
+        grip.removeEventListener("pointerup", onUp);
+        commitCellEditor(); // flush an open editor so offsets are valid, then re-resolve
+        const tbl = tableBlockAt(view.state, this.m.from);
+        if (tbl) {
+          const fresh = parseTable(view.state.sliceDoc(tbl.from, tbl.to), tbl.from);
+          const cell = fresh.header[colIndex];
+          if (cell) view.dispatch({ changes: headerPadChange(cell, target), userEvent: "input" });
+        }
+        view.focus();
+      };
+      grip.addEventListener("pointermove", onMove);
+      grip.addEventListener("pointerup", onUp);
+      /* v8 ignore stop */
+    });
+    th.appendChild(grip);
   }
   destroy() {
     closeTableMenu(); // table removed (re-render / scroll-away) → drop a stray menu

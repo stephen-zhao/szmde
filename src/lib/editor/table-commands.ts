@@ -83,7 +83,7 @@ function structuralCommand(
     const m = parseTable(state.doc.sliceString(tbl.from, tbl.to), tbl.from);
     const m2 = apply(m, loc);
     if (m2 === m) return false; // no-op (op returned the same model)
-    const insert = serialize(m2);
+    const insert = serialize(m2, true); // keepHeaderPad — preserve overflow column widths
     const reparsed = parseTable(insert, tbl.from);
     const c = caret(loc);
     dispatch(

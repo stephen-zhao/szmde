@@ -673,6 +673,26 @@ click the item in the next; don't query the dropdown in the same synchronous ste
 
 ---
 
+### WF-38 · Durable header padding + drag-to-resize columns · `REQ-TBLED-12` _(M6.2 follow-up)_ — ✅ verified in the browser preview (2026-07-27)
+**Why:** the overflow column width is header padding. Two things happen off-DOM/layout so vitest can't
+cover them: (a) `serialize(keepHeaderPad)` must survive real structural ops end-to-end, and (b) the
+right-border resize grip is a pointer-drag (v8-ignored). The pure pieces — `serialize` keepHeaderPad and
+`headerPadChange` — are unit-tested (`table-model.test.ts`); this WF is the live gate.
+**Setup:** `npm run dev` (localhost:1420); drive via `window.__cmview`. Load a table with a padded header,
+e.g. `| Name    | Val |` ("Name" + 4 trailing spaces); overflow it via right-click → **Overflow (scroll)**.
+**Steps / expected:**
+- **Durable padding:** right-click the header → **Insert column right**. The header keeps its padding —
+  `| Name      |  | Val |` (a new fitted-empty column, `Name`'s spaces intact). _(Verified: padding
+  preserved; previously a structural op collapsed it.)_ Repeat with move/delete column — padding follows
+  the column. Only **Tidy** (`Mod-Alt-t`) re-fits it.
+- **Drag-to-resize:** hover a column's right border → a `col-resize` grip. Drag **right** → the column
+  widens and the source gains trailing spaces (measured: +5 space-widths → `Name` went 4 → 9 trailing);
+  drag **left** → it narrows, clamped to fitted (`| Name |`, 1 space). The change is one **undoable**
+  edit (`Ctrl+Z` reverts it) and is **saved** (visible in Source mode). _(Verified live.)_
+- Confirm in **Source mode** that the padding is real header-cell text (portable GFM), not view-only state.
+
+---
+
 ## Requirement coverage
 
 | REQ | Unit/integration (Vitest/cargo) | LLM workflow (this doc) |
@@ -684,6 +704,7 @@ click the item in the next; don't query the dropdown in the same synchronous ste
 | REQ-TBLED-2 | model + structure (`table-model.test.ts`, `table.dom.test.ts`) | WF-27 (header toggle on/off) |
 | REQ-TBLED-10 | state + structure (`table-display.test.ts`, `table-display.dom.test.ts`) | WF-34 (overflow: header-driven widths, body wraps, independent scroll) |
 | REQ-TBLED-11 | state + structure (`table-display.test.ts`, `table-display.dom.test.ts`) | WF-35 (fit-mode sticky), WF-36 (overflow-mode JS thead-follow) |
+| REQ-TBLED-12 | unit (`table-model.test.ts` serialize keepHeaderPad + headerPadChange) + structure (`table-display.dom.test.ts` grip) | WF-38 (durable padding through ops + drag-to-resize) |
 | REQ-NEST-1 | structure (`nested.dom.test.ts`) | WF-4 (Tab nest + styling) |
 | REQ-LIST-3 | doc model (`editing.test.ts`) | WF-5 (task Enter) |
 | REQ-TASK-2 | doc model (`tasklist.dom.test.ts`) | WF-6 (toggle) |
