@@ -283,12 +283,16 @@ class TableWidget extends WidgetType {
     const ths = [...table.querySelectorAll<HTMLTableCellElement>("thead th")];
     ths.forEach((th, i) => {
       const raw = this.m.header[i]?.raw ?? "";
-      const lead = raw.length - raw.trimStart().length;
-      // For an all-whitespace cell trimStart already counts every space, so trimEnd would
-      // double it — the whole segment is one leading pad run, no trailing run.
-      const trail = raw.trim() === "" ? 0 : raw.length - raw.trimEnd().length;
-      if (lead) th.insertBefore(padSpan(lead), th.firstChild);
-      if (trail) th.appendChild(padSpan(trail));
+      // The column width IS the header cell's padding, rendered as preformatted spans.
+      // Content sits FLUSH-LEFT (no leading pad) so a short/fitted header isn't visually
+      // centered by its symmetric spaces — the padding is a TRAILING run on the right (the
+      // edge you drag). An all-whitespace cell is one run = its whole width.
+      if (raw.trim() === "") {
+        if (raw.length) th.appendChild(padSpan(raw.length));
+      } else {
+        const trail = raw.length - raw.trimEnd().length;
+        if (trail) th.appendChild(padSpan(trail));
+      }
       this.addColResizeGrip(view, th, i);
     });
     const scroll = document.createElement("div");
@@ -347,6 +351,10 @@ class TableWidget extends WidgetType {
       }
       const onMove = (ev: PointerEvent) => {
         target = Math.max(1, startTrail + Math.round((ev.clientX - startX) / Math.max(1, spaceW)));
+        // Grow/SHRINK the rendered padding run live — without this, a leftward drag only
+        // narrows the <col> while the (unchanged, wider) pre content overflows it, so the
+        // shrink isn't visible until release. Updating both keeps the resize smooth.
+        if (padEl) padEl.textContent = " ".repeat(target);
         if (col) col.style.width = `${Math.max(0, baseColW + (target - startTrail) * spaceW)}px`;
       };
       const onUp = () => {

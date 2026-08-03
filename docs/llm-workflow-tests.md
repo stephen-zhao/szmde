@@ -689,6 +689,12 @@ e.g. `| Name    | Val |` ("Name" + 4 trailing spaces); overflow it via right-cli
   widens and the source gains trailing spaces (measured: +5 space-widths → `Name` went 4 → 9 trailing);
   drag **left** → it narrows, clamped to fitted (`| Name |`, 1 space). The change is one **undoable**
   edit (`Ctrl+Z` reverts it) and is **saved** (visible in Source mode). _(Verified live.)_
+- **Left-alignment parity:** header content sits at the SAME left offset in overflow as in fit mode
+  (no leading pad span → short/fitted headers aren't visually centered). _(Verified: content left = 13px
+  in both modes.)_
+- **Live resize:** the column resizes smoothly in BOTH directions during the drag (the rendered padding
+  run + the `<col>` width update on each move, not only on release). _(Verified: a leftward move shrank
+  the pad 8 → 3 mid-drag.)_
 - Confirm in **Source mode** that the padding is real header-cell text (portable GFM), not view-only state.
 
 ---
