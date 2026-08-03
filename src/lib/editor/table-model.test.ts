@@ -58,6 +58,18 @@ describe("[REQ-TBLED-6] splitRow — pipe geometry, empties included", () => {
   it("offsets are relative to lineStart", () => {
     expect(splitRow("| x |", 100)[0].from).toBe(102);
   });
+
+  it("keeps the untrimmed inter-pipe segment as `raw` (padding preserved for REQ-TBLED-10)", () => {
+    // A padded header cell: `text` trims, `raw` keeps every space so overflow width
+    // can widen the column. Built with an exact space count so the assert is precise.
+    const raw = " Name" + " ".repeat(6);
+    const [c] = splitRow(`|${raw}|`, 0);
+    expect(c.text).toBe("Name");
+    expect(c.raw).toBe(raw);
+    expect(c.raw.length).toBeGreaterThan(" Name ".length); // padding widens vs. fitted
+    // A fitted cell's raw is just the single-space-padded content.
+    expect(splitRow("| a | b |", 0).map((x) => x.raw)).toEqual([" a ", " b "]);
+  });
 });
 
 describe("[REQ-TBLED-6] parseTable", () => {

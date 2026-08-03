@@ -44,6 +44,7 @@ import {
 } from "./typewriter";
 import { alertDecorations, alertAtomicRanges } from "./alerts";
 import { tableExtension } from "./tables";
+import { tableDisplays } from "./table-display";
 import { tableSourceGizmos } from "./table-source-gizmos";
 import { searchExtension } from "./search";
 import { foldExtension } from "./fold";
@@ -385,6 +386,9 @@ export function editorExtensions(
     wrapOverrides,
     blockLineDecorations,
     blockConstructDecorations,
+    // Per-table display state (width mode / pin header) must be registered BEFORE
+    // tableExtension — the table widget reads it to build its decorations.
+    tableDisplays,
     tableExtension,
     tableSourceGizmos,
     alertDecorations,

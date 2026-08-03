@@ -149,14 +149,16 @@ before a single character is drawn.
 | REQ-LANE-1 | **Lane model + settings** — the left-edge columns become named lanes with a declared strategy (reserved / drawer / off); configured via an **ordered list of lane-id references** (spatial order) + a **per-lane settings object** (strategy, `drawerHeight` z-order) | §7.6 | ⬜ |
 | REQ-LANE-4 | **Collapsible lane drawers** — `drawer`-strategy lanes collapse off the left and reveal on a left-edge swipe as **cascading, overlapping, finger-following** panels (leftmost slowest, rightmost fastest; content shifts right; `drawerHeight` = z-order; shadow/border delineation). Narrow auto-collapses; wide defaults open + toggle. **Partial-open peek persists** (type while half-out); interacting with a drawer affordance snaps it fully open. `reserved` lanes (e.g. line numbers) stay up. _(supersedes the removed REQ-LANE-2/3; interactive demonstrator built 2026-07-26)_ | §7.6 |
 
-### Table rendering modes 🅑  (SPEC §7.4)
-_Captured 2026-07-22 (Stephen). Two per-table display toggles beyond the M5 editing set — general
-features, not touch-specific, though REQ-TBLED-10's overflow mode also relieves the narrow-width case
-(a table wider than a phone gets its own horizontal scroll). Specced, unscheduled — design later._
-| REQ | Requirement | SPEC |
-|-----|-------------|------|
-| REQ-TBLED-10 | **Width mode: fit-to-width vs. overflow** — per-table toggle. Fit-to-width sizes the table to the page width (today's behavior); overflow sizes each column to its **header cell's** width (header-padding spaces widen the column, ignoring body-cell content width) and gives the table its **own horizontal scrollbar** when it exceeds the page width, like a no-wrap code block | §7.4 |
-| REQ-TBLED-11 | **Pin header row while scrolling** — per-table toggle; a long table's header row stays sticky at the top of the visible content area once the table top scrolls out of view | §7.4 |
+### Table rendering modes ✅  (SPEC §7.4)
+_Captured 2026-07-22 (Stephen); **built 2026-07-26** as the first M6.2 slice. Two per-table display
+toggles beyond the M5 editing set — general features, not touch-specific, though REQ-TBLED-10's
+overflow mode also relieves the narrow-width case (a table wider than a phone gets its own horizontal
+scroll). Both are display-only (on-disk GFM unchanged), toggled from the right-click menu; state lives
+in `table-display.ts` (ephemeral per-table RangeSet, mirroring the code-block wrap overrides)._
+| REQ | Requirement | SPEC | Status |
+|-----|-------------|------|--------|
+| REQ-TBLED-10 | **Width mode: fit-to-width vs. overflow** — per-table toggle. Fit-to-width sizes the table to the page width (today's behavior); overflow sizes each column to its **header cell's** width (header-padding spaces widen the column, ignoring body-cell content width) and gives the table its **own horizontal scrollbar** when it exceeds the page width, like a no-wrap code block | §7.4 | ✅ built (WF-34) |
+| REQ-TBLED-11 | **Pin header row while scrolling** — per-table toggle; a long table's header row stays sticky at the top of the visible content area once the table top scrolls out of view | §7.4 | ✅ built (WF-35/36) |
 
 ### M7 — Network storage + polish ⬜  (SPEC §6, §7)
 | REQ | Requirement | SPEC |
