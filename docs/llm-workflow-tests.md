@@ -699,6 +699,10 @@ e.g. `| Name    | Val |` ("Name" + 4 trailing spaces); overflow it via right-cli
   **plus the trailing padding** (navigable, deletable spaces). Type more spaces → the column widens
   (saved); delete them → it bottoms out at the fitted single space; a BODY cell edit still trims. _(Verified:
   seed `"Name      "`; typing → `| Name             | Val |`; deleting → `| Name | Val |`.)_
+- **Live width while typing:** the column resizes **on every keystroke** as spaces are added/removed
+  (`installOverflowWidthPreview` updates the `<col>` + pad span from the textarea's trailing count) —
+  the doc isn't touched until commit, so it's a pure preview. _(Verified: col 93 → 126px on more spaces,
+  → 76px on fewer, doc unchanged until Enter/blur.)_
 - **Left-alignment parity + no centering** (above) means the padding is visibly on the right — the edge
   you drag / the spaces you type after the content.
 - Confirm in **Source mode** that the padding is real header-cell text (portable GFM), not view-only state.

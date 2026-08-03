@@ -94,6 +94,35 @@ function focusEnd(ta: HTMLTextAreaElement, caret?: number): void {
     /* best effort: happy-dom lacks real focus/selection */
   }
 }
+
+/**
+ * Live column-width preview while typing in an overflow HEADER cell (REQ-TBLED-12): the
+ * doc isn't touched until commit, so the table widget wouldn't resize until Enter — instead,
+ * on every `input` we set the column's <col> width (and its pad span) from the textarea's
+ * current trailing-space count, exactly like the drag's onMove. No-op off an overflow header.
+ * Needs real layout (getBoundingClientRect) → v8-ignored; the committed width is unit-tested.
+ */
+function installOverflowWidthPreview(
+  cellEl: HTMLElement,
+  ta: HTMLTextAreaElement,
+  colIndex: number,
+): void {
+  const table = cellEl.closest<HTMLTableElement>("table.cm-md-table-overflow");
+  if (!table) return; // width preview only applies to overflow-mode header cells
+  const col = table.querySelector("colgroup")?.children[colIndex] as HTMLElement | undefined;
+  const padSpan = cellEl.querySelector<HTMLElement>(".cm-tbl-pad");
+  const spaceW =
+    padSpan && padSpan.textContent
+      ? padSpan.getBoundingClientRect().width / padSpan.textContent.length
+      : 8;
+  const baseColW = col ? parseFloat(col.style.width) || col.getBoundingClientRect().width : 0;
+  const startTrail = ta.value.length - ta.value.trimEnd().length;
+  ta.addEventListener("input", () => {
+    const trail = ta.value.length - ta.value.trimEnd().length;
+    if (padSpan) padSpan.textContent = " ".repeat(Math.max(1, trail));
+    if (col) col.style.width = `${Math.max(0, baseColW + (trail - startTrail) * spaceW)}px`;
+  });
+}
 /* v8 ignore stop */
 
 /**
@@ -130,6 +159,7 @@ export function editCellAt(view: EditorView, tableFrom: number, row: number, col
   ta.spellcheck = false;
   cellEl.appendChild(ta);
   focusEnd(ta, isHeader ? cell.text.length : undefined); // land at the content end, before the padding
+  if (isHeader) installOverflowWidthPreview(cellEl, ta, col); // live width as you type spaces
 
   const a: ActiveEditor = {
     ta,
