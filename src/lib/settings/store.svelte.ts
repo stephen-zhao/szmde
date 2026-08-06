@@ -1,6 +1,7 @@
 import { SettingsService } from "./service";
 import { TauriSettingsBackend } from "./tauri-backend";
 import { applyAppearance } from "./appearance";
+import { applyLanes } from "./lanes";
 import { DEFAULTS, type DeepPartial, type Settings } from "./schema";
 
 /**
@@ -27,6 +28,7 @@ export const settings = {
 function apply(s: Settings): void {
   current = s;
   applyAppearance(document.documentElement, s.appearance);
+  applyLanes(document.documentElement, s.lanes); // REQ-LANE-1 — left-edge lane widths
 }
 
 /** Load persisted settings, apply appearance, and keep `settings.value` live. */

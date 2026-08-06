@@ -1,6 +1,7 @@
 import { EditorView } from "@codemirror/view";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
+import { LANE_REGISTRY } from "../settings/lanes";
 
 /**
  * Base CodeMirror theme for szmde. The editor is a centered reading column on a
@@ -39,10 +40,12 @@ export const baseTheme = EditorView.theme(
       // [content]. The left two are reserved as padding so the chevron and the
       // Syntax-mode hung markers live in their OWN lanes (no more overlap) and stay
       // inside the reading column (never clipped off the left edge, even when the
-      // page width is maxed to the window). Sized off --editor-font-size so they
-      // scale with zoom; the gutter fits up to `######`'s small-grey prefix.
-      "--fold-col": "calc(var(--editor-font-size) * 1.7)",
-      "--marker-gutter": "calc(var(--editor-font-size) * 3.2)",
+      // page width is maxed to the window). Their WIDTHS are now driven by the lane
+      // model (REQ-LANE-1): applyLanes() sets --fold-col / --marker-gutter on :root
+      // from LANE_REGISTRY (an `off` lane → 0px), inherited here. The `var(--…, <w>)`
+      // fallbacks below ARE those same registry widths, so pre-settings render (web /
+      // before load) is byte-identical; they scale with zoom via --editor-font-size
+      // and the gutter fits up to `######`'s small-grey prefix.
       // Reading-column width is driven by appearance.lineWidth (settings §8) via
       // --reading-width (px); falls back to 740px before settings load / on the
       // web. This is a max-width on an auto-width, margin-auto-centered block under
@@ -66,7 +69,7 @@ export const baseTheme = EditorView.theme(
       paddingTop: "calc(env(safe-area-inset-top, 0px) + 72px)",
       paddingRight: "28px",
       paddingBottom: "40vh",
-      paddingLeft: "calc(28px + var(--fold-col) + var(--marker-gutter))",
+      paddingLeft: `calc(28px + var(--fold-col, ${LANE_REGISTRY.fold.width}) + var(--marker-gutter, ${LANE_REGISTRY.marker.width}))`,
     },
     "&.cm-focused": { outline: "none" },
     ".cm-content ::selection": { backgroundColor: "var(--selection)" },
@@ -595,14 +598,17 @@ export const baseTheme = EditorView.theme(
     // gutter into column A. Font-size pinned to the body size (NOT the heading em).
     ".cm-fold-chevron": {
       position: "absolute",
-      left: "calc(-1 * (var(--marker-gutter) + var(--fold-col)))",
+      left: `calc(-1 * (var(--marker-gutter, ${LANE_REGISTRY.marker.width}) + var(--fold-col, ${LANE_REGISTRY.fold.width})))`,
       top: "0.55em",
       // text-indent is inherited; the heading line carries a negative text-indent
       // (the gutter hang, RENDER-9), which would otherwise drag the arrow GLYPH left
       // out of the button (the absolutely-positioned box ignores it, the inline glyph
       // doesn't). Reset it so the glyph centres in the chip at every heading depth.
       textIndent: "0",
-      display: "inline-flex",
+      // Hidden when the fold lane's strategy is `off` (REQ-LANE-1): applyLanes sets
+      // --fold-chevron-display: none, so the chevron leaves with its lane rather than
+      // floating in the collapsed column. Mod-. still folds. Default = today's value.
+      display: "var(--fold-chevron-display, inline-flex)",
       alignItems: "center",
       justifyContent: "center",
       boxSizing: "border-box",

@@ -633,9 +633,14 @@ affordance** (tapping a fold chevron, a marker) snaps that drawer fully open.
 _Interaction reference:_ an interactive demonstrator of the cascade, finger-follow, z-stacking, and
 partial-peek is the design source of truth for this behaviour (built 2026-07-26).
 
+_Shipped (`REQ-LANE-1`, 2026-08-06):_ the settings serialization — the ordered lane-id list + per-lane
+objects (`strategy` + `drawerHeight`), versioned into the schema (`settings.lanes`, schema v3), with a
+code-side `LANE_REGISTRY` for the lane widths + the mandatory-marker carve-out, and `applyLanes` deriving
+the CSS lane widths (an `off` lane reclaims its width and hides its affordance). `drawer` reserves width
+like `reserved` until the drawers below are built.
+
 _Not yet decided:_ the desktop gesture (pointer drag near the edge vs. a handle), the snap-on-interact
-detail, whether `drawerHeight` also drives keyboard/tab order, and the concrete settings serialization
-(the ordered-id list + per-lane objects, versioned into the settings schema).
+detail, and whether `drawerHeight` also drives keyboard/tab order.
 
 ### 7.7 Editing actions a soft keyboard cannot reach (`REQ-UI-5`; M6.2)
 
