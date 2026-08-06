@@ -298,6 +298,25 @@ export const baseTheme = EditorView.theme(
     ".cm-md-table-overflow td": { whiteSpace: "normal", overflowWrap: "anywhere" },
     // Preformatted padding runs carrying a header cell's whitespace width.
     ".cm-tbl-pad": { whiteSpace: "pre" },
+    // Right-border column-resize grip (REQ-TBLED-12) — overflow header cells only. Drag
+    // it to add/remove that column's header padding (its width). Hover-revealed like the
+    // other table affordances; a col-resize cursor + accent tint mark it.
+    ".cm-tbl-colresize": {
+      position: "absolute",
+      top: "0",
+      right: "-3px",
+      width: "6px",
+      height: "100%",
+      cursor: "col-resize",
+      opacity: "0",
+      pointerEvents: "none",
+      zIndex: "7",
+      touchAction: "none",
+    },
+    ".cm-md-table-overflow th:hover .cm-tbl-colresize": { opacity: "1", pointerEvents: "auto" },
+    ".cm-tbl-colresize:hover, .cm-tbl-colresize:active": {
+      background: "color-mix(in srgb, var(--accent) 45%, transparent)",
+    },
     // Pin (fit mode): a sticky header. border-collapse drops the cell border while
     // stuck, so redraw the grid edges with an inset box-shadow.
     ".cm-md-table-pin thead th": {

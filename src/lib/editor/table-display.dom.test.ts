@@ -106,6 +106,24 @@ describe("[REQ-TBLED-10] width mode — overflow", () => {
   });
 });
 
+describe("[REQ-TBLED-12] overflow column-resize grips", () => {
+  it("adds a resize grip to each overflow header cell; fit mode has none", () => {
+    const v = build(DOC);
+    expect(count(v, ".cm-tbl-colresize")).toBe(0); // fit (default) — no grips
+    setTableWidthMode(v, tbl(v).from, "overflow");
+    expect(count(v, ".cm-md-table-overflow th .cm-tbl-colresize")).toBe(2); // one per column
+  });
+
+  it("the grip swallows a compat mousedown so it can't reach the cell editor", () => {
+    const v = build(DOC);
+    setTableWidthMode(v, tbl(v).from, "overflow");
+    const grip = v.contentDOM.querySelector(".cm-tbl-colresize")!;
+    const ev = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+    grip.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true); // preventDefault + stopPropagation ran
+  });
+});
+
 describe("[REQ-TBLED-11] pin header row", () => {
   it("adds the sticky-header class in fit mode", () => {
     const v = build(DOC);

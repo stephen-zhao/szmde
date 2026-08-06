@@ -9,6 +9,7 @@ import {
   cancelCellEditor,
   isCellEditing,
   sanitizeCell,
+  sanitizeHeaderCell,
   step,
 } from "./table-cell-editor";
 import { parseTable } from "./table-model";
@@ -50,6 +51,62 @@ describe("[REQ-TBLED-7] sanitizeCell", () => {
     expect(sanitizeCell("a\\|b")).toBe("a\\|b");
     expect(sanitizeCell("a\nb")).toBe("a b");
     expect(sanitizeCell("  x  ")).toBe("x");
+  });
+});
+
+describe("[REQ-TBLED-12] sanitizeHeaderCell — keeps editable trailing padding", () => {
+  it("preserves trailing padding but trims leading before content", () => {
+    expect(sanitizeHeaderCell("Name      ")).toBe("Name      "); // trailing kept
+    expect(sanitizeHeaderCell("   Name   ")).toBe("Name   "); // leading trimmed, trailing kept
+  });
+  it("bottoms out at a fitted single trailing space for plain content", () => {
+    expect(sanitizeHeaderCell("Name")).toBe("Name "); // no trailing → add the fitted one
+    expect(sanitizeHeaderCell("AA")).toBe("AA ");
+  });
+  it("keeps an all-whitespace (wide empty) column, and never collapses to zero width", () => {
+    expect(sanitizeHeaderCell("     ")).toBe("     "); // wide empty column preserved
+    expect(sanitizeHeaderCell("")).toBe("  "); // cleared → fitted-empty, not zero-width
+  });
+  it("still escapes pipes + strips newlines", () => {
+    expect(sanitizeHeaderCell("a|b  ")).toBe("a\\|b  ");
+    expect(sanitizeHeaderCell("a\nb")).toBe("a b ");
+  });
+});
+
+describe("[REQ-TBLED-12] header cell padding is editable in the inline editor", () => {
+  const PAD = "intro\n\n| Name      | b |\n| - | - |\n| 1 | 2 |"; // "Name" + 6 trailing spaces
+  const at = (v: EditorView) => v.state.doc.toString().indexOf("| Name");
+  const headerLine = (v: EditorView) => v.state.doc.toString().split("\n")[2];
+
+  it("seeds the header editor with content + trailing padding (navigable spaces)", () => {
+    const v = build(PAD);
+    editCellAt(v, at(v), -1, 0);
+    expect(editor(v)!.value).toBe("Name      "); // the padding is IN the editor, editable
+    cancelCellEditor();
+  });
+
+  it("commits added trailing spaces as real, saved padding", () => {
+    const v = build(PAD);
+    editCellAt(v, at(v), -1, 0);
+    editor(v)!.value = "Name          "; // widen to 10 trailing
+    editor(v)!.dispatchEvent(new Event("blur"));
+    expect(headerLine(v)).toBe("| Name          | b |");
+  });
+
+  it("deleting all padding bottoms out at the fitted single space", () => {
+    const v = build(PAD);
+    editCellAt(v, at(v), -1, 0);
+    editor(v)!.value = "Name"; // removed all trailing
+    editor(v)!.dispatchEvent(new Event("blur"));
+    expect(headerLine(v)).toBe("| Name | b |");
+  });
+
+  it("a BODY cell edit stays content-only (trailing trimmed)", () => {
+    const v = build(PAD);
+    editCellAt(v, at(v), 0, 0); // body row 0, col 0 ("1")
+    editor(v)!.value = "  x  ";
+    editor(v)!.dispatchEvent(new Event("blur"));
+    expect(v.state.doc.toString().split("\n")[4]).toBe("| x | 2 |");
   });
 });
 

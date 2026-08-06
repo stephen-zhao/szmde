@@ -31,6 +31,21 @@ export function sanitizeCell(s: string): string {
     .trim();
 }
 
+/** Header-cell variant that PRESERVES trailing padding — a header cell's trailing spaces
+ *  are the overflow column width (REQ-TBLED-12), so they must stay editable in place.
+ *  Leading whitespace is trimmed only when it precedes content; an all-whitespace cell
+ *  (a deliberately-wide empty column) is kept as-is. */
+export function sanitizeHeaderCell(s: string): string {
+  const t = s
+    .replace(/\r?\n/g, " ")
+    .replace(/\\?\|/g, "\\|")
+    .replace(/^\s+(?=\S)/, ""); // trim leading whitespace before content
+  if (t === "") return "  "; // never collapse a header cell to zero width (fitted-empty)
+  // Keep trailing padding as typed, but bottom out at the fitted single space — so a plain
+  // content edit stays tidy (`| AA | …`) and deleting all padding lands at fitted, matching drag.
+  return /\s$/.test(t) ? t : t + " ";
+}
+
 /** Commit the open editor (write its content to the doc), if any. */
 export function commitCellEditor(): void {
   active?.finish(true);
@@ -70,13 +85,43 @@ export function step(
 }
 
 /* v8 ignore start -- focus + caret placement are no-ops in happy-dom (no real layout). */
-function focusEnd(ta: HTMLTextAreaElement): void {
+function focusEnd(ta: HTMLTextAreaElement, caret?: number): void {
   try {
     ta.focus();
-    ta.setSelectionRange(ta.value.length, ta.value.length);
+    const p = caret ?? ta.value.length;
+    ta.setSelectionRange(p, p);
   } catch {
     /* best effort: happy-dom lacks real focus/selection */
   }
+}
+
+/**
+ * Live column-width preview while typing in an overflow HEADER cell (REQ-TBLED-12): the
+ * doc isn't touched until commit, so the table widget wouldn't resize until Enter — instead,
+ * on every `input` we set the column's <col> width (and its pad span) from the textarea's
+ * current trailing-space count, exactly like the drag's onMove. No-op off an overflow header.
+ * Needs real layout (getBoundingClientRect) → v8-ignored; the committed width is unit-tested.
+ */
+function installOverflowWidthPreview(
+  cellEl: HTMLElement,
+  ta: HTMLTextAreaElement,
+  colIndex: number,
+): void {
+  const table = cellEl.closest<HTMLTableElement>("table.cm-md-table-overflow");
+  if (!table) return; // width preview only applies to overflow-mode header cells
+  const col = table.querySelector("colgroup")?.children[colIndex] as HTMLElement | undefined;
+  const padSpan = cellEl.querySelector<HTMLElement>(".cm-tbl-pad");
+  const spaceW =
+    padSpan && padSpan.textContent
+      ? padSpan.getBoundingClientRect().width / padSpan.textContent.length
+      : 8;
+  const baseColW = col ? parseFloat(col.style.width) || col.getBoundingClientRect().width : 0;
+  const startTrail = ta.value.length - ta.value.trimEnd().length;
+  ta.addEventListener("input", () => {
+    const trail = ta.value.length - ta.value.trimEnd().length;
+    if (padSpan) padSpan.textContent = " ".repeat(Math.max(1, trail));
+    if (col) col.style.width = `${Math.max(0, baseColW + (trail - startTrail) * spaceW)}px`;
+  });
 }
 /* v8 ignore stop */
 
@@ -96,14 +141,25 @@ export function editCellAt(view: EditorView, tableFrom: number, row: number, col
   const cellEl = view.contentDOM.querySelector<HTMLElement>(`[data-cell-from="${cell.from}"]`);
   if (!cellEl) return false;
 
-  const src = view.state.sliceDoc(cell.from, cell.to);
+  // Header cells edit the CONTENT **plus trailing padding** so the padding spaces (the
+  // overflow column width, REQ-TBLED-12) are navigable + editable in place — physically
+  // real, deletable characters. An all-whitespace cell's whole run is padding (splitRow
+  // puts from===to at the closing pipe). Body cells stay content-only.
+  const isHeader = row < 0;
+  const trail = cell.raw.length - cell.raw.trimEnd().length;
+  const editFrom = isHeader && cell.text === "" ? cell.to - cell.raw.length : cell.from;
+  const editTo = isHeader ? (cell.text === "" ? cell.to : cell.to + trail) : cell.to;
+  const sanitize = isHeader ? sanitizeHeaderCell : sanitizeCell;
+
+  const src = view.state.sliceDoc(editFrom, editTo);
   const ta = document.createElement("textarea");
   ta.className = "cm-md-cell-editor";
   ta.value = src;
   ta.rows = 1;
   ta.spellcheck = false;
   cellEl.appendChild(ta);
-  focusEnd(ta);
+  focusEnd(ta, isHeader ? cell.text.length : undefined); // land at the content end, before the padding
+  if (isHeader) installOverflowWidthPreview(cellEl, ta, col); // live width as you type spaces
 
   const a: ActiveEditor = {
     ta,
@@ -114,8 +170,8 @@ export function editCellAt(view: EditorView, tableFrom: number, row: number, col
       if (active === a) active = null;
       ta.remove();
       if (commit) {
-        const next = sanitizeCell(ta.value);
-        if (next !== src) view.dispatch({ changes: { from: cell.from, to: cell.to, insert: next } });
+        const next = sanitize(ta.value);
+        if (next !== src) view.dispatch({ changes: { from: editFrom, to: editTo, insert: next } });
       }
       if (then) then();
       else view.focus();

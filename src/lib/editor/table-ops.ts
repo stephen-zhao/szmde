@@ -24,6 +24,7 @@ export function replaceTable(
   const fresh = parseTable(view.state.sliceDoc(tbl.from, tbl.to), tbl.from);
   const m2 = op(fresh);
   if (m2 === fresh) return false; // no-op (e.g. an out-of-range move)
-  view.dispatch({ changes: { from: tbl.from, to: tbl.to, insert: serialize(m2) } });
+  // keepHeaderPad: a structural op must not discard the header's overflow column widths.
+  view.dispatch({ changes: { from: tbl.from, to: tbl.to, insert: serialize(m2, true) } });
   return true;
 }
