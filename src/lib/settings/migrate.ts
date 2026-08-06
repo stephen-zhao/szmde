@@ -25,6 +25,13 @@ MIGRATIONS[1] = (o) => {
   return o;
 };
 
+// v2 → v3: the `lanes` model (REQ-LANE-1) is an ADDITIVE, defaulted settings group,
+// so there is NO transform step (the runner still stamps version 3; mirrors the no-op
+// v0 → v1). validate()'s deepMerge fills `lanes` from DEFAULTS, so a stored tier keeps
+// its thin shape — seeding it here would fatten every user tier and stop future
+// DEFAULTS.lanes changes from propagating. A user-set `lanes` block passes through
+// untouched.
+
 /**
  * Bring an arbitrary parsed blob up to the target schema version by applying the
  * ordered migration steps, then stamp the version. Pure (no clock/random) and

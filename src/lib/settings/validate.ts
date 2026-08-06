@@ -1,11 +1,17 @@
 import {
   DEFAULTS,
+  DRAWER_HEIGHT_MAX,
+  DRAWER_HEIGHT_MIN,
   GUARDS,
+  LANE_STRATEGIES,
   SCHEMA_VERSION,
   type DeepPartial,
+  type LaneId,
+  type LaneStrategy,
   type Settings,
   type StorageAccount,
 } from "./schema";
+import { LANE_IDS, LANE_REGISTRY } from "./lanes";
 import { deepMerge } from "./merge";
 
 function isObj(v: unknown): v is Record<string, unknown> {
@@ -51,6 +57,59 @@ function partialStorage(raw: unknown): Record<string, unknown> | undefined {
   return Object.keys(out).length ? out : undefined;
 }
 
+function isLaneStrategy(v: unknown): v is LaneStrategy {
+  return typeof v === "string" && LANE_STRATEGIES.includes(v as LaneStrategy);
+}
+function isDrawerHeight(v: unknown): v is number {
+  return (
+    typeof v === "number" && Number.isInteger(v) && v >= DRAWER_HEIGHT_MIN && v <= DRAWER_HEIGHT_MAX
+  );
+}
+
+/** lanes is bespoke like storage: an ordered id list + a per-lane object map, both
+ *  whitelisted against LANE_REGISTRY so a hand-edited file can never smuggle an
+ *  unknown lane, a mandatory lane turned `off`, or a bad z-order past validation.
+ *  Stays a thin partial (present valid keys only) — deepMerge fills the rest. */
+function partialLanes(raw: unknown): Record<string, unknown> | undefined {
+  if (!isObj(raw)) return undefined;
+  const out: Record<string, unknown> = {};
+
+  if (Array.isArray(raw.order)) {
+    const order: LaneId[] = [];
+    const seen = new Set<string>();
+    for (const id of raw.order) {
+      // Own-key membership, NOT `id in LANE_REGISTRY`: the `in` operator walks the
+      // prototype chain, so a hand-edited `order: ["toString", …]` would smuggle
+      // Object.prototype names past the whitelist. LANE_IDS is Object.keys(registry).
+      if (typeof id === "string" && (LANE_IDS as string[]).includes(id) && !seen.has(id)) {
+        seen.add(id);
+        order.push(id as LaneId);
+      }
+    }
+    if (order.length) out.order = order;
+  }
+
+  if (isObj(raw.byId)) {
+    const rawById = raw.byId;
+    const byId: Record<string, unknown> = {};
+    for (const id of LANE_IDS) {
+      const lane = rawById[id];
+      if (!isObj(lane)) continue;
+      const laneOut: Record<string, unknown> = {};
+      if (isLaneStrategy(lane.strategy)) {
+        // SPEC §7.6: a mandatory lane (marker) may never be `off` → coerce to reserved.
+        laneOut.strategy =
+          LANE_REGISTRY[id].mandatory && lane.strategy === "off" ? "reserved" : lane.strategy;
+      }
+      if (isDrawerHeight(lane.drawerHeight)) laneOut.drawerHeight = lane.drawerHeight;
+      if (Object.keys(laneOut).length) byId[id] = laneOut;
+    }
+    if (Object.keys(byId).length) out.byId = byId;
+  }
+
+  return Object.keys(out).length ? out : undefined;
+}
+
 /**
  * Validate WITHOUT filling defaults: returns only the present, valid keys as a
  * DeepPartial. Unknown groups/keys and invalid values are dropped. This is the
@@ -68,6 +127,8 @@ export function validatePartial(raw: unknown): DeepPartial<Settings> {
   if (markdown) out.markdown = markdown;
   const storage = partialStorage(r.storage);
   if (storage) out.storage = storage;
+  const lanes = partialLanes(r.lanes);
+  if (lanes) out.lanes = lanes;
   return out as DeepPartial<Settings>;
 }
 

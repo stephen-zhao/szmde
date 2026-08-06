@@ -67,4 +67,19 @@ describe("[REQ-SET-2] migrate — version-stamped forward migration", () => {
   it("v1 → v2 is a no-op when appearance is absent", () => {
     expect(migrate({ version: 1 }).version).toBe(SCHEMA_VERSION);
   });
+
+  // v2 → v3 (REQ-LANE-1): `lanes` is additive + defaulted, so the step is a no-op —
+  // it must NOT seed lanes into a stored (thin) tier, only stamp the version.
+  it("[REQ-LANE-1] v2 → v3 bumps the version without seeding a lanes block", () => {
+    const out = migrate({ version: 2, editor: { indentWidth: 4 } });
+    expect(out.version).toBe(SCHEMA_VERSION);
+    expect(out.lanes).toBeUndefined(); // thin tier stays thin; deepMerge fills lanes
+  });
+
+  it("[REQ-LANE-1] v2 → v3 passes a user-set lanes block through untouched (no clobber)", () => {
+    const lanes = { byId: { fold: { strategy: "off" } } };
+    const out = migrate({ version: 2, lanes });
+    expect(out.version).toBe(SCHEMA_VERSION);
+    expect(out.lanes).toEqual(lanes);
+  });
 });
