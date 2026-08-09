@@ -23,6 +23,13 @@ describe("[REQ-SET-2] schema DEFAULTS", () => {
     expect(DEFAULTS.editor.indentStyle).toBe("spaces");
     expect(DEFAULTS.editor.indentWidth).toBe(2);
   });
+
+  it("[REQ-LANE-1] defaults both lanes reserved, fold before marker (today's layout)", () => {
+    // Reproduces the fixed 3-column layout (REQ-RENDER-12) before any customization.
+    expect(DEFAULTS.lanes.order).toEqual(["fold", "marker"]);
+    expect(DEFAULTS.lanes.byId.fold).toEqual({ strategy: "reserved", drawerHeight: 1 });
+    expect(DEFAULTS.lanes.byId.marker).toEqual({ strategy: "reserved", drawerHeight: 2 });
+  });
 });
 
 describe("[REQ-SCROLL-1] typewriter settings", () => {

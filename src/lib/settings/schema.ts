@@ -11,7 +11,7 @@ import type { Eol } from "../editor/eol";
  * effective settings equal today's visuals before any user customization
  * (asserted in schema.test.ts to catch drift).
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export type Theme = "dark" | "light" | "system";
 // Reading-column width in CSS px (REQ-ZOOM-3). Was an enum {narrow,medium,wide}
@@ -63,12 +63,42 @@ export interface StorageSettings {
   defaultProvider: string;
   accounts: StorageAccount[];
 }
+
+// --- Left-edge lanes (REQ-LANE-1, SPEC §7.6) --------------------------------
+// The editor's left edge is a stack of named lanes (today: the fold-chevron lane
+// and the syntax-marker gutter). Each lane declares a display STRATEGY; the
+// strategy — not the lane — is what varies by viewport/taste. A `drawer` lane
+// collapses into the cascading left drawer (REQ-LANE-4); until that ships it
+// reserves width exactly like `reserved`, so only `off` changes today's layout.
+// `off` reclaims the width AND hides the lane's affordance. The registry of which
+// lanes exist (their widths + the mandatory-marker carve-out) lives in lanes.ts;
+// settings only *reference* the ids.
+export type LaneId = "fold" | "marker";
+export type LaneStrategy = "reserved" | "drawer" | "off";
+export const LANE_STRATEGIES: readonly LaneStrategy[] = ["reserved", "drawer", "off"];
+/** Z-order bounds — a small integer; lower renders under higher when drawers
+ *  overlap mid-swipe (REQ-LANE-4). Stored + validated now, only *drives* stacking
+ *  once the drawers exist. */
+export const DRAWER_HEIGHT_MIN = 0;
+export const DRAWER_HEIGHT_MAX = 99;
+export interface LaneSettings {
+  strategy: LaneStrategy;
+  drawerHeight: number;
+}
+export interface LanesSettings {
+  /** Left-to-right order of the lanes (the list order IS the spatial order). */
+  order: LaneId[];
+  /** Per-lane settings object, keyed by lane id. */
+  byId: Record<LaneId, LaneSettings>;
+}
+
 export interface Settings {
   version: number;
   appearance: AppearanceSettings;
   editor: EditorSettings;
   markdown: MarkdownSettings;
   storage: StorageSettings;
+  lanes: LanesSettings;
 }
 
 /** A deep-partial of Settings (arrays are replaced wholesale, not deep-partialed)
@@ -122,6 +152,16 @@ export const DEFAULTS: Settings = {
     defaultProvider: "local",
     accounts: [],
   },
+  // Both lanes reserved, fold left of marker — reproduces today's fixed 3-column
+  // layout exactly (REQ-RENDER-12; the widths live in lanes.ts LANE_REGISTRY).
+  // Asserted against the shipped literals in lanes.test.ts / schema.test.ts.
+  lanes: {
+    order: ["fold", "marker"],
+    byId: {
+      fold: { strategy: "reserved", drawerHeight: 1 },
+      marker: { strategy: "reserved", drawerHeight: 2 },
+    },
+  },
 };
 
 // --- Per-field guards (validate.ts walks DEFAULTS and applies these) ---------
@@ -143,8 +183,8 @@ const numInRange =
   (v) =>
     typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
 
-/** Leaf guards, grouped to mirror Settings (minus `version` + `storage`, which
- *  validate.ts handles specially). */
+/** Leaf guards, grouped to mirror Settings (minus `version`, `storage` + `lanes`,
+ *  which validate.ts handles specially — they're structured, not flat leaves). */
 export const GUARDS: {
   appearance: Record<keyof AppearanceSettings, Guard>;
   editor: Record<keyof EditorSettings, Guard>;

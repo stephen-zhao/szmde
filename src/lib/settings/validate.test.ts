@@ -96,3 +96,68 @@ describe("[REQ-SET-2] validatePartial — thin override tier (no default filling
     });
   });
 });
+
+describe("[REQ-LANE-1] lanes — bespoke lane-model validation", () => {
+  it("keeps a valid ordered id list, whitelisting unknown ids and dupes", () => {
+    expect(
+      validatePartial({ lanes: { order: ["marker", "fold", "fold", "bogus"] } }),
+    ).toEqual({ lanes: { order: ["marker", "fold"] } });
+  });
+
+  it("drops an order with no known ids (thin partial → no lanes)", () => {
+    expect(validatePartial({ lanes: { order: ["nope", 42] } })).toEqual({});
+  });
+
+  it("rejects Object.prototype names in order (own-key whitelist, not `in`)", () => {
+    // `id in LANE_REGISTRY` would let "toString"/"constructor"/"__proto__" through
+    // (they're on the prototype chain); the own-key check drops them, keeping "fold".
+    expect(
+      validatePartial({ lanes: { order: ["toString", "constructor", "__proto__", "fold"] } }),
+    ).toEqual({ lanes: { order: ["fold"] } });
+  });
+
+  it("keeps a thin per-lane override (strategy only)", () => {
+    expect(validatePartial({ lanes: { byId: { fold: { strategy: "off" } } } })).toEqual({
+      lanes: { byId: { fold: { strategy: "off" } } },
+    });
+  });
+
+  it("coerces a mandatory lane (marker) away from `off` (SPEC §7.6)", () => {
+    expect(validate({ lanes: { byId: { marker: { strategy: "off" } } } }).lanes.byId.marker.strategy).toBe(
+      "reserved",
+    );
+    // fold, which is optional, keeps `off`.
+    expect(validate({ lanes: { byId: { fold: { strategy: "off" } } } }).lanes.byId.fold.strategy).toBe(
+      "off",
+    );
+  });
+
+  it("skips a non-object lane entry and an invalid strategy/z-order", () => {
+    // fold is not an object → skipped; marker keeps only its valid drawer strategy
+    // (the non-integer drawerHeight is dropped).
+    expect(
+      validatePartial({
+        lanes: { byId: { fold: "x", marker: { strategy: "drawer", drawerHeight: 1.5 } } },
+      }),
+    ).toEqual({ lanes: { byId: { marker: { strategy: "drawer" } } } });
+  });
+
+  it("drops a lane whose every field is invalid (empty → no lanes)", () => {
+    expect(validatePartial({ lanes: { byId: { fold: { strategy: "bogus", drawerHeight: 999 } } } })).toEqual(
+      {},
+    );
+  });
+
+  it("keeps an in-range integer drawerHeight, dropping out-of-range / non-int", () => {
+    expect(validatePartial({ lanes: { byId: { fold: { drawerHeight: 5 } } } })).toEqual({
+      lanes: { byId: { fold: { drawerHeight: 5 } } },
+    });
+    expect(validatePartial({ lanes: { byId: { fold: { drawerHeight: 100 } } } })).toEqual({});
+    expect(validatePartial({ lanes: { byId: { fold: { drawerHeight: -1 } } } })).toEqual({});
+  });
+
+  it("falls back to DEFAULTS.lanes when lanes is absent or not an object", () => {
+    expect(validate({ lanes: "nope" }).lanes).toEqual(DEFAULTS.lanes);
+    expect(validate({}).lanes).toEqual(DEFAULTS.lanes);
+  });
+});
