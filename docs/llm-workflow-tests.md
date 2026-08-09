@@ -709,6 +709,56 @@ e.g. `| Name    | Val |` ("Name" + 4 trailing spaces); overflow it via right-cli
 
 ---
 
+### WF-39 · Collapsible lane drawers — static collapse · `REQ-LANE-4` _(M6.2)_ — 🟡 core verified in the browser preview (2026-08-09): wide byte-identical (106.4px, open=1), collapse padding→28px with the caret glued (78px shift == padding delta) + reading column steady, narrow cold-load snap-collapse (28px), chevron hidden + non-interactive at open=0 / identity at open=1. The **View → Side lanes** menu path (first-click-acts, expand/collapse feel) needs a real app/device run — the headless preview's synthetic events don't open the Svelte-delegated hamburger menu.
+**Why:** the collapse tween, the caret staying glued to the shifting content, the reading column NOT
+jumping, the typewriter anchor being unperturbed, and the narrow-auto-collapse are all layout/paint
+behaviours happy-dom can't express. The pure policy (`lane-open.ts`) and the CM seam (`lane-drawers.dom.test.ts`)
+are unit-covered; this WF is the live gate. The `.svelte` breakpoint + View-menu glue is exercised here.
+**Setup:** `npm run dev` (localhost:1420), a **wide** window; drive via `window.__cmview`. Use a document
+with headings (fold chevrons) and Syntax mode (hung markers), e.g. `# One`\n`## Two`\n`para`.
+**Steps / expected:**
+- **Wide is byte-identical (`REQ-RENDER-12`):** on load in a wide window the layout matches the pre-lane
+  build exactly — measure `.cm-content` `padding-left` (fold-col + marker-gutter both fully reserved; at
+  16px font ≈ 28 + 27.2 + 51.2 ≈ 106.4px) and the fold chevron sits in its column. `--fold-open` /
+  `--marker-open` on `.cm-editor` read `1`.
+- **Toggle collapse (wide):** hamburger → **View → Side lanes** (the ✓ clears). The left padding animates
+  DOWN to `28px` (both lanes collapsed), the content slides left to reclaim the strip, the fold chevron
+  tracks the shrinking gutter, and — the crux — **the caret stays glued to its character** throughout (no
+  drift; it's genuine padding, re-measured each frame). The reading column stays **centered** and its
+  width doesn't jump (`REQ-ZOOM-3/4`: only left padding animates, `padding-right` is untouched).
+- **Toggle expand:** View → Side lanes again (✓ returns) → the lanes animate back open to the identical
+  starting geometry.
+- **Typewriter unperturbed (`REQ-SCROLL-1`):** with typewriter on, collapse/expand while the caret is
+  mid-document — the vertical anchor position does NOT lurch (the lane re-measure uses a separate key from
+  typewriter's, so they don't coalesce).
+- **Narrow auto-collapse:** shrink the window below 600px (or `resize_window` mobile). On crossing the
+  breakpoint the lanes auto-collapse (padding → 28px). Widen back past 600px → they re-open — UNLESS you
+  toggled first: a session toggle wins over the breakpoint default (open it on narrow, widen+narrow again;
+  it stays as you left it). On a **cold load** at ≤600px the lanes are collapsed FROM the first paint (a
+  `snap`, not a slide — the caller passes `animate:false` for seeds).
+- **Chevron hidden with the gutter (regression, adversarial review):** with the lanes collapsed (narrow
+  default, or after a wide toggle) the fold chevron must be INVISIBLE and NON-INTERACTIVE — it fades +
+  shrinks to a zero-size point with `--fold-open` (`opacity:0`, `transform:scale(0)`), so it does NOT
+  paint the bordered chip over the start of a heading nor intercept clicks there. Verify
+  `elementFromPoint` at the heading's first character returns the text/marker, not `.cm-fold-chevron`. At
+  open=1 the chevron is `opacity:1 / scale(1)` (byte-identical).
+- **First "Side lanes" click always acts (regression, adversarial review):** on a phone (lanes
+  auto-collapsed) the FIRST View → Side lanes click must EXPAND them (and the ✓ appear) — not be a dead
+  no-op requiring a second click. On wide the first click collapses. (The toggle derives its next state
+  from the current effective one, not a blind flip.)
+- **Survives file open (hole #4):** collapse the lanes, then open another file (Ctrl+O / `setContent`) —
+  the lanes stay collapsed (the open state is editor-wide, re-seeded across `setState`), caret still
+  aligned in the new doc. The next toggle after the open still ANIMATES (snap-vs-tween is the caller's
+  intent, not plugin-instance state).
+- **All three render modes:** repeat a collapse in Formatted / Syntax / Source — content stays flush and
+  the caret glued in each. **Known limitation (static-collapse slice):** on a NARROW viewport with the
+  marker lane collapsed, a DEEP hung block marker whose prefix is wider than the reclaimed 28px origin
+  (`####`–`######`, deeply-nested `> > >`) has its leading small-grey glyph(s) clipped at the scroller's
+  left edge (Syntax mode, or the transient Formatted caret-line reveal). Caret + content are unaffected
+  (only the marker glyph is shaved). Tracked in SPEC §7.6; a mode-aware refinement is a later slice.
+
+---
+
 ## Requirement coverage
 
 | REQ | Unit/integration (Vitest/cargo) | LLM workflow (this doc) |
@@ -750,6 +800,7 @@ e.g. `| Name    | Val |` ("Name" + 4 trailing spaces); overflow it via right-cli
 | REQ-RENDER-9 | structure (`editor/markers.dom.test.ts`) | WF-24 (gutter hang, in-flow, caret-in-gutter) |
 | REQ-RENDER-10 | — (visual gap) | WF-24 (baseline alignment) |
 | REQ-RENDER-12 | structure (`markers.dom.test.ts`, `fold.dom.test.ts`) | WF-24 (3-column layout, no overlap) |
+| REQ-LANE-4 | policy (`editor/lane-open.test.ts`) + CM seam (`editor/lane-drawers.dom.test.ts`) + settings (`schema.test.ts`, `validate.test.ts`) | WF-39 (static collapse: wide byte-identical, caret-glued tween, narrow auto-collapse, session toggle, survives file open) |
 | REQ-RENDER-11 | structure (`editor/markers.dom.test.ts`) | WF-25 (reveal = syntax style) |
 | REQ-RENDER-7 | unit (`render-mode.test.ts`, `render-mode-cycle.test.ts`) | WF-26 (toggle survives focus drift) |
 | REQ-SCROLL-1 | arithmetic + facet wiring ( `editor/typewriter.test.ts`, `typewriter.dom.test.ts`, `settings/schema.test.ts`) | WF-31 (centring feel; asymmetry; settings off) |

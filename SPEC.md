@@ -639,8 +639,39 @@ code-side `LANE_REGISTRY` for the lane widths + the mandatory-marker carve-out, 
 the CSS lane widths (an `off` lane reclaims its width and hides its affordance). `drawer` reserves width
 like `reserved` until the drawers below are built.
 
+_Shipped (`REQ-LANE-4`, static collapse, 2026-08-09):_ a `drawer` lane now actually **collapses and
+expands**, animated. Each lane has a per-breakpoint open default `defaultOpen:{narrow,wide}` (DEFAULTS:
+both lanes `drawer`, wide-open / narrow-collapsed — so **wide/desktop is byte-identical to the pre-lane
+layout** and **phones auto-collapse the empty gutter**). An **open scalar ∈[0,1]** per lane
+(`--fold-open`/`--marker-open`, default 1) scales the lane's reserved width in `theme.ts` (`width×open`);
+a `laneDrawers` ViewPlugin rAF-tweens it and re-measures each frame. The narrow breakpoint (600px) picks
+the default; a **View → Side lanes** hamburger toggle overrides it for the session (a user choice survives
+file opens and breakpoint flips). The fold chevron fades + shrinks away with its lane (hidden and
+non-interactive at open=0). The three display states are **hide** (collapsed), **show** (open) and
+**reveal** (a partial peek); this slice implements the binary **hide ↔ show** — on desktop **reveal ≡ show**.
+
+_Known limitation (static-collapse slice):_ the syntax-marker hang (`REQ-RENDER-9`) is a fixed per-line
+`text-indent` sized to the marker prefix. When the marker lane is COLLAPSED on a NARROW viewport, a deep
+prefix (`####`–`######`, deeply-nested `> > >`) is wider than the reclaimed 28px content origin, so its
+leading small-grey glyph(s) clip at the scroller's left edge (Syntax mode, or the transient Formatted
+caret-line reveal). The caret and the heading/quote content are unaffected — only the marker glyph is
+shaved. Fixing it properly (e.g. suppressing the collapse while hung markers are shown, or clamping the
+hang) is a mode-aware refinement deferred to a later slice; it does not block the common Formatted-mode
+narrow case (empty gutter reclaimed cleanly).
+
+_Deferred to later slices (design settled, not built):_ the **finger-follow `reveal` gesture** (touch
+swipe → partial peek that persists), and the **cascade**. A hard constraint the design pass surfaced: the
+content shift MUST be genuine `.cm-content` **padding** — the only horizontal channel CodeMirror measures,
+so the caret stays glued to the glyphs (a transform on the content re-enters the WebView2 caret-desync
+`REQ-RENDER-9` fixed). That means the demonstrator's **dramatic overtaking cascade cannot ride the real
+editor glyphs** (the fold chevron + hung markers are pinned near the content origin by that same padding
+and can't stack off-screen or overtake without desyncing the caret). The cascade is therefore buildable
+only as a **decorative overlay layer** painted on top of the genuine padding-driven content shift — a
+z-stacked set of panels reproducing the demo's motion, distinct from the real, caret-correct lanes
+underneath. Whether to ship that overlay or a simpler honest fade-in is the PR4 decision.
+
 _Not yet decided:_ the desktop gesture (pointer drag near the edge vs. a handle), the snap-on-interact
-detail, and whether `drawerHeight` also drives keyboard/tab order.
+detail, whether `drawerHeight` also drives keyboard/tab order, and the cascade overlay-vs-fade choice above.
 
 ### 7.7 Editing actions a soft keyboard cannot reach (`REQ-UI-5`; M6.2)
 

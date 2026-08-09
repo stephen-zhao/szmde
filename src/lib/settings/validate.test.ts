@@ -160,4 +160,19 @@ describe("[REQ-LANE-1] lanes — bespoke lane-model validation", () => {
     expect(validate({ lanes: "nope" }).lanes).toEqual(DEFAULTS.lanes);
     expect(validate({}).lanes).toEqual(DEFAULTS.lanes);
   });
+
+  it("[REQ-LANE-4] keeps a thin per-breakpoint defaultOpen override, dropping non-booleans", () => {
+    // Only the present boolean survives; deepMerge back-fills the other breakpoint.
+    expect(
+      validatePartial({ lanes: { byId: { fold: { defaultOpen: { narrow: true, wide: "yes" } } } } }),
+    ).toEqual({ lanes: { byId: { fold: { defaultOpen: { narrow: true } } } } });
+    // A non-object defaultOpen is dropped entirely (thin → no lanes).
+    expect(validatePartial({ lanes: { byId: { fold: { defaultOpen: 3 } } } })).toEqual({});
+  });
+
+  it("[REQ-LANE-4] back-fills a missing defaultOpen breakpoint from DEFAULTS", () => {
+    const out = validate({ lanes: { byId: { fold: { defaultOpen: { narrow: true } } } } });
+    // narrow overridden; wide inherited from DEFAULTS (true).
+    expect(out.lanes.byId.fold.defaultOpen).toEqual({ narrow: true, wide: true });
+  });
 });

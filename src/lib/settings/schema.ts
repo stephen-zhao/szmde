@@ -81,9 +81,16 @@ export const LANE_STRATEGIES: readonly LaneStrategy[] = ["reserved", "drawer", "
  *  once the drawers exist. */
 export const DRAWER_HEIGHT_MIN = 0;
 export const DRAWER_HEIGHT_MAX = 99;
+/** Per-breakpoint open default for a `drawer` lane (REQ-LANE-4, SPEC §7.6): narrow
+ *  viewports auto-collapse, wide default to open. Ignored by `reserved`/`off`. */
+export interface LaneOpenDefault {
+  narrow: boolean;
+  wide: boolean;
+}
 export interface LaneSettings {
   strategy: LaneStrategy;
   drawerHeight: number;
+  defaultOpen: LaneOpenDefault;
 }
 export interface LanesSettings {
   /** Left-to-right order of the lanes (the list order IS the spatial order). */
@@ -152,14 +159,16 @@ export const DEFAULTS: Settings = {
     defaultProvider: "local",
     accounts: [],
   },
-  // Both lanes reserved, fold left of marker — reproduces today's fixed 3-column
-  // layout exactly (REQ-RENDER-12; the widths live in lanes.ts LANE_REGISTRY).
-  // Asserted against the shipped literals in lanes.test.ts / schema.test.ts.
+  // Both lanes are `drawer`, fold left of marker, wide-open / narrow-collapsed
+  // (REQ-LANE-4). On wide/desktop open=1 ⇒ byte-identical to the pre-lane layout
+  // (REQ-RENDER-12); on narrow (phones) they auto-collapse to reclaim the width —
+  // the whole point of SPEC §7.6. Widths live in lanes.ts LANE_REGISTRY; asserted
+  // in lanes.test.ts / schema.test.ts.
   lanes: {
     order: ["fold", "marker"],
     byId: {
-      fold: { strategy: "reserved", drawerHeight: 1 },
-      marker: { strategy: "reserved", drawerHeight: 2 },
+      fold: { strategy: "drawer", drawerHeight: 1, defaultOpen: { narrow: false, wide: true } },
+      marker: { strategy: "drawer", drawerHeight: 2, defaultOpen: { narrow: false, wide: true } },
     },
   },
 };

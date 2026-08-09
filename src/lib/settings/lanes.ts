@@ -11,6 +11,11 @@ import type { LaneId, LanesSettings } from "./schema";
 export interface LaneDef {
   /** The CSS custom property theme.ts reads for this lane's reserved width. */
   cssVar: string;
+  /** The CSS custom property the laneDrawers plugin writes for this lane's OPEN
+   *  scalar ∈[0,1] (REQ-LANE-4): theme.ts multiplies width×open so 1 = fully
+   *  shown, 0 = collapsed. Written on the editor's contentDOM (NOT :root — see
+   *  lane-drawers.ts); its default (1) makes the pre-plugin render byte-identical. */
+  openVar: string;
   /** Intrinsic reserved width when the lane is `reserved`/`drawer`. Single source
    *  of truth — theme.ts imports these for its pre-settings `var(--…, <width>)`
    *  fallback, so the two never drift. */
@@ -31,6 +36,7 @@ export interface LaneDef {
 export const LANE_REGISTRY: Record<LaneId, LaneDef> = {
   fold: {
     cssVar: "--fold-col",
+    openVar: "--fold-open",
     width: "calc(var(--editor-font-size) * 1.7)",
     mandatory: false,
     // The fold lane's content is the fold-chevron button (fold.ts). Hiding the lane
@@ -39,6 +45,7 @@ export const LANE_REGISTRY: Record<LaneId, LaneDef> = {
   },
   marker: {
     cssVar: "--marker-gutter",
+    openVar: "--marker-open",
     width: "calc(var(--editor-font-size) * 3.2)",
     mandatory: true,
   },

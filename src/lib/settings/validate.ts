@@ -102,6 +102,14 @@ function partialLanes(raw: unknown): Record<string, unknown> | undefined {
           LANE_REGISTRY[id].mandatory && lane.strategy === "off" ? "reserved" : lane.strategy;
       }
       if (isDrawerHeight(lane.drawerHeight)) laneOut.drawerHeight = lane.drawerHeight;
+      // defaultOpen: a nested per-breakpoint bool pair (REQ-LANE-4). Keep only the
+      // present booleans (thin — deepMerge back-fills the rest from DEFAULTS).
+      if (isObj(lane.defaultOpen)) {
+        const od: Record<string, unknown> = {};
+        if (typeof lane.defaultOpen.narrow === "boolean") od.narrow = lane.defaultOpen.narrow;
+        if (typeof lane.defaultOpen.wide === "boolean") od.wide = lane.defaultOpen.wide;
+        if (Object.keys(od).length) laneOut.defaultOpen = od;
+      }
       if (Object.keys(laneOut).length) byId[id] = laneOut;
     }
     if (Object.keys(byId).length) out.byId = byId;

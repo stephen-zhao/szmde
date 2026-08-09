@@ -51,6 +51,7 @@ import { foldExtension } from "./fold";
 import { zoomGestures, type ZoomConfig } from "./zoom";
 import { editingKeymap } from "./keymap";
 import { indentExtension, type IndentConfig } from "./indent";
+import { DEFAULT_LANE_OPEN, laneDrawersExtension, type LaneOpen } from "./lane-drawers";
 
 // ---------------------------------------------------------------------------
 // Word-wrap state for code blocks
@@ -370,6 +371,7 @@ export function editorExtensions(
   zoom?: ZoomConfig,
   initialTypewriter = true,
   initialTypewriterAnchor = DEFAULT_TYPEWRITER_ANCHOR,
+  initialLaneOpen: LaneOpen = DEFAULT_LANE_OPEN,
 ): Extension[] {
   return [
     ...(zoom ? [zoomGestures(zoom)] : []),
@@ -417,6 +419,10 @@ export function editorExtensions(
     searchExtension,
     foldExtension,
     revealCursorInCodeBox,
+    // REQ-LANE-4 (SPEC §7.6): tween the left-edge lane widths open/closed by writing
+    // the --*-open scalars theme.ts multiplies into the content padding. At the
+    // all-open default this is byte-identical to the pre-lane layout.
+    ...laneDrawersExtension(initialLaneOpen),
     EditorView.blockWrappers.of((view) => buildBlockWrappers(view)),
     baseTheme,
     markdownHighlight,

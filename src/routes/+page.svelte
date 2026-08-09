@@ -13,6 +13,9 @@
   import { MODE_LABELS, MODE_ORDER, type RenderMode } from "$lib/editor/render-mode";
   import type { IndentConfig } from "$lib/editor/indent";
   import type { TextCount } from "$lib/editor/count";
+  import { resolveLaneOpen } from "$lib/editor/lane-open";
+  import type { LaneOpen } from "$lib/editor/lane-drawers";
+  import { LANE_IDS } from "$lib/settings/lanes";
   import { detectEol, fromLf, toLf, type Eol } from "$lib/editor/eol";
   import HamburgerMenu from "$lib/HamburgerMenu.svelte";
   import { settings, initSettings, setSetting, updateSettings } from "$lib/settings/store.svelte";
@@ -68,6 +71,68 @@
   let indentMenuOpen = $state(false);
   let wordCount = $state<TextCount>({ words: 0, chars: 0 });
 
+  // --- Left-edge lane collapse (REQ-LANE-4, SPEC §7.6) ------------------------
+  // The narrow breakpoint (the SAME 600px the CSS rules use) picks each drawer
+  // lane's OPEN default; a View-menu toggle overrides it for the session. Only
+  // `drawer` lanes respond — `reserved` stays shown, `off` stays 0 (lane-open.ts).
+  // Initialised SYNCHRONOUSLY (not in onMount): the Editor child's `onready` fires
+  // during its own mount, BEFORE this component's onMount, and seeds the lanes — so
+  // the breakpoint must be known already, else a narrow cold-load seeds wide-open
+  // first (priming the plugin) and the real collapse arrives as a visible animation.
+  let isNarrow = $state(
+    typeof window !== "undefined" && window.matchMedia("(max-width: 600px)").matches,
+  );
+  // Session override: once the user toggles, their choice sticks across file opens
+  // AND breakpoint flips (adversarial hole #4). Until then, follow the breakpoint.
+  let lanesTouched = $state(false);
+  let lanesCollapsedSession = $state(false);
+  // Last pushed open-map, so re-seeding on unrelated settings changes is a no-op
+  // (avoids a redundant tween dispatch on every zoom/appearance tick).
+  let lastLaneOpenKey = "";
+
+  const laneSession = () =>
+    lanesTouched ? { touched: true, open: lanesCollapsedSession ? 0 : 1 } : null;
+
+  /** Resolve every lane's open scalar from settings + breakpoint + session and push
+   *  it to the editor (deduped). `animate` is the caller's snap-vs-tween intent:
+   *  false for initial/settings seeds (no cold-load slide), true for a user toggle /
+   *  live breakpoint flip. Safe to call before the editor is ready. */
+  function applyLaneOpen(animate = false) {
+    if (!editor) return;
+    const session = laneSession();
+    const open = {} as LaneOpen;
+    for (const id of LANE_IDS) {
+      const lane = settings.value.lanes.byId[id];
+      open[id] = resolveLaneOpen(lane.strategy, lane.defaultOpen, isNarrow, session);
+    }
+    const key = LANE_IDS.map((id) => open[id]).join(",");
+    if (key === lastLaneOpenKey) return;
+    lastLaneOpenKey = key;
+    editor.setLanesOpen(open, animate);
+  }
+
+  // Menu check (✓ = lanes shown): true when every drawer lane resolves to collapsed.
+  const lanesCollapsed = $derived.by(() => {
+    const drawer = LANE_IDS.filter((id) => settings.value.lanes.byId[id]?.strategy === "drawer");
+    if (!drawer.length) return false;
+    const session = laneSession();
+    return drawer.every(
+      (id) => resolveLaneOpen("drawer", settings.value.lanes.byId[id].defaultOpen, isNarrow, session) === 0,
+    );
+  });
+
+  // Toggle the drawer lanes' collapse. The next state is derived from the CURRENT
+  // effective one (lanesCollapsed) — NOT an unconditional flip of the session flag —
+  // so the first click always changes state even when the breakpoint already
+  // auto-collapsed the lanes (else the flip would land on the state they're already
+  // in and the dedup would swallow it: a dead first click on phones). Animates.
+  function toggleLanes() {
+    const next = !lanesCollapsed;
+    lanesTouched = true;
+    lanesCollapsedSession = next;
+    applyLaneOpen(true);
+  }
+
   // Editor-wide toggle: forces all blocks (clearing per-block overrides).
   // 'off' or 'partial' → turn wrap on for all; 'on' → turn it off for all.
   function toggleCodeWrap() {
@@ -89,6 +154,7 @@
     editor.setIndent({ style: e.indentStyle, width: e.indentWidth });
     editor.setEmoji(settings.value.markdown.emoji);
     editor.setTypewriter(e.typewriterScrolling, e.typewriterAnchor); // REQ-SCROLL-1
+    applyLaneOpen(); // REQ-LANE-4 — collapse/expand lanes from settings + breakpoint
   }
 
   function cycleRenderMode() {
@@ -488,6 +554,18 @@
       if (await guardUnsaved()) await openPath(event.payload);
     });
 
+    // REQ-LANE-4 — track the narrow breakpoint (the same 600px as the CSS rules).
+    // On mount + every flip, re-resolve the lane-open defaults (a user session
+    // override wins via applyLaneOpen → resolveLaneOpen, so a flip never yanks it).
+    const laneBp = window.matchMedia("(max-width: 600px)");
+    isNarrow = laneBp.matches;
+    const onLaneBp = (e: MediaQueryListEvent) => {
+      isNarrow = e.matches;
+      applyLaneOpen(true); // a live viewport flip animates
+    };
+    laneBp.addEventListener("change", onLaneBp);
+    applyLaneOpen(); // in case the editor is already ready (onready fired first)
+
     // Guard the native window close (X / Alt+F4) against unsaved changes.
     const unCloseP = getCurrentWindow().onCloseRequested(async (e) => {
       if (!dirty) return;
@@ -534,6 +612,7 @@
 
     return () => {
       autosave.cancel();
+      laneBp.removeEventListener("change", onLaneBp);
       unlistenP.then((un) => un());
       unCloseP.then((un) => un());
     };
@@ -564,6 +643,8 @@
     onitalic={() => editor?.toggleItalic()}
     onundo={() => editor?.undo()}
     onredo={() => editor?.redo()}
+    {lanesCollapsed}
+    ontogglelanes={toggleLanes}
   />
 
   <Editor

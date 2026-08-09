@@ -24,11 +24,20 @@ describe("[REQ-SET-2] schema DEFAULTS", () => {
     expect(DEFAULTS.editor.indentWidth).toBe(2);
   });
 
-  it("[REQ-LANE-1] defaults both lanes reserved, fold before marker (today's layout)", () => {
-    // Reproduces the fixed 3-column layout (REQ-RENDER-12) before any customization.
+  it("[REQ-LANE-1][REQ-LANE-4] defaults both lanes fold-before-marker, drawer wide-open/narrow-collapse", () => {
+    // Wide/desktop open=1 ⇒ byte-identical to the pre-lane layout (REQ-RENDER-12);
+    // narrow auto-collapses (SPEC §7.6). Fold before marker (spatial order).
     expect(DEFAULTS.lanes.order).toEqual(["fold", "marker"]);
-    expect(DEFAULTS.lanes.byId.fold).toEqual({ strategy: "reserved", drawerHeight: 1 });
-    expect(DEFAULTS.lanes.byId.marker).toEqual({ strategy: "reserved", drawerHeight: 2 });
+    expect(DEFAULTS.lanes.byId.fold).toEqual({
+      strategy: "drawer",
+      drawerHeight: 1,
+      defaultOpen: { narrow: false, wide: true },
+    });
+    expect(DEFAULTS.lanes.byId.marker).toEqual({
+      strategy: "drawer",
+      drawerHeight: 2,
+      defaultOpen: { narrow: false, wide: true },
+    });
   });
 });
 
