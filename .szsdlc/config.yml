@@ -37,6 +37,15 @@ entity_types:
         required: false
         description: "how it is covered — unit | integration (DOM) | Rust | live (WF)"
 
+  # Milestones are flat files in docs/sdlc/epics/ (EPIC-<id>-<slug>.md), not
+  # per-epic subdirectories. A `file` layout entity cannot carry artifacts, so
+  # the default journal.md is dropped (no epic here keeps a journal anyway); epic
+  # progress still aggregates from its child work items, not from an artifact.
+  epic:
+    layout: file
+    artifacts: []
+    journal_artifact: null
+
 views:
   # Render the requirements register onto the old docs/requirements.md path so it
   # replaces the hand-maintained registry in place. (roadmap already → roadmap.md.)
