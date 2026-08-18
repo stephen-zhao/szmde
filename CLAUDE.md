@@ -46,9 +46,10 @@ CodeMirror 6 · Svelte 5 / SvelteKit (`adapter-static`) · Tauri 2 · TypeScript
   **semantic** id (`[REQ-RENDER-1]`), which is preserved in each requirement entity's title/body (the
   szsdlc entity id is the opaque `REQ-NNNN`). `npm run test:trace` (`scripts/check-traceability.mjs`)
   audits that every catalogued requirement has a tagged test (or a tracked gap), CI-enforced
-  ([docs/ci-cd.md](docs/ci-cd.md)). ⚠️ **Follow-up:** the script keyed on the old `docs/requirements.md`
-  table format — after the szsdlc migration it must read the requirement entities (semantic id in
-  title/body) instead. Verify before relying on the trace gate.
+  ([docs/ci-cd.md](docs/ci-cd.md)). The script reads the szsdlc requirement entities directly
+  (`docs/sdlc/requirements/*.md`, flat files), taking each requirement's semantic id from its title and
+  treating a requirement as a tracked gap when it carries a `**Coverage gap:**` marker or declares no
+  deterministic `test_type` tier (e.g. `live (WF)` — the WF-* tier was intentionally not migrated).
 - **Live/interaction behavior** that happy-dom can't express (layout, clicks, caret, visuals) is
   covered by the LLM-driven workflow suite ([docs/llm-workflow-tests.md](docs/llm-workflow-tests.md),
   `WF-*`) — add a live workflow *before* fixing a live bug (TDD for interaction).

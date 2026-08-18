@@ -22,7 +22,11 @@ entity_types:
   # The default `requirement` definition, plus szmde's registry columns as
   # optional fields. The full statement, its covering tests and any WF-* live
   # workflows go in the entity body, exactly as szmde catalogued them.
+  # Requirements carry no artifacts, so they are flat files (REQ-<id>-<slug>.md)
+  # like ideas/epics, not per-requirement subdirectories. (scripts/check-traceability.mjs
+  # reads this layout.)
   requirement:
+    layout: file
     fields:
       area:
         type: text
@@ -45,6 +49,11 @@ entity_types:
     layout: file
     artifacts: []
     journal_artifact: null
+
+  # ADRs are persistent records that carry no artifacts either — flat files
+  # (ADR-<id>-<slug>.md) like requirements. Nothing reads their on-disk path.
+  decision:
+    layout: file
 
 views:
   # Render the requirements register onto the old docs/requirements.md path so it
