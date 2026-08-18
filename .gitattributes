@@ -1,0 +1,14 @@
+# szsdlc-managed files stay LF on every platform. szsdlc's generated-view
+# staleness check compares byte content, so a CRLF checkout (core.autocrlf is
+# true on Windows) would otherwise make `szsdlc validate` report every generated
+# view as stale on a fresh clone.
+.szsdlc/**            text eol=lf
+docs/sdlc/**          text eol=lf
+docs/roadmap.md       text eol=lf
+docs/requirements.md  text eol=lf
+docs/board.md         text eol=lf
+docs/decisions.md     text eol=lf
+docs/epic-rollup.md   text eol=lf
+docs/inbox.md         text eol=lf
+docs/tag-index.md     text eol=lf
+docs/traceability.md  text eol=lf

@@ -1,0 +1,44 @@
+# szsdlc project configuration for szmde.
+#
+# Deep-merged over the shipped defaults, so only the deltas from default appear
+# here. See E:/Projects/Dev-kyle/szsdlc/src/szsdlc/defaults/config.yml for the base.
+
+project:
+  name: szmde
+
+# Keep the repo root clean: entities + the roadmap record live under docs/sdlc/,
+# while the generated human-readable VIEWS render into docs/ so they land on the
+# old tracker paths (docs/roadmap.md, docs/requirements.md) and replace them.
+paths:
+  entities: docs/sdlc
+  roadmaps: docs/sdlc/roadmaps
+  views: docs
+  records: docs/sdlc/records
+  standards: docs/sdlc/standards
+  templates: .szsdlc/templates
+
+entity_types:
+
+  # The default `requirement` definition, plus szmde's registry columns as
+  # optional fields. The full statement, its covering tests and any WF-* live
+  # workflows go in the entity body, exactly as szmde catalogued them.
+  requirement:
+    fields:
+      area:
+        type: text
+        required: false
+        description: "AREA token of the id — RENDER, FORMAT, LIST, TABLE, TBLED, CLOUD, SET, SAVE, SEC, MOBILE, LANE, …"
+      spec_section:
+        type: text
+        required: false
+        description: "SPEC.md section this refines, e.g. §4.1"
+      test_type:
+        type: text
+        required: false
+        description: "how it is covered — unit | integration (DOM) | Rust | live (WF)"
+
+views:
+  # Render the requirements register onto the old docs/requirements.md path so it
+  # replaces the hand-maintained registry in place. (roadmap already → roadmap.md.)
+  requirements-register:
+    output: requirements.md

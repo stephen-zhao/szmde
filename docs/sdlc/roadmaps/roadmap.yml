@@ -1,0 +1,17 @@
+# Placement lives here and nowhere else — there is no priority field on an
+# entity. Written by `szsdlc schedule` / `szsdlc unschedule`.
+now:
+  - EPIC-0009
+  - EPIC-0010
+  - WI-0023
+  - WI-0025
+  - WI-0001
+  - WI-0002
+  - WI-0003
+  - WI-0004
+  - SPK-0003
+next:
+  - EPIC-0011
+later:
+  - EPIC-0012
+  - EPIC-0013
