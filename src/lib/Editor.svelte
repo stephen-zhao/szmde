@@ -3,6 +3,7 @@
   import type { RenderMode } from "./editor/render-mode";
   import type { IndentConfig } from "./editor/indent";
   import type { TextCount } from "./editor/count";
+  import type { LaneOpen } from "./editor/lane-drawers";
 
   /** Imperative handle the page uses to drive the editor. */
   export interface EditorApi {
@@ -37,6 +38,12 @@
      *  keyboards don't expose (REQ-UI-4). */
     undo(): void;
     redo(): void;
+    /** Set one or more left-edge lanes' open scalar ∈[0,1] (REQ-LANE-4): 1 = shown,
+     *  0 = collapsed. `animate` (default false) tweens; false snaps instantly (for
+     *  initial seeds / breakpoint auto-collapse — no cold-load slide). Survives
+     *  opening another file. The caller (+page) resolves the value from
+     *  strategy/breakpoint/session (lane-open.ts). */
+    setLanesOpen(open: Partial<LaneOpen>, animate?: boolean): void;
   }
 </script>
 
@@ -45,6 +52,7 @@
   import { EditorState } from "@codemirror/state";
   import { EditorView } from "@codemirror/view";
   import { editorExtensions, setGlobalWrap, wrapStateOf } from "./editor/setup";
+  import { DEFAULT_LANE_OPEN, setLaneOpen } from "./editor/lane-drawers";
   import { countText } from "./editor/count"; // TextCount type comes from the module script above
   import { setEmoji as applyEmoji } from "./editor/emoji";
   import {
@@ -90,6 +98,10 @@
   let emoji = true; // editor-wide; preserved across document loads
   let typewriter = true; // REQ-SCROLL-1; editor-wide, preserved across loads
   let typewriterAnchor = DEFAULT_TYPEWRITER_ANCHOR;
+  // REQ-LANE-4: per-lane open scalar ∈[0,1]. Editor-wide and preserved across file
+  // opens (re-seeded into each new state via buildState) so a user-chosen collapse
+  // survives opening another file (adversarial hole #4).
+  let laneOpen: LaneOpen = { ...DEFAULT_LANE_OPEN };
   let lastWrapState: WrapState | "" = "";
   let lastRenderMode: RenderMode | "" = "";
   let lastIndentKey = "";
@@ -104,7 +116,7 @@
         ...editorExtensions(codeWrap, renderMode, indent, emoji, {
           onZoomFont: (s) => onzoomfont?.(s),
           onZoomWidth: (s) => onzoomwidth?.(s),
-        }, typewriter, typewriterAnchor),
+        }, typewriter, typewriterAnchor, laneOpen),
         EditorView.updateListener.of((u) => {
           // Only real user transactions mark the document dirty; a setState
           // document load produces no transactions.
@@ -243,6 +255,16 @@
     view.focus();
   }
 
+  // REQ-LANE-4 — collapse/expand left-edge lanes. Merge into the editor-wide
+  // laneOpen (so the next buildState re-seeds it → survives file open) and dispatch
+  // the effect. `animate` carries the caller's snap-vs-tween intent (false = snap,
+  // for initial/breakpoint seeds; true = tween, for user toggles). No view.focus():
+  // toggled from a menu, keep the caret put.
+  function setLanesOpen(open: Partial<LaneOpen>, animate = false) {
+    laneOpen = { ...laneOpen, ...open };
+    if (view) view.dispatch({ effects: setLaneOpen.of({ open, animate }) });
+  }
+
   onMount(() => {
     view = new EditorView({ state: buildState(""), parent: container });
     view.focus();
@@ -267,6 +289,7 @@
       toggleItalic,
       undo,
       redo,
+      setLanesOpen,
     });
     onwrapstate?.(wrapStateOf(view.state));
     onrendermode?.(renderModeOf(view.state));

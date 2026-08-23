@@ -3,6 +3,14 @@ import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
 import { LANE_REGISTRY } from "../settings/lanes";
 
+// REQ-LANE-4: a lane's EFFECTIVE reserved width = its intrinsic width × an "open"
+// scalar ∈[0,1] (--fold-open / --marker-open, default 1) that the laneDrawers plugin
+// writes to collapse/expand it. `length * number` is valid calc; at open=1 these are
+// byte-identical to the pre-lane-drawer reserved widths (the var(--…, <registry>)
+// fallbacks are unchanged, so pre-settings/web render is identical too).
+const FOLD_LANE_W = `calc(var(${LANE_REGISTRY.fold.cssVar}, ${LANE_REGISTRY.fold.width}) * var(${LANE_REGISTRY.fold.openVar}, 1))`;
+const MARKER_LANE_W = `calc(var(${LANE_REGISTRY.marker.cssVar}, ${LANE_REGISTRY.marker.width}) * var(${LANE_REGISTRY.marker.openVar}, 1))`;
+
 /**
  * Base CodeMirror theme for szmde. The editor is a centered reading column on a
  * dark canvas (SPEC §7). Selection is the browser-native `::selection` (no
@@ -69,7 +77,7 @@ export const baseTheme = EditorView.theme(
       paddingTop: "calc(env(safe-area-inset-top, 0px) + 72px)",
       paddingRight: "28px",
       paddingBottom: "40vh",
-      paddingLeft: `calc(28px + var(--fold-col, ${LANE_REGISTRY.fold.width}) + var(--marker-gutter, ${LANE_REGISTRY.marker.width}))`,
+      paddingLeft: `calc(28px + ${FOLD_LANE_W} + ${MARKER_LANE_W})`,
     },
     "&.cm-focused": { outline: "none" },
     ".cm-content ::selection": { backgroundColor: "var(--selection)" },
@@ -598,7 +606,7 @@ export const baseTheme = EditorView.theme(
     // gutter into column A. Font-size pinned to the body size (NOT the heading em).
     ".cm-fold-chevron": {
       position: "absolute",
-      left: `calc(-1 * (var(--marker-gutter, ${LANE_REGISTRY.marker.width}) + var(--fold-col, ${LANE_REGISTRY.fold.width})))`,
+      left: `calc(-1 * (${MARKER_LANE_W} + ${FOLD_LANE_W}))`,
       top: "0.55em",
       // text-indent is inherited; the heading line carries a negative text-indent
       // (the gutter hang, RENDER-9), which would otherwise drag the arrow GLYPH left
@@ -609,6 +617,16 @@ export const baseTheme = EditorView.theme(
       // --fold-chevron-display: none, so the chevron leaves with its lane rather than
       // floating in the collapsed column. Mod-. still folds. Default = today's value.
       display: "var(--fold-chevron-display, inline-flex)",
+      // REQ-LANE-4: when the fold lane COLLAPSES (--fold-open → 0, a drawer at rest on
+      // a phone, not just strategy `off`) its `left` calc resolves to 0 (the content
+      // origin), which would paint the button chip over the start of the heading text
+      // AND intercept clicks there. Fade + shrink it away with the open scalar so it
+      // hides WITH the gutter: scale(0) leaves zero visual box → nothing to hit-test,
+      // opacity 0 → invisible; both track the tween. At open=1 this is identity
+      // (scale(1)/opacity(1)) → byte-identical to the pre-drawer chevron.
+      opacity: "var(--fold-open, 1)",
+      transform: "scale(var(--fold-open, 1))",
+      transformOrigin: "left center",
       alignItems: "center",
       justifyContent: "center",
       boxSizing: "border-box",

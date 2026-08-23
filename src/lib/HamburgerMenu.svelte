@@ -25,6 +25,8 @@
     onitalic,
     onundo,
     onredo,
+    lanesCollapsed,
+    ontogglelanes,
   }: {
     onnew: () => void;
     onopen: () => void;
@@ -49,6 +51,10 @@
     onitalic: () => void;
     onundo: () => void;
     onredo: () => void;
+    // REQ-LANE-4: collapse/expand the left-edge fold/marker lanes. `lanesCollapsed`
+    // reflects the current state for the ✓ (shown when NOT collapsed).
+    lanesCollapsed: boolean;
+    ontogglelanes: () => void;
   } = $props();
 
   let open = $state(false);
@@ -160,6 +166,16 @@
         />
       {/if}
       <hr />
+      <div class="section-label">View</div>
+      <button
+        role="menuitemcheckbox"
+        aria-checked={!lanesCollapsed}
+        title="Show the left fold-chevron / marker lanes — off reclaims the width"
+        onclick={() => run(ontogglelanes)}
+      >
+        Side lanes
+        <span class="check">{lanesCollapsed ? "" : "✓"}</span>
+      </button>
       <button
         role="menuitemcheckbox"
         aria-checked={wrapState === "on" ? "true" : wrapState === "partial" ? "mixed" : "false"}

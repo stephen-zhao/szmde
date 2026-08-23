@@ -50,8 +50,8 @@ describe("[REQ-LANE-1] applyLanes — lane model → CSS variables", () => {
     const lanes: LanesSettings = {
       order: ["fold", "marker"],
       byId: {
-        fold: { strategy: "drawer", drawerHeight: 1 },
-        marker: { strategy: "drawer", drawerHeight: 2 },
+        fold: { strategy: "drawer", drawerHeight: 1, defaultOpen: { narrow: false, wide: true } },
+        marker: { strategy: "drawer", drawerHeight: 2, defaultOpen: { narrow: false, wide: true } },
       },
     };
     applyLanes(t, lanes);
@@ -65,8 +65,8 @@ describe("[REQ-LANE-1] applyLanes — lane model → CSS variables", () => {
     const lanes: LanesSettings = {
       order: ["fold", "marker"],
       byId: {
-        fold: { strategy: "off", drawerHeight: 1 },
-        marker: { strategy: "reserved", drawerHeight: 2 },
+        fold: { strategy: "off", drawerHeight: 1, defaultOpen: { narrow: false, wide: true } },
+        marker: { strategy: "reserved", drawerHeight: 2, defaultOpen: { narrow: false, wide: true } },
       },
     };
     applyLanes(t, lanes);
