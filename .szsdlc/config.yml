@@ -1,0 +1,62 @@
+# szsdlc project configuration for szmde.
+#
+# Deep-merged over the shipped defaults, so only the deltas from default appear
+# here. See E:/Projects/Dev-kyle/szsdlc/src/szsdlc/defaults/config.yml for the base.
+
+project:
+  name: szmde
+
+# Keep the repo root clean: entities + the roadmap record live under docs/sdlc/,
+# while the generated human-readable VIEWS render into docs/ so they land on the
+# old tracker paths (docs/roadmap.md, docs/requirements.md) and replace them.
+paths:
+  entities: docs/sdlc
+  roadmaps: docs/sdlc/roadmaps
+  views: docs
+  records: docs/sdlc/records
+  standards: docs/sdlc/standards
+  templates: .szsdlc/templates
+
+entity_types:
+
+  # The default `requirement` definition, plus szmde's registry columns as
+  # optional fields. The full statement, its covering tests and any WF-* live
+  # workflows go in the entity body, exactly as szmde catalogued them.
+  # Requirements carry no artifacts, so they are flat files (REQ-<id>-<slug>.md)
+  # like ideas/epics, not per-requirement subdirectories. (scripts/check-traceability.mjs
+  # reads this layout.)
+  requirement:
+    layout: file
+    fields:
+      area:
+        type: text
+        required: false
+        description: "AREA token of the id — RENDER, FORMAT, LIST, TABLE, TBLED, CLOUD, SET, SAVE, SEC, MOBILE, LANE, …"
+      spec_section:
+        type: text
+        required: false
+        description: "SPEC.md section this refines, e.g. §4.1"
+      test_type:
+        type: text
+        required: false
+        description: "how it is covered — unit | integration (DOM) | Rust | live (WF)"
+
+  # Milestones are flat files in docs/sdlc/epics/ (EPIC-<id>-<slug>.md), not
+  # per-epic subdirectories. A `file` layout entity cannot carry artifacts, so
+  # the default journal.md is dropped (no epic here keeps a journal anyway); epic
+  # progress still aggregates from its child work items, not from an artifact.
+  epic:
+    layout: file
+    artifacts: []
+    journal_artifact: null
+
+  # ADRs are persistent records that carry no artifacts either — flat files
+  # (ADR-<id>-<slug>.md) like requirements. Nothing reads their on-disk path.
+  decision:
+    layout: file
+
+views:
+  # Render the requirements register onto the old docs/requirements.md path so it
+  # replaces the hand-maintained registry in place. (roadmap already → roadmap.md.)
+  requirements-register:
+    output: requirements.md

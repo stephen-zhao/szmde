@@ -3,8 +3,10 @@
 **szmde** (Stephen Zhao MarkDown Editor) is a fast, canvas-first **WYSIWYG GFM markdown editor**:
 a live-preview surface where headings render large, bullets render as bullets, and bold renders
 bold — while the file on disk stays plain, portable CommonMark/GFM text. [SPEC.md](SPEC.md) is the
-vision; [docs/roadmap.md](docs/roadmap.md) is the authoritative current-status tracker. Read those
-two before making product decisions.
+vision. Work tracking runs on **szsdlc** (entities under [docs/sdlc/](docs/sdlc/), generated views
+in `docs/`): run `szsdlc context` for the current status and `szsdlc next` for what to work on;
+[docs/roadmap.md](docs/roadmap.md) is the generated milestone view. Read SPEC.md and `szsdlc context`
+before making product decisions.
 
 ## Stack
 
@@ -32,19 +34,29 @@ CodeMirror 6 · Svelte 5 / SvelteKit (`adapter-static`) · Tauri 2 · TypeScript
 
 ## Process — no ad-hoc work (non-negotiable)
 
-- **Every unit of work maps to a `REQ-*` id** ([docs/requirements.md](docs/requirements.md)) **and a
-  SPEC section.** New behavior ⇒ catalogue a `REQ` first; new scope ⇒ add it to SPEC + roadmap first.
-  Nothing beyond a trivial fix starts without a spec + milestone + requirement.
+- **Every unit of work maps to a requirement and a SPEC section.** Requirements are `szsdlc`
+  `requirement` entities (`szsdlc list --type requirement`, register at [docs/requirements.md](docs/requirements.md));
+  each carries a `spec_section` field. New behavior ⇒ `szsdlc new requirement …` (or refine a captured
+  idea) first; new scope ⇒ add it to SPEC first. Nothing beyond a trivial fix starts without a
+  spec + milestone (`epic`) + requirement. Milestones are `epic`s that `implements` the requirements
+  they deliver; work items carry a `parent` epic — `szsdlc` refuses a `ready` work item without one.
 - **Strict TDD**, then **100%-lines coverage** (ratcheted, `vitest`). No silent caps — every coverage
   exclusion is explicit and reviewed; genuinely-unreachable lines carry `/* v8 ignore */` + a reason.
-- **Requirement↔test traceability:** tests tag their `[REQ-*]` in the `describe()` title;
-  `npm run test:trace` (`scripts/check-traceability.mjs`) audits that every catalogued requirement has
-  a tagged test (or a tracked gap). CI-enforced ([docs/ci-cd.md](docs/ci-cd.md)).
+- **Requirement↔test traceability:** tests tag their `[REQ-*]` in the `describe()` title with the
+  **semantic** id (`[REQ-RENDER-1]`), which is preserved in each requirement entity's title/body (the
+  szsdlc entity id is the opaque `REQ-NNNN`). `npm run test:trace` (`scripts/check-traceability.mjs`)
+  audits that every catalogued requirement has a tagged test (or a tracked gap), CI-enforced
+  ([docs/ci-cd.md](docs/ci-cd.md)). The script reads the szsdlc requirement entities directly
+  (`docs/sdlc/requirements/*.md`, flat files), taking each requirement's semantic id from its title and
+  treating a requirement as a tracked gap when it carries a `**Coverage gap:**` marker or declares no
+  deterministic `test_type` tier (e.g. `live (WF)` — the WF-* tier was intentionally not migrated).
 - **Live/interaction behavior** that happy-dom can't express (layout, clicks, caret, visuals) is
   covered by the LLM-driven workflow suite ([docs/llm-workflow-tests.md](docs/llm-workflow-tests.md),
   `WF-*`) — add a live workflow *before* fixing a live bug (TDD for interaction).
-- **Bugs vs requirements:** [docs/bugs.md](docs/bugs.md) is behavior that violates an *existing* REQ;
-  an under-specified gap becomes a *new* REQ in requirements.md. Each review round is triaged.
+- **Bugs vs requirements:** a bug is a `work_item` (parented to a milestone `epic`, `implements` the
+  `REQ` it restores) for behavior that violates an *existing* REQ; an under-specified gap becomes a
+  *new* `requirement`. Capture vaguer feedback with `szsdlc capture "…"` and refine it; each review
+  round is triaged. `szsdlc board` / `szsdlc list --type work_item` show open bugs and their status.
 - **Substantial code changes** get the adversarial multi-agent ("ultracode") find→verify-by-refutation
   review before merge.
 - **No hardcoded counts in prose docs.** Test counts, file counts, requirement/gap tallies and
@@ -115,10 +127,20 @@ adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-u
 
 ## Docs map
 
-[SPEC.md](SPEC.md) (vision) · [docs/roadmap.md](docs/roadmap.md) (authoritative tracker) ·
-[docs/requirements.md](docs/requirements.md) + [docs/bugs.md](docs/bugs.md) (live registries) ·
-[docs/testing-strategy.md](docs/testing-strategy.md) · [docs/ci-cd.md](docs/ci-cd.md) ·
-[docs/llm-workflow-tests.md](docs/llm-workflow-tests.md) ·
-[docs/m6-plan.md](docs/m6-plan.md) (current milestone plan) ·
-[docs/m3-cloud-setup.md](docs/m3-cloud-setup.md) (living ops guide) ·
-[docs/archive/](docs/archive/) (historical milestone plans). Full map: [docs/INDEX.md](docs/INDEX.md).
+**Work tracking is szsdlc** — entities under [docs/sdlc/](docs/sdlc/); ask `szsdlc context` /
+`szsdlc next` / `szsdlc list` / `szsdlc trace <ID>` rather than reading a static list. Generated
+(read-only) views: [docs/roadmap.md](docs/roadmap.md) · [docs/requirements.md](docs/requirements.md)
+(register) · [docs/board.md](docs/board.md) · [docs/epic-rollup.md](docs/epic-rollup.md) ·
+[docs/traceability.md](docs/traceability.md) · [docs/decisions.md](docs/decisions.md) ·
+[docs/inbox.md](docs/inbox.md) · [docs/tag-index.md](docs/tag-index.md). _(`docs/bugs.md` and
+`docs/m6-plan.md` were migrated into entities and removed; git history keeps them.)_
+
+Reference docs: [SPEC.md](SPEC.md) (vision) · [docs/testing-strategy.md](docs/testing-strategy.md) ·
+[docs/ci-cd.md](docs/ci-cd.md) · [docs/llm-workflow-tests.md](docs/llm-workflow-tests.md) (`WF-*` live
+tests — a test tier, migration deferred) · [docs/m3-cloud-setup.md](docs/m3-cloud-setup.md) (living
+ops guide) · [docs/archive/](docs/archive/) (historical milestone plans). Full map:
+[docs/INDEX.md](docs/INDEX.md).
+
+**szsdlc activation:** the automation (SessionStart status, generated-file guard, auto-sync,
+strict `validate` on stop) comes from the plugin — run `/plugin install szsdlc@szccpmp` once.
+Without it, `szsdlc sync` / `validate` still work from the CLI.
