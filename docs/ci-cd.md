@@ -9,15 +9,20 @@ doc map.
 
 Runs on **every push to `main`** and **every pull request**. Mirrors the local gate, so a
 green PR == a green `npm run check && npm run build && npm run test:coverage && npm run test:trace`
-plus the Rust checks. Two jobs:
+plus the SDLC and Rust checks. Three jobs:
 
 | Job | Runner | Steps |
 |-----|--------|-------|
 | **gate** | ubuntu-latest | `npm ci` → `check` (svelte-check, 0 errors) → `build` (prod Vite build) → `test:coverage` (vitest; **fails under 100% lines** — `vitest.config.ts` threshold) → `test:trace` (requirement↔test) |
+| **sdlc** | ubuntu-latest | install szsdlc (pinned git tag) → **generated views up to date** (`szsdlc sync` then `git diff` must be empty, so an entity edited without `szsdlc sync` fails the PR) → `szsdlc validate` (entity-graph consistency) |
 | **rust** | windows-latest | `cargo fmt --check` → `cargo clippy --all-targets -- -D warnings` → `cargo test` (in `src-tauri/`) |
 
 The rust job runs on Windows because that's the release target (WebView2 preinstalled); the
-frontend gate runs on Linux because the tests are platform-agnostic and it's faster.
+frontend and SDLC jobs run on Linux because they're platform-agnostic and it's faster.
+
+The **sdlc** job pins szsdlc to a git tag (not on PyPI) — keep it in step with the szsdlc plugin
+that generates the views locally. `docs/inbox.md` is excluded from the drift check: its relative
+"Age" column re-renders every day, so it is intentionally allowed to lag.
 
 ## Android build check — `.github/workflows/android.yml`
 
