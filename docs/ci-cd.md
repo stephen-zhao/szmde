@@ -9,15 +9,20 @@ doc map.
 
 Runs on **every push to `main`** and **every pull request**. Mirrors the local gate, so a
 green PR == a green `npm run check && npm run build && npm run test:coverage && npm run test:trace`
-plus the Rust checks. Two jobs:
+plus the SDLC and Rust checks. Three jobs:
 
 | Job | Runner | Steps |
 |-----|--------|-------|
 | **gate** | ubuntu-latest | `npm ci` → `check` (svelte-check, 0 errors) → `build` (prod Vite build) → `test:coverage` (vitest; **fails under 100% lines** — `vitest.config.ts` threshold) → `test:trace` (requirement↔test) |
+| **sdlc** | ubuntu-latest | `pip install zhaostephen-szsdlc` → **generated views up to date** (`szsdlc sync` then `git diff` must be empty, so an entity edited without `szsdlc sync` fails the PR) → `szsdlc validate` (entity-graph consistency) |
 | **rust** | windows-latest | `cargo fmt --check` → `cargo clippy --all-targets -- -D warnings` → `cargo test` (in `src-tauri/`) |
 
 The rust job runs on Windows because that's the release target (WebView2 preinstalled); the
-frontend gate runs on Linux because the tests are platform-agnostic and it's faster.
+frontend and SDLC jobs run on Linux because they're platform-agnostic and it's faster.
+
+The **sdlc** job installs szsdlc from PyPI (`zhaostephen-szsdlc`, latest). The generated views are
+deterministic — no clock-derived fields — so every view is checked; a szsdlc release that changes a
+view template just means re-running `szsdlc sync` and committing the result.
 
 ## Android build check — `.github/workflows/android.yml`
 

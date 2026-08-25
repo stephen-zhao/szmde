@@ -32,6 +32,32 @@ jobs:
       - name: Requirement ↔ test traceability
         run: npm run test:trace
 
+  sdlc:
+    name: SDLC (szsdlc views up to date · consistency)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install szsdlc
+        run: pip install zhaostephen-szsdlc
+      # The generated views (docs/*.md) must match the entities. Regenerate and fail
+      # if any committed view drifted — i.e. an entity was edited without running
+      # `szsdlc sync`. Views are deterministic (no clock-derived fields), so every
+      # generated view is checked and any diff is a real drift.
+      - name: Generated views are up to date
+        run: |
+          szsdlc sync
+          if ! git diff --exit-code; then
+            echo "::error::szsdlc generated views are stale — run 'szsdlc sync' and commit the result."
+            exit 1
+          fi
+      # Entity-graph consistency: broken links, missing parents, workflow violations,
+      # unparseable frontmatter.
+      - name: Entity consistency (szsdlc validate)
+        run: szsdlc validate
+
   rust:
     name: Rust (fmt · clippy · test)
     runs-on: windows-latest # matches the Windows release target; WebView2 preinstalled
