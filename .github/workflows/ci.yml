@@ -40,25 +40,21 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      # szsdlc is a Python CLI, not on PyPI — install from a pinned git tag so the
-      # run is reproducible. Bump this in lockstep with the szsdlc plugin used to
-      # generate the views locally (`/plugin install szsdlc@szccpmp`).
       - name: Install szsdlc
-        run: pip install 'szsdlc @ git+https://github.com/stephen-zhao/szsdlc@v0.1.3'
+        run: pip install zhaostephen-szsdlc
       # The generated views (docs/*.md) must match the entities. Regenerate and fail
       # if any committed view drifted — i.e. an entity was edited without running
-      # `szsdlc sync`. docs/inbox.md is excluded: its "Age" column is relative to the
-      # current date, so it re-renders daily regardless of any actual change.
+      # `szsdlc sync`. Views are deterministic (no clock-derived fields), so every
+      # generated view is checked and any diff is a real drift.
       - name: Generated views are up to date
         run: |
           szsdlc sync
-          if ! git diff --exit-code -- . ':!docs/inbox.md'; then
+          if ! git diff --exit-code; then
             echo "::error::szsdlc generated views are stale — run 'szsdlc sync' and commit the result."
             exit 1
           fi
       # Entity-graph consistency: broken links, missing parents, workflow violations,
-      # unparseable frontmatter. Runs after sync, so the daily inbox drift above is
-      # never a false failure.
+      # unparseable frontmatter.
       - name: Entity consistency (szsdlc validate)
         run: szsdlc validate
 
